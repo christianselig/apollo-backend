@@ -1,0 +1,20 @@
+#!/bin/sh
+
+set -e
+
+cd "$(dirname "$0")/.."
+
+brew bundle check >/dev/null 2>&1 || {
+  echo "==> Installing Homebrew dependencies..."
+  brew bundle
+}
+
+[ -d "tmp/postgresql" ] || {
+  echo "===> Setting up database..."
+  initdb -D tmp/postgresql -U apollo
+}
+
+go mod verify >/dev/null 2>&1 || {
+  echo "==> Installing Go dependencies..."
+  go mod download
+}
