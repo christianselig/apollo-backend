@@ -8,10 +8,11 @@ import (
 	"strings"
 )
 
-const userAgent = "server:test-api:v0.0.1 (by /u/changelog)"
+const userAgent = "server:test-api:v0.0.2 (by /u/changelog)"
 
 type Request struct {
 	body   url.Values
+	query  url.Values
 	method string
 	token  string
 	url    string
@@ -21,7 +22,7 @@ type Request struct {
 type RequestOption func(*Request)
 
 func NewRequest(opts ...RequestOption) *Request {
-	req := &Request{url.Values{}, "GET", "", "", ""}
+	req := &Request{url.Values{}, url.Values{}, "GET", "", "", ""}
 	for _, opt := range opts {
 		opt(req)
 	}
@@ -31,6 +32,8 @@ func NewRequest(opts ...RequestOption) *Request {
 
 func (r *Request) HTTPRequest() (*http.Request, error) {
 	req, err := http.NewRequest(r.method, r.url, strings.NewReader(r.body.Encode()))
+	req.URL.RawQuery = r.query.Encode()
+
 	req.Header.Add("User-Agent", userAgent)
 
 	if r.token != "" {
@@ -72,5 +75,11 @@ func WithToken(token string) RequestOption {
 func WithBody(key, val string) RequestOption {
 	return func(req *Request) {
 		req.body.Set(key, val)
+	}
+}
+
+func WithQuery(key, val string) RequestOption {
+	return func(req *Request) {
+		req.query.Set(key, val)
 	}
 }

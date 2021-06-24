@@ -2,7 +2,6 @@ package reddit
 
 import (
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"net/http"
 	"strings"
@@ -51,7 +50,7 @@ func (rac *AuthenticatedClient) request(r *Request) ([]byte, error) {
 	return ioutil.ReadAll(resp.Body)
 }
 
-func (rac *AuthenticatedClient) refreshTokens() (string, string, error) {
+func (rac *AuthenticatedClient) RefreshTokens() (*RefreshTokenResponse, error) {
 	req := NewRequest(
 		WithMethod("POST"),
 		WithURL(tokenURL),
@@ -61,20 +60,33 @@ func (rac *AuthenticatedClient) refreshTokens() (string, string, error) {
 	)
 
 	body, err := rac.request(req)
-	fmt.Println(string(body))
-	return "", "", err
+
+	if err != nil {
+		return nil, err
+	}
+
+	rtr := &RefreshTokenResponse{}
+	json.Unmarshal([]byte(body), rtr)
+	return rtr, nil
 }
 
-func (rac *AuthenticatedClient) MessageInbox() error {
+func (rac *AuthenticatedClient) MessageInbox(from string) (*MessageListingResponse, error) {
 	req := NewRequest(
 		WithMethod("GET"),
 		WithToken(rac.accessToken),
 		WithURL("https://oauth.reddit.com/message/inbox.json"),
+		WithQuery("before", from),
 	)
 
-	body, _ := rac.request(req)
-	fmt.Println(string(body))
-	return nil
+	body, err := rac.request(req)
+
+	if err != nil {
+		return nil, err
+	}
+
+	mlr := &MessageListingResponse{}
+	json.Unmarshal([]byte(body), mlr)
+	return mlr, nil
 }
 
 type MeResponse struct {
