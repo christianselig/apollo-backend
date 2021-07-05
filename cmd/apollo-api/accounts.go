@@ -8,7 +8,7 @@ import (
 
 	"github.com/julienschmidt/httprouter"
 
-	"github.com/andremedeiros/apollo/internal/data"
+	"github.com/christianselig/apollo-backend/internal/data"
 )
 
 func (app *application) upsertAccountHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {

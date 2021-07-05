@@ -15,8 +15,8 @@ import (
 	"github.com/sideshow/apns2/payload"
 	"github.com/sideshow/apns2/token"
 
-	"github.com/andremedeiros/apollo/internal/data"
-	"github.com/andremedeiros/apollo/internal/reddit"
+	"github.com/christianselig/apollo-backend/internal/data"
+	"github.com/christianselig/apollo-backend/internal/reddit"
 )
 
 type application struct {

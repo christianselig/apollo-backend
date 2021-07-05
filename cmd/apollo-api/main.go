@@ -11,8 +11,8 @@ import (
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 
-	"github.com/andremedeiros/apollo/internal/data"
-	"github.com/andremedeiros/apollo/internal/reddit"
+	"github.com/christianselig/apollo-backend/internal/data"
+	"github.com/christianselig/apollo-backend/internal/reddit"
 )
 
 type config struct {

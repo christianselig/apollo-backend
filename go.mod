@@ -1,4 +1,5 @@
-module github.com/andremedeiros/apollo
+// +heroku goVersion go1.16
+module github.com/christianselig/apollo-backend
 
 go 1.16
 
