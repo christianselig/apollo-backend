@@ -188,11 +188,18 @@
             }
           }
         }
+      },
+      "heroku": {
+        "version": "7.56.0",
+        "bottle": false
       }
     },
     "tap": {
       "contribsys/faktory": {
         "revision": "ada2f8b18fe79a40a906a7371d36c1d750422ca3"
+      },
+      "heroku/brew": {
+        "revision": "2a5c611fc8204f37fbe1a8be955c1fc6103edd5a"
       }
     }
   },
@@ -201,7 +208,7 @@
       "big_sur": {
         "HOMEBREW_VERSION": "3.2.1",
         "HOMEBREW_PREFIX": "/usr/local",
-        "Homebrew/homebrew-core": "4ba9cfde5eae5c7492a4eacebcefe72d57efd5fe",
+        "Homebrew/homebrew-core": "bd8b72f3f6453d9c55c73c36830b61a34b677bb0",
         "CLT": "12.5.0.22.11",
         "Xcode": "12.5.1",
         "macOS": "11.4"
