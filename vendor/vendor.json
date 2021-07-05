@@ -1,0 +1,10 @@
+{
+  "comment": "",
+  "heroku": {
+    "install": [
+      "./cmd/..."
+    ]
+  },
+  "package": [],
+  "rootPath": "github.com/christianselig/apollo-backend"
+}
