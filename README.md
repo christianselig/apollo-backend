@@ -11,5 +11,4 @@ $ cp .env.example .env
 
 ```sh
 $ script/server
-$ script/migrate
 ```

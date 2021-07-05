@@ -4,13 +4,7 @@ set -e
 
 cd "$(dirname "$0")/.."
 
-# ensure everything in the app is up to date.
-script/bootstrap
+DATABASE_URL=postgres://apollo:@localhost/apollo?sslmode=disable
 
-[ -f ".env" ] && {
-  source .env
-
-  echo "===> Running migrations..."
-  createdb -U apollo apollo || true
-  migrate -path=./migrations -database=$DATABASE_URL up
-}
+echo "===> Running migrations..."
+migrate -path=./migrations -database=$DATABASE_URL up

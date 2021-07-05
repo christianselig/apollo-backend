@@ -12,6 +12,18 @@ brew bundle check >/dev/null 2>&1 || {
 [ -d "tmp/postgresql" ] || {
   echo "===> Setting up database..."
   initdb -D tmp/postgresql -U apollo
+  postgres -D tmp/postgresql &
+
+  echo "===> Waiting for Postgres to finish starting up..."
+  while ! nc -z localhost 5432; do
+    sleep 0.1 # wait for 1/10 of the second before check again
+  done
+
+  createdb apollo -U apollo
+
+  script/migrate
+
+  kill -INT `head -n1 tmp/postgresql/postmaster.pid`
 }
 
 go mod verify >/dev/null 2>&1 || {
