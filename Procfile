@@ -1,2 +1,2 @@
-web: apollo-api
-worker apollo-worker
+web: bin/apollo-api
+worker bin/apollo-worker
