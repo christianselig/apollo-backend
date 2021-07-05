@@ -29,7 +29,7 @@ type application struct {
 var workers int = runtime.NumCPU() * 2
 
 func accountWorker(id int, rc *reddit.Client, db *sql.DB, logger *log.Logger, quit chan bool) {
-	authKey, err := token.AuthKeyFromFile("./tmp/authkey.p8")
+	authKey, err := token.AuthKeyFromFile(os.Getenv("APPLE_AUTHKEY_PATH"))
 	token := &token.Token{
 		AuthKey: authKey,
 		KeyID:   "T88A7G9LZ8",
@@ -130,6 +130,8 @@ func main() {
 		log.Fatal(err)
 	}
 	defer db.Close()
+
+	logger.Printf("Starting with %d workers.", workers)
 
 	db.SetMaxOpenConns(workers)
 

@@ -1,2 +1,2 @@
-postgres: postgres -D tmp/postgresql
-pgbouncer: pgbouncer -q config/pgbouncer.ini
+web: cmd/apollo-api
+worker cmd/apollo-worker
