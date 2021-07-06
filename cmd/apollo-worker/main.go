@@ -64,7 +64,7 @@ func accountWorker(id int, rc *reddit.Client, db *sql.DB, logger *log.Logger, qu
 			}
 
 			query := `
-				SELECT id, access_token, refresh_token, expires_at, last_message_id FROM accounts
+				SELECT id, access_token, refresh_token, expires_at, last_message_id, last_checked_at FROM accounts
 				WHERE last_checked_at <= $1 - 5
 				ORDER BY last_checked_at
 				LIMIT 1
@@ -72,7 +72,7 @@ func accountWorker(id int, rc *reddit.Client, db *sql.DB, logger *log.Logger, qu
 			args := []interface{}{now}
 
 			account := &data.Account{}
-			err = tx.QueryRow(query, args...).Scan(&account.ID, &account.AccessToken, &account.RefreshToken, &account.ExpiresAt, &account.LastMessageID)
+			err = tx.QueryRow(query, args...).Scan(&account.ID, &account.AccessToken, &account.RefreshToken, &account.ExpiresAt, &account.LastMessageID, &account.LastCheckedAt)
 
 			if account.ID == 0 {
 				time.Sleep(100 * time.Millisecond)
@@ -80,6 +80,7 @@ func accountWorker(id int, rc *reddit.Client, db *sql.DB, logger *log.Logger, qu
 				continue
 			}
 
+			statsd.Histogram("apollo.notification.latency", (now - 5 - account.LastCheckedAt))
 			logger.Printf("Worker #%d, account %d", id, account.ID)
 
 			_, err = tx.Exec(`UPDATE accounts SET last_checked_at = $1 WHERE id = $2`, now, account.ID)
