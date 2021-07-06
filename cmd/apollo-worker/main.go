@@ -29,6 +29,7 @@ type application struct {
 }
 
 var workers int = runtime.NumCPU() * 8
+var rate float64 = 1
 
 func accountWorker(id int, rc *reddit.Client, db *sql.DB, logger *log.Logger, quit chan bool) {
 	authKey, err := token.AuthKeyFromBytes([]byte(os.Getenv("APPLE_KEY_PKEY")))
@@ -80,7 +81,7 @@ func accountWorker(id int, rc *reddit.Client, db *sql.DB, logger *log.Logger, qu
 				continue
 			}
 
-			statsd.Histogram("apollo.notification.latency", (now - 5 - account.LastCheckedAt))
+			statsd.Histogram("apollo.notification.latency", float64(now-5-account.LastCheckedAt), []string{}, rate)
 			logger.Printf("Worker #%d, account %d", id, account.ID)
 
 			_, err = tx.Exec(`UPDATE accounts SET last_checked_at = $1 WHERE id = $2`, now, account.ID)
@@ -95,7 +96,7 @@ func accountWorker(id int, rc *reddit.Client, db *sql.DB, logger *log.Logger, qu
 			t1 := time.Now()
 			msgs, err := rac.MessageInbox(account.LastMessageID)
 			t2 := time.Now()
-			statsd.Histogram("reddit.api.latency", t2.Sub(t1).Milliseconds())
+			statsd.Histogram("reddit.api.latency", float64(t2.Sub(t1).Milliseconds()), []string{}, rate)
 
 			if err != nil {
 				log.Fatal(err)
@@ -146,12 +147,12 @@ func accountWorker(id int, rc *reddit.Client, db *sql.DB, logger *log.Logger, qu
 					t1 := time.Now()
 					res, err := client.Push(notification)
 					t2 := time.Now()
-					statsd.Histogram("apns.notification.latency", t2.Sub(t1).Milliseconds())
+					statsd.Histogram("apns.notification.latency", float64(t2.Sub(t1).Milliseconds()), []string{}, rate)
 					if err != nil {
-						statsd.Incr("apns.notification.errors", 1)
+						statsd.Incr("apns.notification.errors", []string{}, rate)
 						logger.Printf("Error sending push to %s: %s", device, err)
 					} else {
-						statsd.Incr("apns.notification.sent", 1)
+						statsd.Incr("apns.notification.sent", []string{}, rate)
 						logger.Printf("Push response: %v %v %v\n", res.StatusCode, res.ApnsID, res.Reason)
 					}
 				}
