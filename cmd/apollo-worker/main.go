@@ -128,7 +128,7 @@ func accountWorker(id int, rc *reddit.Client, db *sql.DB, logger *log.Logger, qu
 					notification.Payload = payload.NewPayload().AlertTitle(msg.Subject).AlertBody(msg.Body)
 					res, err := client.Push(notification)
 					if err != nil {
-						logger.Printf("Error sending push: %s", err)
+						logger.Printf("Error sending push to %s: %s", device, err)
 					} else {
 						logger.Printf("Push response: %v %v %v\n", res.StatusCode, res.ApnsID, res.Reason)
 					}
