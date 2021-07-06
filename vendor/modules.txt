@@ -1,0 +1,37 @@
+# github.com/contribsys/faktory v1.5.1
+## explicit
+# github.com/contribsys/faktory_worker_go v1.4.2
+## explicit
+# github.com/davecgh/go-spew v1.1.1
+## explicit
+# github.com/dgrijalva/jwt-go v3.2.0+incompatible
+## explicit
+github.com/dgrijalva/jwt-go
+# github.com/joho/godotenv v1.3.0
+## explicit
+github.com/joho/godotenv
+# github.com/julienschmidt/httprouter v1.3.0
+## explicit
+github.com/julienschmidt/httprouter
+# github.com/lib/pq v1.10.1
+## explicit
+github.com/lib/pq
+github.com/lib/pq/oid
+github.com/lib/pq/scram
+# github.com/sideshow/apns2 v0.20.0
+## explicit
+github.com/sideshow/apns2
+github.com/sideshow/apns2/payload
+github.com/sideshow/apns2/token
+# github.com/stretchr/testify v1.5.1
+## explicit
+# golang.org/x/net v0.0.0-20201202161906-c7110b5ffcbb
+golang.org/x/net/http/httpguts
+golang.org/x/net/http2
+golang.org/x/net/http2/hpack
+golang.org/x/net/idna
+# golang.org/x/text v0.3.3
+golang.org/x/text/secure/bidirule
+golang.org/x/text/transform
+golang.org/x/text/unicode/bidi
+golang.org/x/text/unicode/norm
