@@ -31,7 +31,7 @@ type application struct {
 var workers int = runtime.NumCPU() * 8
 var rate float64 = 1
 
-func accountWorker(id int, rc *reddit.Client, db *sql.DB, logger *log.Logger, quit chan bool) {
+func accountWorker(id int, rc *reddit.Client, db *sql.DB, logger *log.Logger, statsd *statsd.Client, quit chan bool) {
 	authKey, err := token.AuthKeyFromBytes([]byte(os.Getenv("APPLE_KEY_PKEY")))
 	token := &token.Token{
 		AuthKey: authKey,
@@ -44,11 +44,6 @@ func accountWorker(id int, rc *reddit.Client, db *sql.DB, logger *log.Logger, qu
 	}
 
 	client := apns2.NewTokenClient(token)
-
-	statsd, err := statsd.New("127.0.0.1:8125")
-	if err != nil {
-		log.Fatal(err)
-	}
 
 	for {
 		select {
@@ -131,12 +126,13 @@ func accountWorker(id int, rc *reddit.Client, db *sql.DB, logger *log.Logger, qu
 			if err != nil {
 				logger.Fatal(err)
 			}
+			defer rows.Close()
+
 			for rows.Next() {
 				var device string
 				rows.Scan(&device)
 				devices = append(devices, device)
 			}
-			rows.Close()
 
 			for _, msg := range msgs.MessageListing.Messages {
 				for _, device := range devices {
@@ -187,12 +183,17 @@ func main() {
 
 	db.SetMaxOpenConns(workers)
 
+	statsd, err := statsd.New("127.0.0.1:8125")
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	// This is a very conservative value -- seen as most of the work that is done in these jobs is
 	//
 	runtime.GOMAXPROCS(workers)
 	quitCh := make(chan bool, workers)
 	for i := 0; i < workers; i++ {
-		go accountWorker(i, rc, db, logger, quitCh)
+		go accountWorker(i, rc, db, logger, statsd, quitCh)
 	}
 
 	sigs := make(chan os.Signal, 1)
