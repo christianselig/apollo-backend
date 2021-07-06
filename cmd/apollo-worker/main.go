@@ -116,12 +116,11 @@ func accountWorker(id int, rc *reddit.Client, db *sql.DB, logger *log.Logger, qu
 }
 
 func main() {
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatal("Error loading .env file")
-	}
-
 	logger := log.New(os.Stdout, "", log.Ldate|log.Ltime)
+
+	if err := godotenv.Load(); err != nil {
+		logger.Printf("Couldn't find .env so I will read from existing ENV.")
+	}
 
 	rc := reddit.NewClient(os.Getenv("REDDIT_CLIENT_ID"), os.Getenv("REDDIT_CLIENT_SECRET"))
 
