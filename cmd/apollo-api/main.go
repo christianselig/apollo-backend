@@ -35,7 +35,12 @@ func main() {
 
 	var cfg config
 
-	db, err := sql.Open("postgres", os.Getenv("DATABASE_URL"))
+	dburl, ok := os.LookupEnv("DATABASE_CONNECTION_POOL_URL")
+	if !ok {
+		dburl = os.Getenv("DATABASE_URL")
+	}
+
+	db, err := sql.Open("postgres", dburl)
 	if err != nil {
 		log.Fatal(err)
 	}
