@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/DataDog/datadog-go/statsd"
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 	"github.com/sideshow/apns2"
@@ -42,6 +43,11 @@ func accountWorker(id int, rc *reddit.Client, db *sql.DB, logger *log.Logger, qu
 	}
 
 	client := apns2.NewTokenClient(token)
+
+	statsd, err := statsd.New("127.0.0.1:8125")
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	for {
 		select {
@@ -85,7 +91,11 @@ func accountWorker(id int, rc *reddit.Client, db *sql.DB, logger *log.Logger, qu
 					tokens.AccessToken, tokens.RefreshToken, now+3500, account.ID)
 			}
 
+			t1 := time.Now()
 			msgs, err := rac.MessageInbox(account.LastMessageID)
+			t2 := time.Now()
+			statsd.Histogram("reddit.api.latency", t2.Sub(t1).Milliseconds())
+
 			if err != nil {
 				log.Fatal(err)
 			}
@@ -132,10 +142,15 @@ func accountWorker(id int, rc *reddit.Client, db *sql.DB, logger *log.Logger, qu
 					notification.DeviceToken = device
 					notification.Topic = "com.christianselig.Apollo"
 					notification.Payload = payload.NewPayload().AlertTitle(msg.Subject).AlertBody(msg.Body)
+					t1 := time.Now()
 					res, err := client.Push(notification)
+					t2 := time.Now()
+					statsd.Histogram("apns.notification.latency", t2.Sub(t1).Milliseconds())
 					if err != nil {
+						statsd.Incr("apns.notification.errors", 1)
 						logger.Printf("Error sending push to %s: %s", device, err)
 					} else {
+						statsd.Incr("apns.notification.sent", 1)
 						logger.Printf("Push response: %v %v %v\n", res.StatusCode, res.ApnsID, res.Reason)
 					}
 				}
