@@ -103,16 +103,35 @@ func accountWorker(id int, rc *reddit.Client, db *sql.DB, logger *log.Logger, qu
 				log.Fatal(err)
 			}
 
+			devices := []string{}
+			query = `
+				SELECT apns_token FROM devices
+				LEFT JOIN devices_accounts ON devices.id = devices_accounts.device_id
+				WHERE devices_accounts.account_id = $1`
+
+			rows, err := tx.Query(query, account.ID)
+			if err != nil {
+				logger.Fatal(err)
+			}
+			for rows.Next() {
+				var device string
+				rows.Scan(&device)
+				devices = append(devices, device)
+			}
+			rows.Close()
+
 			for _, msg := range msgs.MessageListing.Messages {
-				notification := &apns2.Notification{}
-				notification.DeviceToken = "9e1eb4c68d24a8f43eb92ed0a65f46aadbfbdbfe0a15ef4b5c34a9a4deb9ca49"
-				notification.Topic = "com.christianselig.Apollo"
-				notification.Payload = payload.NewPayload().AlertTitle(msg.Subject).AlertBody(msg.Body)
-				res, err := client.Push(notification)
-				if err != nil {
-					logger.Printf("Error sending push: %s", err)
-				} else {
-					logger.Printf("Push response: %v %v %v\n", res.StatusCode, res.ApnsID, res.Reason)
+				for _, device := range devices {
+					notification := &apns2.Notification{}
+					notification.DeviceToken = device
+					notification.Topic = "com.christianselig.Apollo"
+					notification.Payload = payload.NewPayload().AlertTitle(msg.Subject).AlertBody(msg.Body)
+					res, err := client.Push(notification)
+					if err != nil {
+						logger.Printf("Error sending push: %s", err)
+					} else {
+						logger.Printf("Push response: %v %v %v\n", res.StatusCode, res.ApnsID, res.Reason)
+					}
 				}
 			}
 
