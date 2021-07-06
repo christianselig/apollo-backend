@@ -30,11 +30,11 @@ type application struct {
 var workers int = runtime.NumCPU() * 8
 
 func accountWorker(id int, rc *reddit.Client, db *sql.DB, logger *log.Logger, quit chan bool) {
-	authKey, err := token.AuthKeyFromFile(os.Getenv("APPLE_AUTHKEY_PATH"))
+	authKey, err := token.AuthKeyFromBytes([]byte(os.Getenv("APPLE_KEY_PKEY")))
 	token := &token.Token{
 		AuthKey: authKey,
-		KeyID:   "T88A7G9LZ8",
-		TeamID:  "XG3L8T56DK",
+		KeyID:   os.Getenv("APPLE_KEY_ID"),
+		TeamID:  os.Getenv("APPLE_TEAM_ID"),
 	}
 
 	if err != nil {
