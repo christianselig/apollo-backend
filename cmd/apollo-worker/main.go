@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -129,7 +130,7 @@ func main() {
 		dburl = os.Getenv("DATABASE_URL")
 	}
 
-	db, err := sql.Open("postgres", dburl)
+	db, err := sql.Open("postgres", fmt.Sprintf("%s?binary_parameters=yes", dburl))
 	if err != nil {
 		log.Fatal(err)
 	}
