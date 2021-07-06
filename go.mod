@@ -1,4 +1,3 @@
-// +heroku install ./cmd/...
 module github.com/christianselig/apollo-backend
 
 // +heroku goVersion go1.16
