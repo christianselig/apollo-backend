@@ -26,7 +26,7 @@ type application struct {
 	client *reddit.Client
 }
 
-var workers int = runtime.NumCPU() * 2
+var workers int = runtime.NumCPU() * 8
 
 func accountWorker(id int, rc *reddit.Client, db *sql.DB, logger *log.Logger, quit chan bool) {
 	authKey, err := token.AuthKeyFromFile(os.Getenv("APPLE_AUTHKEY_PATH"))
