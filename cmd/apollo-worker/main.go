@@ -108,7 +108,12 @@ func accountWorker(id int, rc *reddit.Client, db *sql.DB, logger *log.Logger, qu
 				notification.DeviceToken = "9e1eb4c68d24a8f43eb92ed0a65f46aadbfbdbfe0a15ef4b5c34a9a4deb9ca49"
 				notification.Topic = "com.christianselig.Apollo"
 				notification.Payload = payload.NewPayload().AlertTitle(msg.Subject).AlertBody(msg.Body)
-				client.Push(notification)
+				res, err := client.Push(notification)
+				if err != nil {
+					logger.Printf("Error sending push: %s", err)
+				} else {
+					logger.Printf("Push response: %v %v %v\n", res.StatusCode, res.ApnsID, res.Reason)
+				}
 			}
 
 			tx.Commit()
