@@ -2,7 +2,6 @@ package main
 
 import (
 	"database/sql"
-	"flag"
 	"fmt"
 	"log"
 	"net/http"
@@ -35,8 +34,6 @@ func main() {
 	}
 
 	var cfg config
-	flag.IntVar(&cfg.port, "port", 4000, "API server port")
-	flag.Parse()
 
 	db, err := sql.Open("postgres", os.Getenv("DATABASE_URL"))
 	if err != nil {
@@ -54,8 +51,13 @@ func main() {
 		rc,
 	}
 
+	port, ok := os.LookupEnv("PORT")
+	if !ok {
+		port = "4000"
+	}
+
 	srv := &http.Server{
-		Addr:    fmt.Sprintf(":%d", cfg.port),
+		Addr:    fmt.Sprintf(":%s", port),
 		Handler: app.routes(),
 	}
 
