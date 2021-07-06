@@ -103,6 +103,12 @@ func accountWorker(id int, rc *reddit.Client, db *sql.DB, logger *log.Logger, qu
 				log.Fatal(err)
 			}
 
+			// If no latest message recorded, we're not going to notify on every message. Remember that and move on.
+			if account.LastMessageID == "" {
+				tx.Commit()
+				continue
+			}
+
 			devices := []string{}
 			query = `
 				SELECT apns_token FROM devices
