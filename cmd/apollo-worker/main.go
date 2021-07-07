@@ -77,8 +77,6 @@ func accountWorker(id int, rc *reddit.Client, db *sql.DB, logger *log.Logger, st
 				continue
 			}
 
-			statsd.Histogram("apollo.notification.latency", float64(now-5-account.LastCheckedAt), []string{}, rate)
-
 			_, err = tx.Exec(`UPDATE accounts SET last_checked_at = $1 WHERE id = $2`, now, account.ID)
 
 			rac := rc.NewAuthenticatedClient(account.RefreshToken, account.AccessToken)
@@ -104,6 +102,9 @@ func accountWorker(id int, rc *reddit.Client, db *sql.DB, logger *log.Logger, st
 
 			// Set latest message we alerted on
 			latestMsg := msgs.MessageListing.Messages[0]
+
+			latency := latestMsg.CreatedAt - float64(now)
+			statsd.Histogram("apollo.notification.latency", latency, []string{}, rate)
 
 			_, err = tx.Exec(`UPDATE accounts SET last_message_id = $1 WHERE id = $2`, latestMsg.FullName(), account.ID)
 			if err != nil {
