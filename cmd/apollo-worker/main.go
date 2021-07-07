@@ -43,7 +43,8 @@ func accountWorker(id int, rc *reddit.Client, db *sql.DB, logger *log.Logger, st
 		log.Fatal("token error:", err)
 	}
 
-	client := apns2.NewTokenClient(token)
+	sandboxClient := apns2.NewTokenClient(token)
+	productionClient := apns2.NewTokenClient(token).Production()
 
 	for {
 		select {
@@ -116,9 +117,8 @@ func accountWorker(id int, rc *reddit.Client, db *sql.DB, logger *log.Logger, st
 				continue
 			}
 
-			devices := []string{}
 			query = `
-				SELECT apns_token FROM devices
+				SELECT apns_token, sandbox FROM devices
 				LEFT JOIN devices_accounts ON devices.id = devices_accounts.device_id
 				WHERE devices_accounts.account_id = $1`
 
@@ -128,18 +128,23 @@ func accountWorker(id int, rc *reddit.Client, db *sql.DB, logger *log.Logger, st
 			}
 			defer rows.Close()
 
+			devices := []data.Device{}
 			for rows.Next() {
-				var device string
-				rows.Scan(&device)
+				device := data.Device{}
+				rows.Scan(&device.APNSToken, &device.Sandbox)
 				devices = append(devices, device)
 			}
 
 			for _, msg := range msgs.MessageListing.Messages {
 				for _, device := range devices {
 					notification := &apns2.Notification{}
-					notification.DeviceToken = device
+					notification.DeviceToken = device.APNSToken
 					notification.Topic = "com.christianselig.Apollo"
 					notification.Payload = payload.NewPayload().AlertTitle(msg.Subject).AlertBody(msg.Body)
+					client := productionClient
+					if device.Sandbox {
+						client = sandboxClient
+					}
 					t1 := time.Now()
 					res, err := client.Push(notification)
 					t2 := time.Now()
