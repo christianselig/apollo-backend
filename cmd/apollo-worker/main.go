@@ -61,7 +61,7 @@ func accountWorker(id int, rc *reddit.Client, db *sql.DB, logger *log.Logger, st
 			}
 
 			query := `
-				SELECT id, access_token, refresh_token, expires_at, last_message_id, last_checked_at FROM accounts
+				SELECT id, username, access_token, refresh_token, expires_at, last_message_id, last_checked_at FROM accounts
 				WHERE last_checked_at <= $1 - 5
 				ORDER BY last_checked_at
 				LIMIT 1
@@ -69,7 +69,7 @@ func accountWorker(id int, rc *reddit.Client, db *sql.DB, logger *log.Logger, st
 			args := []interface{}{now}
 
 			account := &data.Account{}
-			err = tx.QueryRow(query, args...).Scan(&account.ID, &account.AccessToken, &account.RefreshToken, &account.ExpiresAt, &account.LastMessageID, &account.LastCheckedAt)
+			err = tx.QueryRow(query, args...).Scan(&account.ID, &account.Username, &account.AccessToken, &account.RefreshToken, &account.ExpiresAt, &account.LastMessageID, &account.LastCheckedAt)
 
 			if account.ID == 0 {
 				time.Sleep(100 * time.Millisecond)
@@ -78,7 +78,6 @@ func accountWorker(id int, rc *reddit.Client, db *sql.DB, logger *log.Logger, st
 			}
 
 			statsd.Histogram("apollo.notification.latency", float64(now-5-account.LastCheckedAt), []string{}, rate)
-			logger.Printf("Worker #%d, account %d", id, account.ID)
 
 			_, err = tx.Exec(`UPDATE accounts SET last_checked_at = $1 WHERE id = $2`, now, account.ID)
 
@@ -151,10 +150,10 @@ func accountWorker(id int, rc *reddit.Client, db *sql.DB, logger *log.Logger, st
 					statsd.Histogram("apns.notification.latency", float64(t2.Sub(t1).Milliseconds()), []string{}, rate)
 					if err != nil {
 						statsd.Incr("apns.notification.errors", []string{}, rate)
-						logger.Printf("Error sending push to %s: %s", device, err)
+						logger.Printf("apns error account=%s token=%s err=%s status=%d reason=%q", account.Username, device, err, res.StatusCode, res.Reason)
 					} else {
 						statsd.Incr("apns.notification.sent", []string{}, rate)
-						logger.Printf("Push response: %v %v %v\n", res.StatusCode, res.ApnsID, res.Reason)
+						logger.Printf("apns success account=%s token=%s", account.Username, device.APNSToken)
 					}
 				}
 			}
