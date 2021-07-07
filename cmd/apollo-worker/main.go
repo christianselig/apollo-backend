@@ -29,7 +29,7 @@ type application struct {
 }
 
 var workers int = runtime.NumCPU() * 4
-var rate float64 = 1
+var rate float64 = 0.1
 
 func accountWorker(id int, rc *reddit.Client, db *sql.DB, logger *log.Logger, statsd *statsd.Client, quit chan bool) {
 	authKey, err := token.AuthKeyFromBytes([]byte(os.Getenv("APPLE_KEY_PKEY")))
@@ -72,8 +72,8 @@ func accountWorker(id int, rc *reddit.Client, db *sql.DB, logger *log.Logger, st
 			err = tx.QueryRow(query, args...).Scan(&account.ID, &account.Username, &account.AccessToken, &account.RefreshToken, &account.ExpiresAt, &account.LastMessageID, &account.LastCheckedAt)
 
 			if account.ID == 0 {
-				time.Sleep(100 * time.Millisecond)
 				tx.Commit()
+				time.Sleep(100 * time.Millisecond)
 				continue
 			}
 
@@ -148,12 +148,12 @@ func accountWorker(id int, rc *reddit.Client, db *sql.DB, logger *log.Logger, st
 					t1 := time.Now()
 					res, err := client.Push(notification)
 					t2 := time.Now()
-					statsd.Histogram("apns.notification.latency", float64(t2.Sub(t1).Milliseconds()), []string{}, rate)
+					statsd.Histogram("apns.notification.latency", float64(t2.Sub(t1).Milliseconds()), []string{}, float64(1))
 					if err != nil {
-						statsd.Incr("apns.notification.errors", []string{}, rate)
-						logger.Printf("apns error account=%s token=%s err=%s status=%d reason=%q", account.Username, device, err, res.StatusCode, res.Reason)
+						statsd.Incr("apns.notification.errors", []string{}, float64(1))
+						logger.Printf("apns error account=%s token=%s err=%s status=%d reason=%q", account.Username, device.APNSToken, err, res.StatusCode, res.Reason)
 					} else {
-						statsd.Incr("apns.notification.sent", []string{}, rate)
+						statsd.Incr("apns.notification.sent", []string{}, float64(1))
 						logger.Printf("apns success account=%s token=%s", account.Username, device.APNSToken)
 					}
 				}
