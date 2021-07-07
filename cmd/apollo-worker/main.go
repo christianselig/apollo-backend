@@ -31,7 +31,7 @@ type application struct {
 var (
 	workers int     = runtime.NumCPU() * 6
 	rate    float64 = 0.1
-	backoff int64   = 5
+	backoff int     = 5
 )
 
 func accountWorker(id int, rc *reddit.Client, db *sql.DB, logger *log.Logger, statsd *statsd.Client, quit chan bool) {
@@ -54,8 +54,7 @@ func accountWorker(id int, rc *reddit.Client, db *sql.DB, logger *log.Logger, st
 		case <-quit:
 			return
 		default:
-			now := time.Now().UTC().Unix()
-
+			now := float64(time.Now().UTC().UnixNano()/int64(time.Millisecond)) / 1000
 			tx, err := db.Begin()
 
 			if err != nil {
@@ -81,14 +80,14 @@ func accountWorker(id int, rc *reddit.Client, db *sql.DB, logger *log.Logger, st
 			}
 
 			if account.LastCheckedAt > 0 {
-				latency := now - account.LastCheckedAt - backoff
+				latency := now - account.LastCheckedAt - float64(backoff)
 				statsd.Histogram("apollo.queue.delay", float64(latency), []string{}, rate)
 			}
 
 			_, err = tx.Exec(`UPDATE accounts SET last_checked_at = $1 WHERE id = $2`, now, account.ID)
 
 			rac := rc.NewAuthenticatedClient(account.RefreshToken, account.AccessToken)
-			if account.ExpiresAt < now {
+			if account.ExpiresAt < int64(now) {
 				tokens, _ := rac.RefreshTokens()
 				tx.Exec(`UPDATE accounts SET access_token = $1, refresh_token = $2, expires_at = $3 WHERE id = $4`,
 					tokens.AccessToken, tokens.RefreshToken, now+3500, account.ID)
@@ -111,7 +110,7 @@ func accountWorker(id int, rc *reddit.Client, db *sql.DB, logger *log.Logger, st
 			// Set latest message we alerted on
 			latestMsg := msgs.MessageListing.Messages[0]
 
-			latency := float64(now) - latestMsg.CreatedAt
+			latency := now - latestMsg.CreatedAt
 			statsd.Histogram("apollo.notification.latency", latency, []string{}, rate)
 
 			_, err = tx.Exec(`UPDATE accounts SET last_message_id = $1 WHERE id = $2`, latestMsg.FullName(), account.ID)
