@@ -65,11 +65,11 @@ func accountWorker(id int, rc *reddit.Client, db *sql.DB, logger *log.Logger, st
 
 			query := `
 				SELECT id, username, access_token, refresh_token, expires_at, last_message_id, last_checked_at FROM accounts
-				WHERE last_checked_at <= $1 - $2
+				WHERE last_checked_at <= $1 - 5
 				ORDER BY last_checked_at
 				LIMIT 1
 				FOR UPDATE SKIP LOCKED`
-			args := []interface{}{now, backoff}
+			args := []interface{}{now}
 
 			account := &data.Account{}
 			err = tx.QueryRow(query, args...).Scan(&account.ID, &account.Username, &account.AccessToken, &account.RefreshToken, &account.ExpiresAt, &account.LastMessageID, &account.LastCheckedAt)
