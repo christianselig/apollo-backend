@@ -64,7 +64,7 @@ func accountWorker(id int, rc *reddit.Client, db *sql.DB, logger *log.Logger, st
 
 			query := `
 				SELECT id, username, access_token, refresh_token, expires_at, last_message_id, last_checked_at FROM accounts
-				WHERE last_checked_at <= $1 - 5
+				WHERE last_checked_at <= $1::float - 5
 				ORDER BY last_checked_at
 				LIMIT 1
 				FOR UPDATE SKIP LOCKED`
@@ -81,7 +81,7 @@ func accountWorker(id int, rc *reddit.Client, db *sql.DB, logger *log.Logger, st
 
 			if account.LastCheckedAt > 0 {
 				latency := now - account.LastCheckedAt - float64(backoff)
-				statsd.Histogram("apollo.queue.delay", float64(latency), []string{}, rate)
+				statsd.Histogram("apollo.queue.delay", latency, []string{}, rate)
 			}
 
 			_, err = tx.Exec(`UPDATE accounts SET last_checked_at = $1 WHERE id = $2`, now, account.ID)
