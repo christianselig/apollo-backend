@@ -28,7 +28,7 @@ type application struct {
 	client *reddit.Client
 }
 
-var workers int = runtime.NumCPU() * 4
+var workers int = runtime.NumCPU() * 6
 var rate float64 = 0.1
 
 func accountWorker(id int, rc *reddit.Client, db *sql.DB, logger *log.Logger, statsd *statsd.Client, quit chan bool) {
