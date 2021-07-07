@@ -12,7 +12,7 @@ type Account struct {
 	RefreshToken  string
 	ExpiresAt     int64
 	LastMessageID string
-	LastCheckedAt int64
+	LastCheckedAt float64
 }
 
 func (a *Account) NormalizedUsername() string {
