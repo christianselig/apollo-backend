@@ -64,7 +64,7 @@ func accountWorker(id int, rc *reddit.Client, db *sql.DB, logger *log.Logger, st
 
 			query := `
 				SELECT id, username, access_token, refresh_token, expires_at, last_message_id, last_checked_at FROM accounts
-				WHERE last_checked_at <= $1::float - 5
+				WHERE last_checked_at + 5 <= $1::float
 				ORDER BY last_checked_at
 				LIMIT 1
 				FOR UPDATE SKIP LOCKED`
