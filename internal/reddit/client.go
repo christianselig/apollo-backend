@@ -15,10 +15,21 @@ const (
 type Client struct {
 	id     string
 	secret string
+	client *http.Client
 }
 
 func NewClient(id, secret string) *Client {
-	return &Client{id, secret}
+	tr := &http.Transport{
+		MaxIdleConnsPerHost: 8,
+	}
+
+	client := &http.Client{Transport: tr}
+
+	return &Client{
+		id,
+		secret,
+		client,
+	}
 }
 
 type AuthenticatedClient struct {
@@ -34,18 +45,16 @@ func (rc *Client) NewAuthenticatedClient(refreshToken, accessToken string) *Auth
 }
 
 func (rac *AuthenticatedClient) request(r *Request) ([]byte, error) {
-	tr := &http.Transport{}
-	client := &http.Client{Transport: tr}
-
 	req, err := r.HTTPRequest()
 	if err != nil {
 		return nil, err
 	}
 
-	resp, err := client.Do(req)
+	resp, err := rac.client.Do(req)
 	if err != nil {
 		return nil, err
 	}
+	defer resp.Body.Close()
 
 	return ioutil.ReadAll(resp.Body)
 }
