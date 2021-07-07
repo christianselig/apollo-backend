@@ -90,7 +90,7 @@ func accountWorker(id int, rc *reddit.Client, db *sql.DB, logger *log.Logger, st
 			if account.ExpiresAt < int64(now) {
 				tokens, _ := rac.RefreshTokens()
 				tx.Exec(`UPDATE accounts SET access_token = $1, refresh_token = $2, expires_at = $3 WHERE id = $4`,
-					tokens.AccessToken, tokens.RefreshToken, now+3500, account.ID)
+					tokens.AccessToken, tokens.RefreshToken, int64(now+3500), account.ID)
 			}
 
 			t1 := time.Now()
