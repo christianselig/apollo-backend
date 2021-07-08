@@ -111,7 +111,7 @@ func (rac *AuthenticatedClient) RefreshTokens() (*RefreshTokenResponse, error) {
 
 func (rac *AuthenticatedClient) MessageInbox(from string) (*MessageListingResponse, error) {
 	req := NewRequest(
-		WithTags([]string{"/api/v1/message/inbox"}),
+		WithTags([]string{"url:/api/v1/message/inbox"}),
 		WithMethod("GET"),
 		WithToken(rac.accessToken),
 		WithURL("https://oauth.reddit.com/message/inbox.json"),
