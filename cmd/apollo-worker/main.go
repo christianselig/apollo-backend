@@ -197,6 +197,7 @@ func main() {
 
 	db.SetMaxOpenConns(workers * 2)
 	db.SetMaxIdleConns(workers)
+	db.SetConnMaxLifetime(time.Hour)
 
 	statsd, err := statsd.New("127.0.0.1:8125")
 	if err != nil {
