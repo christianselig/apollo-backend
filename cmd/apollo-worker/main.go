@@ -30,7 +30,7 @@ type application struct {
 }
 
 var (
-	workers int     = runtime.NumCPU() * 6
+	workers int     = runtime.NumCPU() * 4
 	rate    float64 = 0.1
 	backoff int     = 5
 )
@@ -209,8 +209,8 @@ func main() {
 	)
 
 	// This is a very conservative value -- seen as most of the work that is done in these jobs is
-	//
-	runtime.GOMAXPROCS(workers)
+	// waiting around for IO.
+	runtime.GOMAXPROCS(workers + 2) // + 2 for main thread and GC.
 	quitCh := make(chan bool, workers)
 	for i := 0; i < workers; i++ {
 		go accountWorker(i, rc, db, logger, statsd, quitCh)
