@@ -195,7 +195,8 @@ func main() {
 
 	logger.Printf("Starting with %d workers.", workers)
 
-	db.SetMaxOpenConns(workers)
+	db.SetMaxOpenConns(workers * 2)
+	db.SetMaxIdleConns(workers)
 
 	statsd, err := statsd.New("127.0.0.1:8125")
 	if err != nil {
