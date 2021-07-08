@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-go/statsd"
+	_ "github.com/heroku/x/hmetrics/onload"
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 	"github.com/sideshow/apns2"
