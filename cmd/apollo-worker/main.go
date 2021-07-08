@@ -182,8 +182,6 @@ func main() {
 		logger.Printf("Couldn't find .env so I will read from existing ENV.")
 	}
 
-	rc := reddit.NewClient(os.Getenv("REDDIT_CLIENT_ID"), os.Getenv("REDDIT_CLIENT_SECRET"))
-
 	dburl, ok := os.LookupEnv("DATABASE_CONNECTION_POOL_URL")
 	if !ok {
 		dburl = os.Getenv("DATABASE_URL")
@@ -203,6 +201,12 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	rc := reddit.NewClient(
+		os.Getenv("REDDIT_CLIENT_ID"),
+		os.Getenv("REDDIT_CLIENT_SECRET"),
+		statsd,
+	)
 
 	// This is a very conservative value -- seen as most of the work that is done in these jobs is
 	//

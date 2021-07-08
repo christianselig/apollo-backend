@@ -4,9 +4,11 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"net/http"
+	"net/http/httptrace"
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-go/statsd"
 	"github.com/valyala/fastjson"
 )
 
@@ -18,12 +20,24 @@ type Client struct {
 	id     string
 	secret string
 	client *http.Client
+	tracer *httptrace.ClientTrace
 	parser *fastjson.Parser
+	statsd *statsd.Client
 }
 
-func NewClient(id, secret string) *Client {
+func NewClient(id, secret string, statsd *statsd.Client) *Client {
 	tr := &http.Transport{
 		MaxIdleConnsPerHost: 128,
+	}
+
+	tracer := &httptrace.ClientTrace{
+		GotConn: func(info httptrace.GotConnInfo) {
+			if info.Reused {
+				statsd.Incr("reddit.api.connections.reused", []string{}, 0.1)
+			} else {
+				statsd.Incr("reddit.api.connections.created", []string{}, 0.1)
+			}
+		},
 	}
 
 	client := &http.Client{Transport: tr}
@@ -34,7 +48,9 @@ func NewClient(id, secret string) *Client {
 		id,
 		secret,
 		client,
+		tracer,
 		parser,
+		statsd,
 	}
 }
 
@@ -55,6 +71,8 @@ func (rac *AuthenticatedClient) request(r *Request) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	req = req.WithContext(httptrace.WithClientTrace(req.Context(), rac.tracer))
 
 	resp, err := rac.client.Do(req)
 	if err != nil {
