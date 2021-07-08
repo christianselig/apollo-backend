@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/DataDog/datadog-go/statsd"
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 
@@ -46,7 +47,16 @@ func main() {
 	}
 	defer db.Close()
 
-	rc := reddit.NewClient(os.Getenv("REDDIT_CLIENT_ID"), os.Getenv("REDDIT_CLIENT_SECRET"))
+	statsd, err := statsd.New("127.0.0.1:8125")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	rc := reddit.NewClient(
+		os.Getenv("REDDIT_CLIENT_ID"),
+		os.Getenv("REDDIT_CLIENT_SECRET"),
+		statsd,
+	)
 
 	app := &application{
 		cfg,
