@@ -28,12 +28,14 @@ type Client struct {
 func NewClient(id, secret string, statsd *statsd.Client) *Client {
 	tracer := &httptrace.ClientTrace{
 		GotConn: func(info httptrace.GotConnInfo) {
-			if info.WasIdle {
-				idleTime := float64(int64(info.IdleTime) / int64(time.Millisecond))
-				statsd.Incr("reddit.api.connections.reused", []string{}, 0.1)
-				statsd.Histogram("reddit.api.connections.idle_time", idleTime, []string{}, 0.1)
+			if info.Reused {
+				statsd.Incr("reddit.api.connections.reused", []string{}, 1.0)
+				if info.WasIdle {
+					idleTime := float64(int64(info.IdleTime) / int64(time.Millisecond))
+					statsd.Histogram("reddit.api.connections.idle_time", idleTime, []string{}, 0.1)
+				}
 			} else {
-				statsd.Incr("reddit.api.connections.created", []string{}, 0.1)
+				statsd.Incr("reddit.api.connections.created", []string{}, 1.0)
 			}
 		},
 	}
