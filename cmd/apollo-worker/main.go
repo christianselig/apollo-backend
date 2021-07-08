@@ -63,6 +63,7 @@ func accountWorker(id int, rc *reddit.Client, db *sql.DB, logger *log.Logger, st
 				continue
 			}
 
+			t1 := time.Now()
 			query := `
 				SELECT id, username, access_token, refresh_token, expires_at, last_message_id, last_checked_at FROM accounts
 				WHERE last_checked_at + 5 <= $1::float
@@ -73,10 +74,12 @@ func accountWorker(id int, rc *reddit.Client, db *sql.DB, logger *log.Logger, st
 
 			account := &data.Account{}
 			err = tx.QueryRow(query, args...).Scan(&account.ID, &account.Username, &account.AccessToken, &account.RefreshToken, &account.ExpiresAt, &account.LastMessageID, &account.LastCheckedAt)
+			t2 := time.Now()
+			statsd.Histogram("apollo.dequeue.latency", float64(t2.Sub(t1).Milliseconds()), []string{}, rate)
 
 			if account.ID == 0 {
 				tx.Commit()
-				time.Sleep(100 * time.Millisecond)
+				time.Sleep(10 * time.Millisecond)
 				continue
 			}
 
@@ -94,9 +97,9 @@ func accountWorker(id int, rc *reddit.Client, db *sql.DB, logger *log.Logger, st
 					tokens.AccessToken, tokens.RefreshToken, int64(now+3500), account.ID)
 			}
 
-			t1 := time.Now()
+			t1 = time.Now()
 			msgs, err := rac.MessageInbox(account.LastMessageID)
-			t2 := time.Now()
+			t2 = time.Now()
 			statsd.Histogram("reddit.api.latency", float64(t2.Sub(t1).Milliseconds()), []string{}, rate)
 
 			if err != nil {
