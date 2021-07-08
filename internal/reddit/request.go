@@ -17,12 +17,13 @@ type Request struct {
 	token  string
 	url    string
 	auth   string
+	tags   []string
 }
 
 type RequestOption func(*Request)
 
 func NewRequest(opts ...RequestOption) *Request {
-	req := &Request{url.Values{}, url.Values{}, "GET", "", "", ""}
+	req := &Request{url.Values{}, url.Values{}, "GET", "", "", "", nil}
 	for _, opt := range opts {
 		opt(req)
 	}
@@ -45,6 +46,12 @@ func (r *Request) HTTPRequest() (*http.Request, error) {
 	}
 
 	return req, err
+}
+
+func WithTags(tags []string) RequestOption {
+	return func(req *Request) {
+		req.tags = tags
+	}
 }
 
 func WithMethod(method string) RequestOption {
