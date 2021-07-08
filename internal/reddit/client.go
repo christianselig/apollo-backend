@@ -74,8 +74,13 @@ func (rac *AuthenticatedClient) request(r *Request) ([]byte, error) {
 
 	req = req.WithContext(httptrace.WithClientTrace(req.Context(), rac.tracer))
 
+	start := time.Now()
 	resp, err := rac.client.Do(req)
+	rac.statsd.Incr("reddit.api.calls", r.tags, 0.1)
+	rac.statsd.Histogram("reddit.api.latency", float64(time.Now().Sub(start).Milliseconds()), r.tags, 0.1)
+
 	if err != nil {
+		rac.statsd.Incr("reddit.api.errors", r.tags, 0.1)
 		return nil, err
 	}
 	defer resp.Body.Close()
@@ -85,6 +90,7 @@ func (rac *AuthenticatedClient) request(r *Request) ([]byte, error) {
 
 func (rac *AuthenticatedClient) RefreshTokens() (*RefreshTokenResponse, error) {
 	req := NewRequest(
+		WithTags([]string{"url:/api/v1/access_token"}),
 		WithMethod("POST"),
 		WithURL(tokenURL),
 		WithBody("grant_type", "refresh_token"),
@@ -105,6 +111,7 @@ func (rac *AuthenticatedClient) RefreshTokens() (*RefreshTokenResponse, error) {
 
 func (rac *AuthenticatedClient) MessageInbox(from string) (*MessageListingResponse, error) {
 	req := NewRequest(
+		WithTags([]string{"url:/api/v1/message/inbox"}),
 		WithMethod("GET"),
 		WithToken(rac.accessToken),
 		WithURL("https://oauth.reddit.com/message/inbox.json"),
@@ -132,6 +139,7 @@ func (mr *MeResponse) NormalizedUsername() string {
 
 func (rac *AuthenticatedClient) Me() (*MeResponse, error) {
 	req := NewRequest(
+		WithTags([]string{"url:/api/v1/me"}),
 		WithMethod("GET"),
 		WithToken(rac.accessToken),
 		WithURL("https://oauth.reddit.com/api/v1/me"),
