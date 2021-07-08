@@ -13,6 +13,7 @@ require (
 	github.com/lib/pq v1.10.1
 	github.com/sideshow/apns2 v0.20.0
 	github.com/stretchr/testify v1.5.1 // indirect
+	github.com/valyala/fastjson v1.6.3 // indirect
 	golang.org/x/net v0.0.0-20201202161906-c7110b5ffcbb // indirect
 	gopkg.in/yaml.v2 v2.3.0 // indirect
 )

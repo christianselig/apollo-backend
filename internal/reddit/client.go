@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/valyala/fastjson"
 )
 
 const (
@@ -16,19 +18,23 @@ type Client struct {
 	id     string
 	secret string
 	client *http.Client
+	parser *fastjson.Parser
 }
 
 func NewClient(id, secret string) *Client {
 	tr := &http.Transport{
-		MaxIdleConnsPerHost: 8,
+		MaxIdleConnsPerHost: 128,
 	}
 
 	client := &http.Client{Transport: tr}
+
+	parser := &fastjson.Parser{}
 
 	return &Client{
 		id,
 		secret,
 		client,
+		parser,
 	}
 }
 
