@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"runtime"
 	"strconv"
 	"syscall"
 	"time"
@@ -27,6 +28,8 @@ import (
 
 const (
 	pollDuration = 100 * time.Millisecond
+	backoff      = 5
+	rate         = 0.1
 )
 
 func main() {
@@ -98,9 +101,19 @@ func main() {
 		log.Fatal("token error:", err)
 	}
 
-	redisConn := redis.NewClient(&redis.Options{
-		Addr: os.Getenv("REDIS_URL"),
-	})
+	// Set up Redis connection
+	var redisConn *redis.Client
+	{
+		opt, err := redis.ParseURL(os.Getenv("REDISCLOUD_URL"))
+		if err != nil {
+			panic(err)
+		}
+
+		redisConn = redis.NewClient(opt)
+		if err := redisConn.Ping(ctx).Err(); err != nil {
+			panic(err)
+		}
+	}
 
 	connection, err := rmq.OpenConnectionWithRedisClient("consumer", redisConn, errChan)
 	if err != nil {
@@ -112,8 +125,7 @@ func main() {
 		panic(err)
 	}
 
-	//numConsumers := runtime.NumCPU() * 8
-	numConsumers := 1
+	numConsumers := runtime.NumCPU() * 8
 	prefetchLimit := int64(numConsumers * 8)
 
 	if err := queue.StartConsuming(prefetchLimit, pollDuration); err != nil {
@@ -214,11 +226,17 @@ func (c *Consumer) Consume(delivery rmq.Delivery) {
 		return
 	}
 
+	if account.LastCheckedAt > 0 {
+		latency := now - account.LastCheckedAt - float64(backoff)
+		c.statsd.Histogram("apollo.queue.delay", latency, []string{}, rate)
+	}
+
 	rac := c.reddit.NewAuthenticatedClient(account.RefreshToken, account.AccessToken)
 	if account.ExpiresAt < int64(now) {
 		c.logger.WithFields(logrus.Fields{
 			"accountID": id,
 		}).Debug("refreshing reddit token")
+
 		tokens, err := rac.RefreshTokens()
 		if err != nil {
 			c.logger.WithFields(logrus.Fields{
@@ -360,6 +378,7 @@ func (c *Consumer) Consume(delivery rmq.Delivery) {
 
 			res, err := client.Push(notification)
 			if err != nil {
+				c.statsd.Incr("apns.notification.errors", []string{}, 0.1)
 				c.logger.WithFields(logrus.Fields{
 					"accountID": id,
 					"err":       err,
@@ -367,6 +386,7 @@ func (c *Consumer) Consume(delivery rmq.Delivery) {
 					"reason":    res.Reason,
 				}).Error("failed to send notification")
 			} else {
+				c.statsd.Incr("apns.notification.sent", []string{}, 0.1)
 				c.logger.WithFields(logrus.Fields{
 					"accountID":  delivery.Payload(),
 					"token":      device.APNSToken,

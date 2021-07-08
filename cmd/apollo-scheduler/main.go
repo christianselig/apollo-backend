@@ -61,10 +61,12 @@ func main() {
 	// Set up Redis connection
 	var redisConn *redis.Client
 	{
-		redisConn = redis.NewClient(&redis.Options{
-			Addr: os.Getenv("REDIS_URL"),
-		})
+		opt, err := redis.ParseURL(os.Getenv("REDISCLOUD_URL"))
+		if err != nil {
+			panic(err)
+		}
 
+		redisConn = redis.NewClient(opt)
 		if err := redisConn.Ping(ctx).Err(); err != nil {
 			panic(err)
 		}
