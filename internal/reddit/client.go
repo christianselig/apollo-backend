@@ -26,10 +26,6 @@ type Client struct {
 }
 
 func NewClient(id, secret string, statsd *statsd.Client) *Client {
-	tr := &http.Transport{
-		MaxIdleConnsPerHost: 128,
-	}
-
 	tracer := &httptrace.ClientTrace{
 		GotConn: func(info httptrace.GotConnInfo) {
 			if info.Reused {
@@ -40,7 +36,7 @@ func NewClient(id, secret string, statsd *statsd.Client) *Client {
 		},
 	}
 
-	client := &http.Client{Transport: tr}
+	client := &http.Client{}
 
 	parser := &fastjson.Parser{}
 
