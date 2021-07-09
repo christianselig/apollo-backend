@@ -378,7 +378,7 @@ func (c *Consumer) Consume(delivery rmq.Delivery) {
 
 			res, err := client.Push(notification)
 			if err != nil {
-				c.statsd.Incr("apns.notification.errors", []string{}, 0.1)
+				c.statsd.Incr("apns.notification.errors", []string{}, 1)
 				c.logger.WithFields(logrus.Fields{
 					"accountID": id,
 					"err":       err,
@@ -386,7 +386,7 @@ func (c *Consumer) Consume(delivery rmq.Delivery) {
 					"reason":    res.Reason,
 				}).Error("failed to send notification")
 			} else {
-				c.statsd.Incr("apns.notification.sent", []string{}, 0.1)
+				c.statsd.Incr("apns.notification.sent", []string{}, 1)
 				c.logger.WithFields(logrus.Fields{
 					"accountID":  delivery.Payload(),
 					"token":      device.APNSToken,
