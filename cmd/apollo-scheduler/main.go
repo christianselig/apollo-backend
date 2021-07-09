@@ -116,7 +116,8 @@ func enqueueAccounts(ctx context.Context, logger *logrus.Logger, pool *pgxpool.P
 			  SELECT id
 				FROM accounts
 				WHERE
-					last_checked_at + 5 < $1
+					last_checked_at + 5 < $1 AND
+					last_enqueued_at + 5 < $1
 				ORDER BY last_enqueued_at
 				FOR UPDATE SKIP LOCKED
 			)
