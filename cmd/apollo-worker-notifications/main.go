@@ -287,28 +287,29 @@ func (c *Consumer) Consume(delivery rmq.Delivery) {
 		"count":     len(msgs.MessageListing.Messages),
 	}).Debug("fetched messages")
 
+	if err = c.pool.BeginFunc(ctx, func(tx pgx.Tx) error {
+		stmt := `
+			UPDATE accounts
+			SET last_checked_at = $1
+			WHERE id = $2`
+		_, err := tx.Exec(ctx, stmt, now, account.ID)
+		return err
+	}); err != nil {
+		c.logger.WithFields(logrus.Fields{
+			"accountID": id,
+			"err":       err,
+		}).Error("failed to update last_checked_at for account")
+
+		delivery.Reject()
+		return
+	}
+
 	if len(msgs.MessageListing.Messages) == 0 {
 		c.logger.WithFields(logrus.Fields{
 			"accountID": id,
 		}).Debug("no new messages, bailing early")
 
-		if err = c.pool.BeginFunc(ctx, func(tx pgx.Tx) error {
-			stmt := `
-				UPDATE accounts
-				SET last_checked_at = $1
-				WHERE id = $2`
-			_, err := tx.Exec(ctx, stmt, now, account.ID)
-			return err
-		}); err != nil {
-			c.logger.WithFields(logrus.Fields{
-				"accountID": id,
-				"err":       err,
-			}).Error("failed to update last_checked_at for account")
-
-			delivery.Reject()
-		} else {
-			delivery.Ack()
-		}
+		delivery.Ack()
 		return
 	}
 
