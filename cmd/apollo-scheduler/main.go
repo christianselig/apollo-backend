@@ -149,17 +149,19 @@ func enqueueAccounts(ctx context.Context, logger *logrus.Logger, pool *pgxpool.P
 		"count": len(ids),
 	}).Debug("enqueueing account batch")
 
+	enqueued := 0
 	for _, id := range ids {
 		payload := fmt.Sprintf("%d", id)
 		if redisConn.HGet(ctx, "locks:accounts", payload).Val() != "" {
 			continue
 		}
+		enqueued++
 		_ = queue.Publish(payload)
 	}
 
 	logger.WithFields(logrus.Fields{
-		"count": len(ids),
-	}).Debug("done enqueueing account batch")
+		"count": enqueued,
+	}).Info("done enqueueing account batch")
 }
 
 func logErrors(errChan <-chan error) {
