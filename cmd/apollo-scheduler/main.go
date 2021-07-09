@@ -161,10 +161,10 @@ func enqueueAccounts(ctx context.Context, logger *logrus.Logger, pool *pgxpool.P
 		lockKey := fmt.Sprintf("locks:accounts:%s", payload)
 
 		_, err := redisConn.Get(ctx, lockKey).Result()
-		if err == nil || err == redis.Nil {
+		if err == nil {
 			skipped++
 			continue
-		} else {
+		} else if err != redis.Nil {
 			logger.WithFields(logrus.Fields{
 				"lockKey": lockKey,
 				"err":     err,
