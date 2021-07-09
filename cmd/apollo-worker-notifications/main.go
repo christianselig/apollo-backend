@@ -185,7 +185,13 @@ func (c *Consumer) Consume(delivery rmq.Delivery) {
 	ctx := context.Background()
 
 	defer func() {
-		c.redis.HDel(ctx, "locks:accounts", delivery.Payload()).Err()
+		lockKey := fmt.Sprintf("locks:accounts:%s", delivery.Payload())
+		if err := c.redis.Del(ctx, lockKey).Err(); err != nil {
+			c.logger.WithFields(logrus.Fields{
+				"lockKey": lockKey,
+				"err":     err,
+			}).Error("failed to remove lock")
+		}
 	}()
 
 	c.logger.WithFields(logrus.Fields{
@@ -207,6 +213,7 @@ func (c *Consumer) Consume(delivery rmq.Delivery) {
 
 	stmt := `SELECT
 			id,
+			username,
 			access_token,
 			refresh_token,
 			expires_at,
@@ -217,6 +224,7 @@ func (c *Consumer) Consume(delivery rmq.Delivery) {
 	account := &data.Account{}
 	if err := c.pool.QueryRow(ctx, stmt, id).Scan(
 		&account.ID,
+		&account.Username,
 		&account.AccessToken,
 		&account.RefreshToken,
 		&account.ExpiresAt,
