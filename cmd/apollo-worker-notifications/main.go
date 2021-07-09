@@ -327,30 +327,28 @@ func (c *Consumer) Consume(delivery rmq.Delivery) {
 
 	// Set latest message we alerted on
 	latestMsg := msgs.MessageListing.Messages[0]
+	if err = c.pool.BeginFunc(ctx, func(tx pgx.Tx) error {
+		stmt := `
+			UPDATE accounts
+			SET last_message_id = $1
+			WHERE id = $2`
+		_, err := tx.Exec(ctx, stmt, latestMsg.FullName(), account.ID)
+		return err
+	}); err != nil {
+		c.logger.WithFields(logrus.Fields{
+			"accountID": id,
+			"err":       err,
+		}).Error("failed to update last_message_id for account")
+		delivery.Reject()
+		return
+	}
 
 	// Let's populate this with the latest message so we don't flood users with stuff
 	if account.LastMessageID == "" {
-		if err = c.pool.BeginFunc(ctx, func(tx pgx.Tx) error {
-			stmt := `
-				UPDATE accounts
-				SET last_message_id = $1
-				WHERE id = $2`
-			_, err := tx.Exec(ctx, stmt, latestMsg.FullName(), account.ID)
-			return err
-		}); err != nil {
-			c.logger.WithFields(logrus.Fields{
-				"accountID": id,
-				"err":       err,
-			}).Error("failed to update last_message_id for account")
-
-			delivery.Reject()
-		} else {
-			c.logger.WithFields(logrus.Fields{
-				"accountID": delivery.Payload(),
-			}).Debug("populating first message ID to prevent spamming")
-
-			delivery.Ack()
-		}
+		c.logger.WithFields(logrus.Fields{
+			"accountID": delivery.Payload(),
+		}).Debug("populating first message ID to prevent spamming")
+		delivery.Ack()
 		return
 	}
 
