@@ -197,9 +197,9 @@ func enqueueAccounts(ctx context.Context, logger *logrus.Logger, statsd *statsd.
 			for i=1, #ids do
 				local key = "locks:accounts:" .. ids[i]
 				if redis.call("exists", key) == 0 then
+					redis.call("setex", key, 60, 1)
 					retv[#retv + 1] = ids[i]
 				end
-				redis.call("setex", key, 60, 1)
 			end
 
 			return retv
