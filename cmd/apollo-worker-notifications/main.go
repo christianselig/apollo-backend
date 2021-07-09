@@ -182,6 +182,8 @@ func NewConsumer(tag int, logger *logrus.Logger, statsd *statsd.Client, redis *r
 func (c *Consumer) Consume(delivery rmq.Delivery) {
 	ctx := context.Background()
 
+	defer c.redis.HDel(ctx, "locks:accounts", delivery.Payload())
+
 	c.logger.WithFields(logrus.Fields{
 		"accountID": delivery.Payload(),
 	}).Debug("starting job")
@@ -305,7 +307,6 @@ func (c *Consumer) Consume(delivery rmq.Delivery) {
 
 			delivery.Reject()
 		} else {
-			c.redis.HDel(ctx, "locks:accounts", delivery.Payload())
 			delivery.Ack()
 		}
 		return
@@ -335,7 +336,6 @@ func (c *Consumer) Consume(delivery rmq.Delivery) {
 				"accountID": delivery.Payload(),
 			}).Debug("populating first message ID to prevent spamming")
 
-			c.redis.HDel(ctx, "locks:accounts", delivery.Payload())
 			delivery.Ack()
 		}
 		return
@@ -396,7 +396,6 @@ func (c *Consumer) Consume(delivery rmq.Delivery) {
 		}
 	}
 
-	c.redis.HDel(ctx, "locks:accounts", delivery.Payload())
 	delivery.Ack()
 
 	c.logger.WithFields(logrus.Fields{
