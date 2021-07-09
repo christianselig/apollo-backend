@@ -115,14 +115,16 @@ func main() {
 }
 
 func enqueueAccounts(ctx context.Context, logger *logrus.Logger, statsd *statsd.Client, pool *pgxpool.Pool, redisConn *redis.Client, queue rmq.Queue) {
+	start := time.Now()
+
 	now := float64(time.Now().UnixNano()/int64(time.Millisecond)) / 1000
 
 	// Start looking for accounts that were last checked at least 5 seconds ago
 	// and at most 6 seconds ago. Also look for accounts that haven't been checked
 	// in over a minute.
-	ts := time.Now().Unix()
-	start := ts - 6
-	end := start + 1
+	ts := start.Unix()
+	left := ts - 6
+	right := left + 1
 	expired := ts - 60
 
 	ids := []int64{}
@@ -141,7 +143,7 @@ func enqueueAccounts(ctx context.Context, logger *logrus.Logger, statsd *statsd.
 			SET last_enqueued_at = $4
 			WHERE accounts.id IN(SELECT id FROM account)
 			RETURNING accounts.id`
-		rows, err := tx.Query(ctx, stmt, start, end, expired, now)
+		rows, err := tx.Query(ctx, stmt, left, right, expired, now)
 		if err != nil {
 			return err
 		}
@@ -163,8 +165,8 @@ func enqueueAccounts(ctx context.Context, logger *logrus.Logger, statsd *statsd.
 
 	logger.WithFields(logrus.Fields{
 		"count": len(ids),
-		"start": start,
-		"end":   end,
+		"start": left,
+		"end":   right,
 	}).Debug("enqueueing account batch")
 
 	enqueued := 0
@@ -206,13 +208,14 @@ func enqueueAccounts(ctx context.Context, logger *logrus.Logger, statsd *statsd.
 	statsd.Histogram("apollo.queue.enqueued", float64(enqueued), []string{}, 1)
 	statsd.Histogram("apollo.queue.skipped", float64(skipped), []string{}, 1)
 	statsd.Histogram("apollo.queue.failed", float64(failed), []string{}, 1)
+	statsd.Histogram("apollo.queue.runtime", float64(time.Now().Sub(start).Milliseconds()), []string{}, 1)
 
 	logger.WithFields(logrus.Fields{
 		"count":   enqueued,
 		"skipped": skipped,
 		"failed":  failed,
-		"start":   start,
-		"end":     end,
+		"start":   left,
+		"end":     right,
 	}).Info("done enqueueing account batch")
 }
 
