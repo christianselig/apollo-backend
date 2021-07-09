@@ -242,7 +242,7 @@ func enqueueAccounts(ctx context.Context, logger *logrus.Logger, statsd *statsd.
 		"count":   enqueued,
 		"skipped": skipped,
 		"start":   ready,
-	}).Info("done enqueueing account batch")
+	}).Debug("done enqueueing account batch")
 }
 
 func logErrors(errChan <-chan error) {
