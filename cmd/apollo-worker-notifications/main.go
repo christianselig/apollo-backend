@@ -126,7 +126,7 @@ func main() {
 	}
 
 	numConsumers := runtime.NumCPU() * 12
-	prefetchLimit := int64(numConsumers * 2)
+	prefetchLimit := int64(numConsumers * 32)
 
 	runtime.GOMAXPROCS(numConsumers)
 
