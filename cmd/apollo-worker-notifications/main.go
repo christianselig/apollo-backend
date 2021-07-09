@@ -404,7 +404,7 @@ func (c *Consumer) Consume(delivery rmq.Delivery) {
 					"accountID":  delivery.Payload(),
 					"token":      device.APNSToken,
 					"redditUser": account.Username,
-				}).Debug("sent notification")
+				}).Info("sent notification")
 			}
 		}
 	}
