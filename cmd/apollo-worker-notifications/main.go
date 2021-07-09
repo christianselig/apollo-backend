@@ -27,7 +27,7 @@ import (
 )
 
 const (
-	pollDuration = 100 * time.Millisecond
+	pollDuration = 10 * time.Millisecond
 	backoff      = 5
 	rate         = 0.1
 )
@@ -125,7 +125,7 @@ func main() {
 		panic(err)
 	}
 
-	numConsumers := runtime.NumCPU() * 8
+	numConsumers := runtime.NumCPU() * 12
 	prefetchLimit := int64(numConsumers * 8)
 
 	if err := queue.StartConsuming(prefetchLimit, pollDuration); err != nil {
