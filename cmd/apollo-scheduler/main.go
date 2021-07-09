@@ -106,6 +106,7 @@ func main() {
 
 	s := gocron.NewScheduler(time.UTC)
 	s.Every(1).Second().Do(func() { enqueueAccounts(ctx, logger, statsd, pool, redisConn, notificationsQueue) })
+	s.Every(1).Minute().Do(func() { reportStats(ctx, logger, statsd, pool, redisConn) })
 	s.StartAsync()
 
 	signals := make(chan os.Signal, 1)
@@ -120,6 +121,30 @@ func main() {
 	}()
 
 	s.Stop()
+}
+
+func reportStats(ctx context.Context, logger *logrus.Logger, statsd *statsd.Client, pool *pgxpool.Pool, redisConn *redis.Client) {
+	var (
+		count int64
+
+		metrics = []struct {
+			query string
+			name  string
+		}{
+			{"SELECT COUNT(*) FROM accounts", "apollo.registrations.accounts"},
+			{"SELECT COUNT(*) FROM devices", "apollo.registrations.devices"},
+		}
+	)
+
+	for _, metric := range metrics {
+		pool.QueryRow(ctx, metric.query).Scan(&count)
+		statsd.Gauge(metric.name, float64(count), []string{}, 1)
+
+		logger.WithFields(logrus.Fields{
+			"count":  count,
+			"metric": metric.name,
+		}).Debug("fetched metrics")
+	}
 }
 
 func enqueueAccounts(ctx context.Context, logger *logrus.Logger, statsd *statsd.Client, pool *pgxpool.Pool, redisConn *redis.Client, queue rmq.Queue) {
