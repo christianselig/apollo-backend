@@ -93,7 +93,7 @@ func main() {
 	s.StartAsync()
 
 	signals := make(chan os.Signal, 1)
-	signal.Notify(signals, syscall.SIGINT)
+	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
 	defer signal.Stop(signals)
 
 	<-signals // wait for signal
@@ -107,6 +107,8 @@ func main() {
 }
 
 func enqueueAccounts(ctx context.Context, logger *logrus.Logger, pool *pgxpool.Pool, redisConn *redis.Client, queue rmq.Queue) {
+	now := float64(time.Now().UnixNano()/int64(time.Millisecond)) / 1000
+
 	start := time.Now().Unix()
 	end := start + 1
 
@@ -126,10 +128,10 @@ func enqueueAccounts(ctx context.Context, logger *logrus.Logger, pool *pgxpool.P
 				ORDER BY last_checked_at
 			)
 			UPDATE accounts
-			SET last_enqueued_at = $1
+			SET last_enqueued_at = $3
 			WHERE accounts.id IN(SELECT id FROM account)
 			RETURNING accounts.id`
-		rows, err := tx.Query(ctx, stmt, start, end)
+		rows, err := tx.Query(ctx, stmt, start, end, now)
 		if err != nil {
 			return err
 		}
