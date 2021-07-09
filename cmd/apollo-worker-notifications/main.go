@@ -182,7 +182,9 @@ func NewConsumer(tag int, logger *logrus.Logger, statsd *statsd.Client, redis *r
 func (c *Consumer) Consume(delivery rmq.Delivery) {
 	ctx := context.Background()
 
-	defer c.redis.HDel(ctx, "locks:accounts", delivery.Payload())
+	defer func() {
+		c.redis.HDel(ctx, "locks:accounts", delivery.Payload()).Err()
+	}()
 
 	c.logger.WithFields(logrus.Fields{
 		"accountID": delivery.Payload(),
