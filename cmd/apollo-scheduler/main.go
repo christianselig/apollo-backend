@@ -108,6 +108,10 @@ func main() {
 
 func enqueueAccounts(ctx context.Context, logger *logrus.Logger, pool *pgxpool.Pool, redisConn *redis.Client, queue rmq.Queue) {
 	now := float64(time.Now().UnixNano()/int64(time.Millisecond)) / 1000
+
+	start := now
+	end := now + 1
+
 	ids := []int64{}
 
 	err := pool.BeginFunc(ctx, func(tx pgx.Tx) error {
@@ -115,9 +119,8 @@ func enqueueAccounts(ctx context.Context, logger *logrus.Logger, pool *pgxpool.P
 			WITH account AS (
 			  SELECT id
 				FROM accounts
-				WHERE
-					last_checked_at + 5 < $1 AND
-					last_enqueued_at + 5 < $1
+				WHERE (last_checked_at + 5) BETWEEN $1 AND $2
+				OR last_checked_at + 60 < $1
 				ORDER BY last_checked_at
 				FOR UPDATE SKIP LOCKED
 			)
@@ -125,7 +128,7 @@ func enqueueAccounts(ctx context.Context, logger *logrus.Logger, pool *pgxpool.P
 			SET last_enqueued_at = $1
 			WHERE accounts.id IN(SELECT id FROM account)
 			RETURNING accounts.id`
-		rows, err := tx.Query(ctx, stmt, now)
+		rows, err := tx.Query(ctx, stmt, start, end)
 		if err != nil {
 			return err
 		}
