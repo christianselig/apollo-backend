@@ -158,14 +158,23 @@ func enqueueAccounts(ctx context.Context, logger *logrus.Logger, pool *pgxpool.P
 	skipped := 0
 	for _, id := range ids {
 		payload := fmt.Sprintf("%d", id)
-		if _, err := redisConn.HGet(ctx, "locks:accounts", payload).Result(); err != redis.Nil {
+		lockKey := fmt.Sprintf("locks:accounts:%s", payload)
+
+		_, err := redisConn.Get(ctx, lockKey).Result()
+		if err == nil || err == redis.Nil {
 			skipped++
 			continue
+		} else {
+			logger.WithFields(logrus.Fields{
+				"lockKey": lockKey,
+				"err":     err,
+			}).Error("failed to check for account lock")
 		}
 
-		if err := redisConn.HSet(ctx, "locks:accounts", payload, true).Err(); err != nil {
+		if err := redisConn.SetEX(ctx, lockKey, true, 60*time.Second).Err(); err != nil {
 			logger.WithFields(logrus.Fields{
-				"err": err,
+				"lockKey": lockKey,
+				"err":     err,
 			}).Error("failed to lock account")
 		}
 
