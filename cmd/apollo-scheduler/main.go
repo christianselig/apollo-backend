@@ -120,11 +120,8 @@ func enqueueAccounts(ctx context.Context, logger *logrus.Logger, pool *pgxpool.P
 			  SELECT id
 				FROM accounts
 				WHERE
-					(
-						(last_checked_at + 5) >= $1 AND
-						(last_checked_at + 5) < $2
-					)
-					OR last_checked_at + 60 < $1
+					(last_checked_at + 5) BETWEEN $1 and $2
+					OR last_checked_at + 60 <= $1
 				ORDER BY last_checked_at
 			)
 			UPDATE accounts
@@ -153,6 +150,8 @@ func enqueueAccounts(ctx context.Context, logger *logrus.Logger, pool *pgxpool.P
 
 	logger.WithFields(logrus.Fields{
 		"count": len(ids),
+		"start": start,
+		"end":   end,
 	}).Debug("enqueueing account batch")
 
 	enqueued := 0
@@ -177,6 +176,8 @@ func enqueueAccounts(ctx context.Context, logger *logrus.Logger, pool *pgxpool.P
 	logger.WithFields(logrus.Fields{
 		"count":   enqueued,
 		"skipped": skipped,
+		"start":   start,
+		"end":     end,
 	}).Info("done enqueueing account batch")
 }
 
