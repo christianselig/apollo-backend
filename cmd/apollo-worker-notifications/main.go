@@ -128,6 +128,8 @@ func main() {
 	numConsumers := runtime.NumCPU() * 12
 	prefetchLimit := int64(numConsumers * 2)
 
+	runtime.GOMAXPROCS(numConsumers / 4)
+
 	if err := queue.StartConsuming(prefetchLimit, pollDuration); err != nil {
 		panic(err)
 	}
