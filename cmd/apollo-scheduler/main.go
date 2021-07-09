@@ -107,10 +107,8 @@ func main() {
 }
 
 func enqueueAccounts(ctx context.Context, logger *logrus.Logger, pool *pgxpool.Pool, redisConn *redis.Client, queue rmq.Queue) {
-	now := float64(time.Now().UnixNano()/int64(time.Millisecond)) / 1000
-
-	start := now
-	end := now + 1
+	start := time.Now().Unix()
+	end := start + 1
 
 	ids := []int64{}
 
@@ -119,10 +117,13 @@ func enqueueAccounts(ctx context.Context, logger *logrus.Logger, pool *pgxpool.P
 			WITH account AS (
 			  SELECT id
 				FROM accounts
-				WHERE (last_checked_at + 5) BETWEEN $1 AND $2
-				OR last_checked_at + 60 < $1
+				WHERE
+					(
+						(last_checked_at + 5) >= $1 AND
+						(last_checked_at + 5) < $2
+					)
+					OR last_checked_at + 60 < $1
 				ORDER BY last_checked_at
-				FOR UPDATE SKIP LOCKED
 			)
 			UPDATE accounts
 			SET last_enqueued_at = $1
