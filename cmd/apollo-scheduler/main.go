@@ -150,17 +150,27 @@ func enqueueAccounts(ctx context.Context, logger *logrus.Logger, pool *pgxpool.P
 	}).Debug("enqueueing account batch")
 
 	enqueued := 0
+	skipped := 0
 	for _, id := range ids {
 		payload := fmt.Sprintf("%d", id)
-		if redisConn.HGet(ctx, "locks:accounts", payload).Val() != "" {
+		if _, err := redisConn.HGet(ctx, "locks:accounts", payload).Result(); err != redis.Nil {
+			skipped++
 			continue
 		}
+
+		if err := redisConn.HSet(ctx, "locks:accounts", payload, true).Err(); err != nil {
+			logger.WithFields(logrus.Fields{
+				"err": err,
+			}).Error("failed to lock account")
+		}
+
 		enqueued++
 		_ = queue.Publish(payload)
 	}
 
 	logger.WithFields(logrus.Fields{
-		"count": enqueued,
+		"count":   enqueued,
+		"skipped": skipped,
 	}).Info("done enqueueing account batch")
 }
 
