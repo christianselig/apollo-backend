@@ -25,6 +25,14 @@ type Client struct {
 	statsd *statsd.Client
 }
 
+func SplitID(id string) (string, string) {
+	if parts := strings.Split(id, "_"); len(parts) == 2 {
+		return parts[0], parts[1]
+	}
+
+	return "", ""
+}
+
 func NewClient(id, secret string, statsd *statsd.Client) *Client {
 	tracer := &httptrace.ClientTrace{
 		GotConn: func(info httptrace.GotConnInfo) {

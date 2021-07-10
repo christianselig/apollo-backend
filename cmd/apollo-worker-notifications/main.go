@@ -370,7 +370,7 @@ func (c *Consumer) Consume(delivery rmq.Delivery) {
 	for _, msg := range msgs.MessageListing.Messages {
 		notification := &apns2.Notification{}
 		notification.Topic = "com.christianselig.Apollo"
-		notification.Payload = payload.NewPayload().AlertTitle(msg.Subject).AlertBody(msg.Body)
+		notification.Payload = payloadFromMessage(&msg)
 
 		for _, device := range devices {
 			notification.DeviceToken = device.APNSToken
@@ -402,6 +402,53 @@ func (c *Consumer) Consume(delivery rmq.Delivery) {
 	c.logger.WithFields(logrus.Fields{
 		"accountID": delivery.Payload(),
 	}).Debug("finishing job")
+}
+
+func payloadFromMessage(msg *reddit.MessageData) *payload.Payload {
+	postBody := msg.Body
+	if len(postBody) > 2000 {
+		postBody = msg.Body[:2000]
+	}
+
+	postTitle := msg.LinkTitle
+	if postTitle == "" {
+		postTitle = msg.Subject
+	}
+	if len(postTitle) > 75 {
+		postTitle = fmt.Sprintf("%s…", postTitle[0:75])
+	}
+
+	payload := payload.NewPayload().Sound("traloop.wav").AlertBody(postBody).Custom("author", msg.Author).Custom("parent_id", msg.ParentID).AlertSummaryArg(msg.Author).MutableContent()
+
+	switch {
+	case (msg.Kind == "t1" && msg.Type == "username_mention"):
+		title := fmt.Sprintf(`Mention in “%s”`, postTitle)
+		payload = payload.AlertTitle(title).Custom("type", "username")
+
+		pType, _ := reddit.SplitID(msg.ParentID)
+		if pType == "t1" {
+			payload = payload.Category("inbox-username-mention-context")
+		} else {
+			payload = payload.Category("inbox-username-mention-no-context")
+		}
+
+		payload = payload.Custom("subject", "comment").ThreadID("comment")
+		break
+	case (msg.Kind == "t1" && msg.Type == "post_reply"):
+		title := fmt.Sprintf(`%s to “%s”`, msg.Author, postTitle)
+		payload = payload.AlertTitle(title).Custom("type", "post").Category("inbox-post-reply").Custom("subject", "comment").ThreadID("comment")
+		break
+	case (msg.Kind == "t1" && msg.Type == "comment_reply"):
+		title := fmt.Sprintf(`%s in “%s”`, msg.Author, postTitle)
+		payload = payload.AlertTitle(title).Custom("type", "comment").Category("inbox-comment-reply").Custom("subject", "comment").ThreadID("comment")
+		break
+	case (msg.Kind == "t4"):
+		title := fmt.Sprintf(`Message from %s`, msg.Author)
+		payload = payload.AlertTitle(title).AlertSubtitle(postTitle).Custom("type", "private-message").Category("inbox-private-message")
+		break
+	}
+
+	return payload
 }
 
 func logErrors(errChan <-chan error) {
