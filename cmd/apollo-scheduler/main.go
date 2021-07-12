@@ -152,7 +152,7 @@ func evalScript(ctx context.Context, redisConn *redis.Client) (string, error) {
 }
 
 func cleanAccounts(ctx context.Context, logger *logrus.Logger, pool *pgxpool.Pool) {
-	now := time.Now().Unix()
+	now := time.Now().Unix() - 7200
 	count := 0
 	ids := []int64{}
 
