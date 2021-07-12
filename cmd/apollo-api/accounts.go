@@ -28,7 +28,7 @@ func (app *application) upsertAccountHandler(w http.ResponseWriter, r *http.Requ
 		app.logger.WithFields(logrus.Fields{
 			"err": err,
 		}).Info("failed to refresh token")
-		app.errorResponse(w, r, 500, err.Error())
+		app.errorResponse(w, r, 422, err.Error())
 		return
 	}
 
