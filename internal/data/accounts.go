@@ -8,6 +8,7 @@ import (
 type Account struct {
 	ID            int64
 	Username      string
+	AccountID     string
 	AccessToken   string
 	RefreshToken  string
 	ExpiresAt     int64

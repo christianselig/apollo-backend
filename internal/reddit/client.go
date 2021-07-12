@@ -2,6 +2,7 @@ package reddit
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptrace"
@@ -93,7 +94,23 @@ func (rac *AuthenticatedClient) request(r *Request) ([]byte, error) {
 	}
 	defer resp.Body.Close()
 
-	return ioutil.ReadAll(resp.Body)
+	bb, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		rac.statsd.Incr("reddit.api.errors", r.tags, 0.1)
+		return nil, err
+	}
+
+	if resp.StatusCode != 200 {
+		rac.statsd.Incr("reddit.api.errors", r.tags, 0.1)
+
+		// Try to parse a json error. Otherwise we generate a generic one
+		rerr := &Error{}
+		if jerr := json.Unmarshal(bb, rerr); jerr != nil {
+			return nil, fmt.Errorf("error from reddit: %d", resp.StatusCode)
+		}
+		return nil, rerr
+	}
+	return bb, nil
 }
 
 func (rac *AuthenticatedClient) RefreshTokens() (*RefreshTokenResponse, error) {

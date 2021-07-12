@@ -222,6 +222,7 @@ func (c *Consumer) Consume(delivery rmq.Delivery) {
 	stmt := `SELECT
 			id,
 			username,
+			account_id,
 			access_token,
 			refresh_token,
 			expires_at,
@@ -233,6 +234,7 @@ func (c *Consumer) Consume(delivery rmq.Delivery) {
 	if err := c.pool.QueryRow(ctx, stmt, id).Scan(
 		&account.ID,
 		&account.Username,
+		&account.AccountID,
 		&account.AccessToken,
 		&account.RefreshToken,
 		&account.ExpiresAt,
@@ -418,7 +420,19 @@ func payloadFromMessage(acct *data.Account, msg *reddit.MessageData, badgeCount 
 		postTitle = fmt.Sprintf("%s…", postTitle[0:75])
 	}
 
-	payload := payload.NewPayload().Sound("traloop.wav").AlertBody(postBody).Custom("author", msg.Author).Custom("parent_id", msg.ParentID).AlertSummaryArg(msg.Author).MutableContent().Badge(badgeCount).Custom("post_title", msg.LinkTitle).Custom("destination_author", msg.Destination).Custom("subreddit", msg.Subreddit)
+	payload := payload.
+		NewPayload().
+		AlertBody(postBody).
+		AlertSummaryArg(msg.Author).
+		Badge(badgeCount).
+		Custom("account_id", acct.AccountID).
+		Custom("author", msg.Author).
+		Custom("destination_author", msg.Destination).
+		Custom("parent_id", msg.ParentID).
+		Custom("post_title", msg.LinkTitle).
+		Custom("subreddit", msg.Subreddit).
+		MutableContent().
+		Sound("traloop.wav")
 
 	switch {
 	case (msg.Kind == "t1" && msg.Type == "username_mention"):
@@ -436,16 +450,33 @@ func payloadFromMessage(acct *data.Account, msg *reddit.MessageData, badgeCount 
 		break
 	case (msg.Kind == "t1" && msg.Type == "post_reply"):
 		title := fmt.Sprintf(`%s to “%s”`, msg.Author, postTitle)
-		payload = payload.AlertTitle(title).Custom("type", "post").Category("inbox-post-reply").Custom("subject", "comment").ThreadID("comment").Custom("post_id", msg.ID)
+		payload = payload.
+			AlertTitle(title).
+			Category("inbox-post-reply").
+			Custom("post_id", msg.ID).
+			Custom("subject", "comment").
+			Custom("type", "post").
+			ThreadID("comment")
 		break
 	case (msg.Kind == "t1" && msg.Type == "comment_reply"):
 		title := fmt.Sprintf(`%s in “%s”`, msg.Author, postTitle)
 		_, postID := reddit.SplitID(msg.ParentID)
-		payload = payload.AlertTitle(title).Custom("type", "comment").Category("inbox-comment-reply").Custom("subject", "comment").ThreadID("comment").Custom("post_id", postID).Custom("comment_id", msg.ID)
+		payload = payload.
+			AlertTitle(title).
+			Category("inbox-comment-reply").
+			Custom("comment_id", msg.ID).
+			Custom("post_id", postID).
+			Custom("subject", "comment").
+			Custom("type", "comment").
+			ThreadID("comment")
 		break
 	case (msg.Kind == "t4"):
 		title := fmt.Sprintf(`Message from %s`, msg.Author)
-		payload = payload.AlertTitle(title).AlertSubtitle(postTitle).Custom("type", "private-message").Category("inbox-private-message")
+		payload = payload.
+			AlertTitle(title).
+			AlertSubtitle(postTitle).
+			Category("inbox-private-message").
+			Custom("type", "private-message")
 		break
 	}
 
