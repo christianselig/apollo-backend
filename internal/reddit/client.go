@@ -2,6 +2,7 @@ package reddit
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptrace"
@@ -23,6 +24,14 @@ type Client struct {
 	tracer *httptrace.ClientTrace
 	parser *fastjson.Parser
 	statsd *statsd.Client
+}
+
+func SplitID(id string) (string, string) {
+	if parts := strings.Split(id, "_"); len(parts) == 2 {
+		return parts[0], parts[1]
+	}
+
+	return "", ""
 }
 
 func NewClient(id, secret string, statsd *statsd.Client) *Client {
@@ -85,7 +94,23 @@ func (rac *AuthenticatedClient) request(r *Request) ([]byte, error) {
 	}
 	defer resp.Body.Close()
 
-	return ioutil.ReadAll(resp.Body)
+	bb, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		rac.statsd.Incr("reddit.api.errors", r.tags, 0.1)
+		return nil, err
+	}
+
+	if resp.StatusCode != 200 {
+		rac.statsd.Incr("reddit.api.errors", r.tags, 0.1)
+
+		// Try to parse a json error. Otherwise we generate a generic one
+		rerr := &Error{}
+		if jerr := json.Unmarshal(bb, rerr); jerr != nil {
+			return nil, fmt.Errorf("error from reddit: %d", resp.StatusCode)
+		}
+		return nil, rerr
+	}
+	return bb, nil
 }
 
 func (rac *AuthenticatedClient) RefreshTokens() (*RefreshTokenResponse, error) {
@@ -127,14 +152,6 @@ func (rac *AuthenticatedClient) MessageInbox(from string) (*MessageListingRespon
 	mlr := &MessageListingResponse{}
 	json.Unmarshal([]byte(body), mlr)
 	return mlr, nil
-}
-
-type MeResponse struct {
-	Name string
-}
-
-func (mr *MeResponse) NormalizedUsername() string {
-	return strings.ToLower(mr.Name)
 }
 
 func (rac *AuthenticatedClient) Me() (*MeResponse, error) {

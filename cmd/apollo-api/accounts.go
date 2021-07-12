@@ -2,11 +2,11 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/julienschmidt/httprouter"
+	"github.com/sirupsen/logrus"
 
 	"github.com/christianselig/apollo-backend/internal/data"
 )
@@ -14,32 +14,54 @@ import (
 func (app *application) upsertAccountHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	a := &data.Account{}
 	if err := json.NewDecoder(r.Body).Decode(a); err != nil {
-		fmt.Println("failing on decoding json")
-		app.errorResponse(w, r, 500, err.Error())
+		app.logger.WithFields(logrus.Fields{
+			"err": err,
+		}).Info("failed to parse request json")
+		app.errorResponse(w, r, 422, err.Error())
 		return
 	}
 
-	a.ExpiresAt = time.Now().Unix() + 3300
-
 	// Here we check whether the account is supplied with a valid token.
 	ac := app.client.NewAuthenticatedClient(a.RefreshToken, a.AccessToken)
+	tokens, err := ac.RefreshTokens()
+	if err != nil {
+		app.logger.WithFields(logrus.Fields{
+			"err": err,
+		}).Info("failed to refresh token")
+		app.errorResponse(w, r, 422, err.Error())
+		return
+	}
+
+	// Reset expiration timer
+	a.ExpiresAt = time.Now().Unix() + 3540
+
+	ac = app.client.NewAuthenticatedClient(tokens.RefreshToken, tokens.AccessToken)
 	me, err := ac.Me()
 
 	if err != nil {
-		fmt.Println("failing on fetching remote user")
+		app.logger.WithFields(logrus.Fields{
+			"err": err,
+		}).Info("failed to grab user details")
 		app.errorResponse(w, r, 500, err.Error())
 		return
 	}
 
 	if me.NormalizedUsername() != a.NormalizedUsername() {
-		fmt.Println("failing on account username comparison")
-		app.errorResponse(w, r, 500, "nice try")
+		app.logger.WithFields(logrus.Fields{
+			"err": err,
+		}).Info("user is not who they say they are")
+		app.errorResponse(w, r, 422, "nice try")
 		return
 	}
 
+	// Set account ID from Reddit
+	a.AccountID = me.ID
+
 	// Upsert account
 	if err := app.models.Accounts.Upsert(a); err != nil {
-		fmt.Println("failing on account upsert")
+		app.logger.WithFields(logrus.Fields{
+			"err": err,
+		}).Info("failed updating account in database")
 		app.errorResponse(w, r, 500, err.Error())
 		return
 	}
@@ -47,13 +69,17 @@ func (app *application) upsertAccountHandler(w http.ResponseWriter, r *http.Requ
 	// Associate
 	d, err := app.models.Devices.GetByAPNSToken(ps.ByName("apns"))
 	if err != nil {
-		fmt.Println("failing on apns")
+		app.logger.WithFields(logrus.Fields{
+			"err": err,
+		}).Info("failed fetching account devices")
 		app.errorResponse(w, r, 500, err.Error())
 		return
 	}
 
 	if err := app.models.DevicesAccounts.Associate(a.ID, d.ID); err != nil {
-		fmt.Println("failing on associate")
+		app.logger.WithFields(logrus.Fields{
+			"err": err,
+		}).Info("failed associating account with device")
 		app.errorResponse(w, r, 500, err.Error())
 		return
 	}
