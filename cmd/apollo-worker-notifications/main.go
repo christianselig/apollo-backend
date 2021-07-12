@@ -352,7 +352,7 @@ func (c *Consumer) Consume(delivery rmq.Delivery) {
 	stmt = `
 		SELECT apns_token, sandbox
 		FROM devices
-		LEFT JOIN devices_accounts ON devices.id = devices_accounts.device_id
+		INNER JOIN devices_accounts ON devices.id = devices_accounts.device_id
 		WHERE devices_accounts.account_id = $1`
 	rows, err := c.pool.Query(ctx, stmt, account.ID)
 	if err != nil {
