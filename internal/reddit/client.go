@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptrace"
+	"regexp"
 	"strings"
 	"time"
 
@@ -32,6 +33,21 @@ func SplitID(id string) (string, string) {
 	}
 
 	return "", ""
+}
+
+func PostIDFromContext(context string) string {
+	exps := []*regexp.Regexp{
+		regexp.MustCompile(`\/r\/[^\/]*\/comments\/([^\/]*)\/.*`),
+	}
+
+	for _, exp := range exps {
+		matches := exp.FindStringSubmatch(context)
+		if len(matches) != 2 {
+			continue
+		}
+		return matches[1]
+	}
+	return ""
 }
 
 func NewClient(id, secret string, statsd *statsd.Client) *Client {
