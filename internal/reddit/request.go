@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-const userAgent = "server:test-api:v0.0.2 (by /u/changelog)"
+const userAgent = "server:apollo-backend:v1.0 (by /u/iamthatis)"
 
 type Request struct {
 	body   url.Values
