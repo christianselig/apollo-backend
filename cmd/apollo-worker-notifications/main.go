@@ -460,7 +460,7 @@ func payloadFromMessage(acct *data.Account, msg *reddit.MessageData, badgeCount 
 		break
 	case (msg.Kind == "t1" && msg.Type == "comment_reply"):
 		title := fmt.Sprintf(`%s in “%s”`, msg.Author, postTitle)
-		_, postID := reddit.SplitID(msg.ParentID)
+		postID := reddit.PostIDFromContext(msg.Context)
 		payload = payload.
 			AlertTitle(title).
 			Category("inbox-comment-reply").
