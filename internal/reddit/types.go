@@ -3,16 +3,18 @@ package reddit
 import "fmt"
 
 type Message struct {
-	ID        string  `json:"id"`
-	Kind      string  `json:"kind"`
-	Type      string  `json:"type"`
-	Author    string  `json:"author"`
-	Subject   string  `json:"subject"`
-	Body      string  `json:"body"`
-	CreatedAt float64 `json:"created_utc"`
-	Context   string  `json:"context"`
-	ParentID  string  `json:"parent_id"`
-	LinkTitle string  `json:"link_title"`
+	ID          string  `json:"id"`
+	Kind        string  `json:"kind"`
+	Type        string  `json:"type"`
+	Author      string  `json:"author"`
+	Subject     string  `json:"subject"`
+	Body        string  `json:"body"`
+	CreatedAt   float64 `json:"created_utc"`
+	Context     string  `json:"context"`
+	ParentID    string  `json:"parent_id"`
+	LinkTitle   string  `json:"link_title"`
+	Destination string  `json:"dest"`
+	Subreddit   string  `json:"subreddit"`
 }
 
 type MessageData struct {
