@@ -34,8 +34,10 @@ func (app *application) upsertAccountHandler(w http.ResponseWriter, r *http.Requ
 
 	// Reset expiration timer
 	a.ExpiresAt = time.Now().Unix() + 3540
+	a.RefreshToken = tokens.RefreshToken
+	a.AccessToken = tokens.AccessToken
 
-	ac = app.client.NewAuthenticatedClient(tokens.RefreshToken, tokens.AccessToken)
+	ac = app.client.NewAuthenticatedClient(a.RefreshToken, a.AccessToken)
 	me, err := ac.Me()
 
 	if err != nil {
