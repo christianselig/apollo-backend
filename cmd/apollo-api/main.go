@@ -10,6 +10,7 @@ import (
 	"github.com/DataDog/datadog-go/statsd"
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
+	"github.com/sirupsen/logrus"
 
 	"github.com/christianselig/apollo-backend/internal/data"
 	"github.com/christianselig/apollo-backend/internal/reddit"
@@ -21,14 +22,25 @@ type config struct {
 
 type application struct {
 	cfg    config
-	logger *log.Logger
+	logger *logrus.Logger
 	db     *sql.DB
 	models *data.Models
 	client *reddit.Client
 }
 
 func main() {
-	logger := log.New(os.Stdout, "", log.Ldate|log.Ltime)
+	var logger *logrus.Logger
+	{
+		logger = logrus.New()
+		if os.Getenv("ENV") == "" {
+			logger.SetLevel(logrus.DebugLevel)
+		} else {
+			logger.SetFormatter(&logrus.TextFormatter{
+				DisableColors: true,
+				FullTimestamp: true,
+			})
+		}
+	}
 
 	if err := godotenv.Load(); err != nil {
 		logger.Printf("Couldn't find .env so I will read from existing ENV.")
