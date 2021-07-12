@@ -2,6 +2,15 @@ package reddit
 
 import "fmt"
 
+type Error struct {
+	Message string `json:"message"`
+	Code    int    `json:"error"`
+}
+
+func (err *Error) Error() string {
+	return fmt.Sprintf("%s (%d)", err.Message, err.Code)
+}
+
 type Message struct {
 	ID          string  `json:"id"`
 	Kind        string  `json:"kind"`
