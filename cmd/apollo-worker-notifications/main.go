@@ -267,6 +267,10 @@ func (c *Consumer) Consume(delivery rmq.Delivery) {
 			}).Error("failed to refresh reddit tokens")
 			return
 		}
+
+		// Refresh client
+		rac = c.reddit.NewAuthenticatedClient(tokens.RefreshToken, tokens.AccessToken)
+
 		err = c.pool.BeginFunc(ctx, func(tx pgx.Tx) error {
 			stmt := `
 				UPDATE accounts
