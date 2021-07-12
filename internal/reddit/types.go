@@ -1,6 +1,9 @@
 package reddit
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 type Error struct {
 	Message string `json:"message"`
@@ -46,4 +49,13 @@ type MessageListingResponse struct {
 type RefreshTokenResponse struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
+}
+
+type MeResponse struct {
+	ID   string `json:"id"`
+	Name string
+}
+
+func (mr *MeResponse) NormalizedUsername() string {
+	return strings.ToLower(mr.Name)
 }

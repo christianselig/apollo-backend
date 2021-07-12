@@ -154,14 +154,6 @@ func (rac *AuthenticatedClient) MessageInbox(from string) (*MessageListingRespon
 	return mlr, nil
 }
 
-type MeResponse struct {
-	Name string
-}
-
-func (mr *MeResponse) NormalizedUsername() string {
-	return strings.ToLower(mr.Name)
-}
-
 func (rac *AuthenticatedClient) Me() (*MeResponse, error) {
 	req := NewRequest(
 		WithTags([]string{"url:/api/v1/me"}),
