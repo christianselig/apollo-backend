@@ -1,8 +1,11 @@
 package data
 
 import (
-	"database/sql"
+	"context"
 	"strings"
+
+	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v4/pgxpool"
 )
 
 type Account struct {
@@ -21,25 +24,36 @@ func (a *Account) NormalizedUsername() string {
 }
 
 type AccountModel struct {
-	DB *sql.DB
+	ctx  context.Context
+	pool *pgxpool.Pool
 }
 
 func (am *AccountModel) Upsert(a *Account) error {
-	query := `
-		INSERT INTO accounts (username, account_id, access_token, refresh_token, expires_at, last_message_id, device_count, last_checked_at)
-		VALUES ($1, $2, $3, $4, $5, '', 0, 0)
-		ON CONFLICT(username)
-		DO
-			UPDATE SET
-				access_token = $3,
-				refresh_token = $4,
-				expires_at = $5,
-				last_message_id = $6,
-				last_checked_at = $7
-		RETURNING id`
-
-	args := []interface{}{a.NormalizedUsername(), a.AccountID, a.AccessToken, a.RefreshToken, a.ExpiresAt, a.LastMessageID, a.LastCheckedAt}
-	return am.DB.QueryRow(query, args...).Scan(&a.ID)
+	return am.pool.BeginFunc(am.ctx, func(tx pgx.Tx) error {
+		stmt := `
+				INSERT INTO accounts (username, account_id, access_token, refresh_token, expires_at, last_message_id, device_count, last_checked_at)
+					VALUES ($1, $2, $3, $4, $5, '', 0, 0)
+					ON CONFLICT(username)
+					DO
+						UPDATE SET
+							access_token = $3,
+							refresh_token = $4,
+							expires_at = $5,
+							last_message_id = $6,
+							last_checked_at = $7
+					RETURNING id`
+		return tx.QueryRow(
+			am.ctx,
+			stmt,
+			a.NormalizedUsername(),
+			a.AccountID,
+			a.AccessToken,
+			a.RefreshToken,
+			a.ExpiresAt,
+			a.LastMessageID,
+			a.LastCheckedAt,
+		).Scan(&a.ID)
+	})
 }
 
 func (am *AccountModel) Delete(id int64) error {
