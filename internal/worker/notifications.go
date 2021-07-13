@@ -245,7 +245,7 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 	nc.logger.WithFields(logrus.Fields{
 		"accountID": id,
 	}).Debug("fetching message inbox")
-	msgs, err := rac.MessageInbox(account.LastMessageID)
+	msgs, err := rac.MessageUnread(account.LastMessageID)
 
 	if err != nil {
 		nc.logger.WithFields(logrus.Fields{

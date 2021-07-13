@@ -65,7 +65,12 @@ func NewClient(id, secret string, statsd *statsd.Client) *Client {
 		},
 	}
 
-	client := &http.Client{}
+	t := http.DefaultTransport.(*http.Transport).Clone()
+	t.MaxIdleConns = 128
+	t.MaxConnsPerHost = 512
+	t.MaxIdleConnsPerHost = 128
+
+	client := &http.Client{Transport: t}
 
 	parser := &fastjson.Parser{}
 
@@ -154,6 +159,26 @@ func (rac *AuthenticatedClient) MessageInbox(from string) (*MessageListingRespon
 		WithMethod("GET"),
 		WithToken(rac.accessToken),
 		WithURL("https://oauth.reddit.com/message/inbox.json"),
+		WithQuery("before", from),
+	)
+
+	body, err := rac.request(req)
+
+	if err != nil {
+		return nil, err
+	}
+
+	mlr := &MessageListingResponse{}
+	json.Unmarshal([]byte(body), mlr)
+	return mlr, nil
+}
+
+func (rac *AuthenticatedClient) MessageUnread(from string) (*MessageListingResponse, error) {
+	req := NewRequest(
+		WithTags([]string{"url:/api/v1/message/unread"}),
+		WithMethod("GET"),
+		WithToken(rac.accessToken),
+		WithURL("https://oauth.reddit.com/message/unread.json"),
 		WithQuery("before", from),
 	)
 
