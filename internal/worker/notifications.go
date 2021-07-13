@@ -196,9 +196,6 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 		return
 	}
 
-	retried := false
-
-refreshToken:
 	rac := nc.reddit.NewAuthenticatedClient(account.RefreshToken, account.AccessToken)
 	if account.ExpiresAt < int64(now) {
 		nc.logger.WithFields(logrus.Fields{
@@ -251,13 +248,6 @@ refreshToken:
 	msgs, err := rac.MessageInbox(account.LastMessageID)
 
 	if err != nil {
-		// Check if maybe we need to refresh the token.
-		if !retried {
-			retried = true
-			account.ExpiresAt = 0
-			goto refreshToken
-		}
-
 		nc.logger.WithFields(logrus.Fields{
 			"accountID": id,
 			"err":       err,
