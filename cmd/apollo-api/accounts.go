@@ -43,7 +43,7 @@ func (app *application) upsertAccountHandler(w http.ResponseWriter, r *http.Requ
 	if err != nil {
 		app.logger.WithFields(logrus.Fields{
 			"err": err,
-		}).Info("failed to grab user details")
+		}).Info("failed to grab user details from Reddit")
 		app.errorResponse(w, r, 500, err.Error())
 		return
 	}
@@ -59,21 +59,21 @@ func (app *application) upsertAccountHandler(w http.ResponseWriter, r *http.Requ
 	// Set account ID from Reddit
 	a.AccountID = me.ID
 
-	// Upsert account
-	if err := app.models.Accounts.Upsert(a); err != nil {
-		app.logger.WithFields(logrus.Fields{
-			"err": err,
-		}).Info("failed updating account in database")
-		app.errorResponse(w, r, 500, err.Error())
-		return
-	}
-
 	// Associate
 	d, err := app.models.Devices.GetByAPNSToken(ps.ByName("apns"))
 	if err != nil {
 		app.logger.WithFields(logrus.Fields{
 			"err": err,
-		}).Info("failed fetching account devices")
+		}).Info("failed fetching device from database")
+		app.errorResponse(w, r, 500, err.Error())
+		return
+	}
+
+	// Upsert account
+	if err := app.models.Accounts.Upsert(a); err != nil {
+		app.logger.WithFields(logrus.Fields{
+			"err": err,
+		}).Info("failed updating account in database")
 		app.errorResponse(w, r, 500, err.Error())
 		return
 	}
