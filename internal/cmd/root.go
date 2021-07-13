@@ -6,6 +6,7 @@ import (
 	"github.com/DataDog/datadog-go/statsd"
 	"github.com/adjust/rmq/v4"
 	"github.com/go-redis/redis/v8"
+	_ "github.com/heroku/x/hmetrics/onload"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/joho/godotenv"
 	"github.com/sirupsen/logrus"
