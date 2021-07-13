@@ -115,10 +115,9 @@ func (rac *AuthenticatedClient) request(r *Request) ([]byte, error) {
 		rac.statsd.Incr("reddit.api.errors", r.tags, 0.1)
 		return nil, err
 	}
-
 	if resp.StatusCode != 200 {
 		rac.statsd.Incr("reddit.api.errors", r.tags, 0.1)
-
+		fmt.Println(bb) // TODO remove
 		// Try to parse a json error. Otherwise we generate a generic one
 		rerr := &Error{}
 		if jerr := json.Unmarshal(bb, rerr); jerr != nil {
