@@ -181,11 +181,6 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 		return
 	}
 
-	if account.LastCheckedAt > 0 {
-		latency := now - account.LastCheckedAt - float64(backoff)
-		nc.statsd.Histogram("apollo.queue.delay", latency, []string{}, rate)
-	}
-
 	if err = nc.db.BeginFunc(ctx, func(tx pgx.Tx) error {
 		stmt := `
 			UPDATE accounts
@@ -231,7 +226,7 @@ refreshToken:
 			stmt := `
 				UPDATE accounts
 				SET access_token = $1, refresh_token = $2, expires_at = $3 WHERE id = $4`
-			_, err := tx.Exec(ctx, stmt, tokens.AccessToken, tokens.RefreshToken, int64(now+3540), account.ID)
+			_, err := tx.Exec(ctx, stmt, account.AccessToken, account.RefreshToken, account.ExpiresAt, account.ID)
 			return err
 		})
 		if err != nil {
@@ -241,6 +236,13 @@ refreshToken:
 			}).Error("failed to update reddit tokens for account")
 			return
 		}
+	}
+
+	// Only update delay on accounts we can actually check, otherwise it skews
+	// the numbers too much.
+	if account.LastCheckedAt > 0 {
+		latency := now - account.LastCheckedAt - float64(backoff)
+		nc.statsd.Histogram("apollo.queue.delay", latency, []string{}, rate)
 	}
 
 	nc.logger.WithFields(logrus.Fields{
