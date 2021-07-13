@@ -50,7 +50,7 @@ func NewRedisClient(ctx context.Context) (*redis.Client, error) {
 }
 
 func NewDatabasePool(ctx context.Context) (*pgxpool.Pool, error) {
-	url := fmt.Sprintf("%s?sslmode=require", os.Getenv("DATABASE_CONNECTION_POOL_URL"))
+	url := fmt.Sprintf("%s?sslmode=require&pool_max_conns=32", os.Getenv("DATABASE_CONNECTION_POOL_URL"))
 	config, err := pgxpool.ParseConfig(url)
 	if err != nil {
 		return nil, err
