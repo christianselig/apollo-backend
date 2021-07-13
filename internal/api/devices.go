@@ -1,4 +1,4 @@
-package main
+package api
 
 import (
 	"encoding/json"
@@ -9,15 +9,15 @@ import (
 	"github.com/christianselig/apollo-backend/internal/data"
 )
 
-func (app *application) upsertDeviceHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+func (a *api) upsertDeviceHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	d := &data.Device{}
 	if err := json.NewDecoder(r.Body).Decode(d); err != nil {
-		app.errorResponse(w, r, 500, err.Error())
+		a.errorResponse(w, r, 500, err.Error())
 		return
 	}
 
-	if err := app.models.Devices.Upsert(d); err != nil {
-		app.errorResponse(w, r, 500, err.Error())
+	if err := a.models.Devices.Upsert(d); err != nil {
+		a.errorResponse(w, r, 500, err.Error())
 		return
 	}
 

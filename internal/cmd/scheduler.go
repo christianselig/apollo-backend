@@ -1,24 +1,21 @@
-package main
+package cmd
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
-	"os"
-	"os/signal"
 	"strconv"
-	"syscall"
 	"time"
 
 	"github.com/DataDog/datadog-go/statsd"
 	"github.com/adjust/rmq/v4"
+	"github.com/christianselig/apollo-backend/internal/cmdutil"
 	"github.com/go-co-op/gocron"
 	"github.com/go-redis/redis/v8"
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
-	"github.com/joho/godotenv"
 	"github.com/sirupsen/logrus"
+	"github.com/spf13/cobra"
 )
 
 const (
@@ -27,113 +24,67 @@ const (
 	enqueueTimeout = 5  // how long until we try to re-enqueue
 )
 
-func main() {
-	_ = godotenv.Load()
+func SchedulerCmd(ctx context.Context) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "scheduler",
+		Args:  cobra.ExactArgs(0),
+		Short: "Schedules jobs and runs several maintenance tasks periodically.",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			logger := cmdutil.NewLogrusLogger(false)
 
-	errChan := make(chan error, 10)
-	go logErrors(errChan)
+			statsd, err := cmdutil.NewStatsdClient()
+			if err != nil {
+				return err
+			}
+			defer statsd.Close()
 
-	ctx, cancel := context.WithCancel(context.Background())
+			db, err := cmdutil.NewDatabasePool(ctx)
+			if err != nil {
+				return err
+			}
+			defer db.Close()
 
-	var logger *logrus.Logger
-	{
-		logger = logrus.New()
-		if os.Getenv("ENV") == "" {
-			logger.SetLevel(logrus.DebugLevel)
-		} else {
-			logger.SetFormatter(&logrus.TextFormatter{
-				DisableColors: true,
-				FullTimestamp: true,
-			})
-		}
+			redis, err := cmdutil.NewRedisClient(ctx)
+			if err != nil {
+				return err
+			}
+			defer redis.Close()
+
+			queue, err := cmdutil.NewQueueClient(logger, redis, "worker")
+			if err != nil {
+				return err
+			}
+
+			// Eval lua so that we don't keep parsing it
+			luaSha, err := evalScript(ctx, redis)
+			if err != nil {
+				return err
+			}
+
+			notifQueue, err := queue.OpenQueue("notifications")
+			if err != nil {
+				return err
+			}
+
+			s := gocron.NewScheduler(time.UTC)
+			s.Every(1).Second().Do(func() { enqueueAccounts(ctx, logger, statsd, db, redis, luaSha, notifQueue) })
+			s.Every(1).Second().Do(func() { cleanQueues(ctx, logger, queue) })
+			s.Every(1).Minute().Do(func() { reportStats(ctx, logger, statsd, db, redis) })
+			s.Every(1).Minute().Do(func() { cleanAccounts(ctx, logger, db) })
+			s.StartAsync()
+
+			<-ctx.Done()
+
+			s.Stop()
+
+			return nil
+		},
 	}
 
-	statsd, err := statsd.New("127.0.0.1:8125")
-	if err != nil {
-		logger.WithFields(logrus.Fields{
-			"err": err,
-		}).Error("failed to set up stats")
-	}
-
-	// Set up Postgres connection
-	var pool *pgxpool.Pool
-	{
-		url := fmt.Sprintf("%s?sslmode=require", os.Getenv("DATABASE_CONNECTION_POOL_URL"))
-		config, err := pgxpool.ParseConfig(url)
-		if err != nil {
-			panic(err)
-		}
-
-		// Setting the build statement cache to nil helps this work with pgbouncer
-		config.ConnConfig.BuildStatementCache = nil
-		config.ConnConfig.PreferSimpleProtocol = true
-
-		pool, err = pgxpool.ConnectConfig(ctx, config)
-		if err != nil {
-			panic(err)
-		}
-		defer pool.Close()
-	}
-
-	// Set up Redis connection
-	var redisConn *redis.Client
-	{
-		opt, err := redis.ParseURL(os.Getenv("REDISCLOUD_URL"))
-		if err != nil {
-			panic(err)
-		}
-
-		redisConn = redis.NewClient(opt)
-		if err := redisConn.Ping(ctx).Err(); err != nil {
-			panic(err)
-		}
-	}
-
-	// Set up queues
-	var (
-		jobsConn           rmq.Connection
-		notificationsQueue rmq.Queue
-	)
-	{
-		jobsConn, err = rmq.OpenConnectionWithRedisClient("producer", redisConn, errChan)
-		if err != nil {
-			panic(err)
-		}
-
-		notificationsQueue, err = jobsConn.OpenQueue("notifications")
-		if err != nil {
-			panic(err)
-		}
-	}
-
-	// Eval lua so that we don't keep parsing it
-	luaSha, err := evalScript(ctx, redisConn)
-	if err != nil {
-		panic(err)
-	}
-
-	s := gocron.NewScheduler(time.UTC)
-	s.Every(1).Second().Do(func() { enqueueAccounts(ctx, logger, statsd, pool, redisConn, luaSha, notificationsQueue) })
-	s.Every(1).Second().Do(func() { cleanQueues(ctx, logger, jobsConn) })
-	s.Every(1).Minute().Do(func() { reportStats(ctx, logger, statsd, pool, redisConn) })
-	s.Every(1).Minute().Do(func() { cleanAccounts(ctx, logger, pool) })
-	s.StartAsync()
-
-	signals := make(chan os.Signal, 1)
-	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
-	defer signal.Stop(signals)
-
-	<-signals // wait for signal
-	cancel()
-	go func() {
-		<-signals // hard exit on second signal (in case shutdown gets stuck)
-		os.Exit(1)
-	}()
-
-	s.Stop()
+	return cmd
 }
 
-func evalScript(ctx context.Context, redisConn *redis.Client) (string, error) {
+func evalScript(ctx context.Context, redis *redis.Client) (string, error) {
 	lua := fmt.Sprintf(`
 		local retv={}
 		local ids=cjson.decode(ARGV[1])
@@ -149,7 +100,7 @@ func evalScript(ctx context.Context, redisConn *redis.Client) (string, error) {
 		return retv
 	`, checkTimeout)
 
-	return redisConn.ScriptLoad(ctx, lua).Result()
+	return redis.ScriptLoad(ctx, lua).Result()
 }
 
 func cleanAccounts(ctx context.Context, logger *logrus.Logger, pool *pgxpool.Pool) {
@@ -340,12 +291,6 @@ func enqueueAccounts(ctx context.Context, logger *logrus.Logger, statsd *statsd.
 		"skipped": skipped,
 		"start":   ready,
 	}).Debug("done enqueueing account batch")
-}
-
-func logErrors(errChan <-chan error) {
-	for err := range errChan {
-		log.Print("error: ", err)
-	}
 }
 
 type Int64Slice []int64
