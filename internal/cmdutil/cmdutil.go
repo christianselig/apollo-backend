@@ -40,6 +40,7 @@ func NewRedisClient(ctx context.Context) (*redis.Client, error) {
 	if err != nil {
 		return nil, err
 	}
+	opt.MinIdleConns = 16
 
 	client := redis.NewClient(opt)
 	if err := client.Ping(ctx).Err(); err != nil {
