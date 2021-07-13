@@ -58,7 +58,8 @@ func main() {
 	// Set up Postgres connection
 	var pool *pgxpool.Pool
 	{
-		config, err := pgxpool.ParseConfig(os.Getenv("DATABASE_CONNECTION_POOL_URL"))
+		url := fmt.Sprintf("%s?sslmode=require", os.Getenv("DATABASE_CONNECTION_POOL_URL"))
+		config, err := pgxpool.ParseConfig(url)
 		if err != nil {
 			panic(err)
 		}
