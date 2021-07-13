@@ -13,7 +13,7 @@ import (
 
 func (a *api) upsertAccountHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	acct := &data.Account{}
-	if err := json.NewDecoder(r.Body).Decode(a); err != nil {
+	if err := json.NewDecoder(r.Body).Decode(acct); err != nil {
 		a.logger.WithFields(logrus.Fields{
 			"err": err,
 		}).Info("failed to parse request json")
