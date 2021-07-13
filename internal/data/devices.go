@@ -1,9 +1,11 @@
 package data
 
 import (
-	"database/sql"
-	"errors"
+	"context"
 	"time"
+
+	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v4/pgxpool"
 )
 
 type Device struct {
@@ -14,45 +16,45 @@ type Device struct {
 }
 
 type DeviceModel struct {
-	DB *sql.DB
+	ctx  context.Context
+	pool *pgxpool.Pool
 }
 
 func (dm *DeviceModel) Upsert(d *Device) error {
 	d.LastPingedAt = time.Now().Unix()
 
-	query := `
-		INSERT INTO devices (apns_token, sandbox, last_pinged_at)
-		VALUES ($1, $2, $3)
-		ON CONFLICT(apns_token)
-		DO
-			UPDATE SET last_pinged_at = $3
-		RETURNING id`
-
-	args := []interface{}{d.APNSToken, d.Sandbox, d.LastPingedAt}
-	return dm.DB.QueryRow(query, args...).Scan(&d.ID)
+	return dm.pool.BeginFunc(dm.ctx, func(tx pgx.Tx) error {
+		stmt := `
+			INSERT INTO devices (apns_token, sandbox, last_pinged_at)
+			VALUES ($1, $2, $3)
+			ON CONFLICT(apns_token)
+			DO
+				UPDATE SET last_pinged_at = $3
+			RETURNING id`
+		return tx.QueryRow(
+			dm.ctx,
+			stmt,
+			d.APNSToken,
+			d.Sandbox,
+			d.LastPingedAt,
+		).Scan(&d.ID)
+	})
 }
 
 func (dm *DeviceModel) GetByAPNSToken(token string) (*Device, error) {
-	query := `
+	device := &Device{}
+	stmt := `
 		SELECT id, apns_token, sandbox, last_pinged_at
 		FROM devices
 		WHERE apns_token = $1`
 
-	device := &Device{}
-	err := dm.DB.QueryRow(query, token).Scan(
+	if err := dm.pool.QueryRow(dm.ctx, stmt, token).Scan(
 		&device.ID,
 		&device.APNSToken,
 		&device.Sandbox,
 		&device.LastPingedAt,
-	)
-
-	if err != nil {
-		switch {
-		case errors.Is(err, sql.ErrNoRows):
-			return nil, ErrRecordNotFound
-		default:
-			return nil, err
-		}
+	); err != nil {
+		return nil, err
 	}
 	return device, nil
 }

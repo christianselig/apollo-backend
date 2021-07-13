@@ -1,8 +1,10 @@
 package data
 
 import (
-	"database/sql"
+	"context"
 	"errors"
+
+	"github.com/jackc/pgx/v4/pgxpool"
 )
 
 var (
@@ -25,11 +27,11 @@ type Models struct {
 	}
 }
 
-func NewModels(db *sql.DB) *Models {
+func NewModels(ctx context.Context, pool *pgxpool.Pool) *Models {
 	return &Models{
-		Accounts:        &AccountModel{DB: db},
-		Devices:         &DeviceModel{DB: db},
-		DevicesAccounts: &DeviceAccountModel{DB: db},
+		Accounts:        &AccountModel{ctx, pool},
+		Devices:         &DeviceModel{ctx, pool},
+		DevicesAccounts: &DeviceAccountModel{ctx, pool},
 	}
 }
 

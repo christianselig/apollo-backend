@@ -1,15 +1,17 @@
 package main
 
 import (
-	"database/sql"
+	"context"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/DataDog/datadog-go/statsd"
+	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/joho/godotenv"
-	_ "github.com/lib/pq"
 	"github.com/sirupsen/logrus"
 
 	"github.com/christianselig/apollo-backend/internal/data"
@@ -23,12 +25,15 @@ type config struct {
 type application struct {
 	cfg    config
 	logger *logrus.Logger
-	db     *sql.DB
+	pool   *pgxpool.Pool
 	models *data.Models
 	client *reddit.Client
 }
 
 func main() {
+	_ = godotenv.Load()
+	ctx, cancel := context.WithCancel(context.Background())
+
 	var logger *logrus.Logger
 	{
 		logger = logrus.New()
@@ -42,22 +47,27 @@ func main() {
 		}
 	}
 
-	if err := godotenv.Load(); err != nil {
-		logger.Printf("Couldn't find .env so I will read from existing ENV.")
-	}
-
 	var cfg config
 
-	dburl, ok := os.LookupEnv("DATABASE_CONNECTION_POOL_URL")
-	if !ok {
-		dburl = os.Getenv("DATABASE_URL")
-	}
+	// Set up Postgres connection
+	var pool *pgxpool.Pool
+	{
+		url := fmt.Sprintf("%s?sslmode=require", os.Getenv("DATABASE_CONNECTION_POOL_URL"))
+		config, err := pgxpool.ParseConfig(url)
+		if err != nil {
+			panic(err)
+		}
 
-	db, err := sql.Open("postgres", fmt.Sprintf("%s?binary_parameters=yes", dburl))
-	if err != nil {
-		log.Fatal(err)
+		// Setting the build statement cache to nil helps this work with pgbouncer
+		config.ConnConfig.BuildStatementCache = nil
+		config.ConnConfig.PreferSimpleProtocol = true
+
+		pool, err = pgxpool.ConnectConfig(ctx, config)
+		if err != nil {
+			panic(err)
+		}
+		defer pool.Close()
 	}
-	defer db.Close()
 
 	statsd, err := statsd.New("127.0.0.1:8125")
 	if err != nil {
@@ -73,8 +83,8 @@ func main() {
 	app := &application{
 		cfg,
 		logger,
-		db,
-		data.NewModels(db),
+		pool,
+		data.NewModels(ctx, pool),
 		rc,
 	}
 
@@ -89,6 +99,19 @@ func main() {
 	}
 
 	logger.Printf("starting server on %s", srv.Addr)
-	err = srv.ListenAndServe()
-	logger.Fatal(err)
+	go srv.ListenAndServe()
+
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
+	defer signal.Stop(signals)
+
+	<-signals // wait for signal
+
+	srv.Shutdown(ctx)
+	cancel()
+
+	go func() {
+		<-signals // hard exit on second signal (in case shutdown gets stuck)
+		os.Exit(1)
+	}()
 }
