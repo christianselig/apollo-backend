@@ -23,7 +23,7 @@ import (
 
 const (
 	backoff      = 5 // How long we wait in between checking for notifications, in seconds
-	pollDuration = 10 * time.Millisecond
+	pollDuration = 5 * time.Millisecond
 	rate         = 0.1
 )
 
@@ -79,7 +79,7 @@ func (nw *notificationsWorker) Start(consumers int) error {
 		"numConsumers": consumers,
 	}).Info("starting up notifications worker")
 
-	prefetchLimit := int64(consumers * 2)
+	prefetchLimit := int64(consumers * 8)
 
 	if err := queue.StartConsuming(prefetchLimit, pollDuration); err != nil {
 		return err
