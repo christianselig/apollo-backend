@@ -219,6 +219,11 @@ refreshToken:
 			return
 		}
 
+		// Update account
+		account.AccessToken = tokens.AccessToken
+		account.RefreshToken = tokens.RefreshToken
+		account.ExpiresAt = int64(now + 3540)
+
 		// Refresh client
 		rac = nc.reddit.NewAuthenticatedClient(tokens.RefreshToken, tokens.AccessToken)
 
