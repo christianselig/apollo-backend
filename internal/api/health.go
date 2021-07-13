@@ -1,4 +1,4 @@
-package main
+package api
 
 import (
 	"encoding/json"
@@ -7,7 +7,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 )
 
-func (app *application) healthCheckHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+func (a *api) healthCheckHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	data := map[string]string{
 		"status": "available",
 	}
