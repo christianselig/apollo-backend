@@ -2,10 +2,11 @@ on: [push, pull_request]
 name: Unit Tests
 jobs:
   test:
-    name: "go ${{ matrix.go-version }}"
+    name: "go ${{ matrix.go-version }} (${{ matrix.platform }})"
     matrix:
       go-version: [1.16.5]
-
+      platform: [ubuntu-latest]
+    runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v2
       - name: Setup Go
