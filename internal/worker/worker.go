@@ -8,9 +8,8 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-type NewWorkerFn func(logger *logrus.Logger, statsd *statsd.Client, db *pgxpool.Pool, redis *redis.Client, queue rmq.Connection) Worker
-
+type NewWorkerFn func(logger *logrus.Logger, statsd *statsd.Client, db *pgxpool.Pool, redis *redis.Client, queue rmq.Connection, consumers int) Worker
 type Worker interface {
-	Start(int) error
+	Start() error
 	Stop()
 }
