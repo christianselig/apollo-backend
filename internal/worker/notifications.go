@@ -28,20 +28,22 @@ const (
 )
 
 type notificationsWorker struct {
-	logger *logrus.Logger
-	statsd *statsd.Client
-	db     *pgxpool.Pool
-	redis  *redis.Client
-	queue  rmq.Connection
-	reddit *reddit.Client
-	apns   *token.Token
+	logger    *logrus.Logger
+	statsd    *statsd.Client
+	db        *pgxpool.Pool
+	redis     *redis.Client
+	queue     rmq.Connection
+	reddit    *reddit.Client
+	apns      *token.Token
+	consumers int
 }
 
-func NewNotificationsWorker(logger *logrus.Logger, statsd *statsd.Client, db *pgxpool.Pool, redis *redis.Client, queue rmq.Connection) Worker {
+func NewNotificationsWorker(logger *logrus.Logger, statsd *statsd.Client, db *pgxpool.Pool, redis *redis.Client, queue rmq.Connection, consumers int) Worker {
 	reddit := reddit.NewClient(
 		os.Getenv("REDDIT_CLIENT_ID"),
 		os.Getenv("REDDIT_CLIENT_SECRET"),
 		statsd,
+		consumers,
 	)
 
 	var apns *token.Token
@@ -66,20 +68,21 @@ func NewNotificationsWorker(logger *logrus.Logger, statsd *statsd.Client, db *pg
 		queue,
 		reddit,
 		apns,
+		consumers,
 	}
 }
 
-func (nw *notificationsWorker) Start(consumers int) error {
+func (nw *notificationsWorker) Start() error {
 	queue, err := nw.queue.OpenQueue("notifications")
 	if err != nil {
 		return err
 	}
 
 	nw.logger.WithFields(logrus.Fields{
-		"numConsumers": consumers,
+		"numConsumers": nw.consumers,
 	}).Info("starting up notifications worker")
 
-	prefetchLimit := int64(consumers * 2)
+	prefetchLimit := int64(nw.consumers * 2)
 
 	if err := queue.StartConsuming(prefetchLimit, pollDuration); err != nil {
 		return err
@@ -87,7 +90,7 @@ func (nw *notificationsWorker) Start(consumers int) error {
 
 	host, _ := os.Hostname()
 
-	for i := 0; i < consumers; i++ {
+	for i := 0; i < nw.consumers; i++ {
 		name := fmt.Sprintf("consumer %s-%d", host, i)
 
 		consumer := NewNotificationsConsumer(nw, i)

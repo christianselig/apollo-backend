@@ -28,6 +28,7 @@ func NewAPI(ctx context.Context, logger *logrus.Logger, statsd *statsd.Client, d
 		os.Getenv("REDDIT_CLIENT_ID"),
 		os.Getenv("REDDIT_CLIENT_SECRET"),
 		statsd,
+		16,
 	)
 
 	models := data.NewModels(ctx, db)

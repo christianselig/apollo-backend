@@ -50,7 +50,7 @@ func PostIDFromContext(context string) string {
 	return ""
 }
 
-func NewClient(id, secret string, statsd *statsd.Client) *Client {
+func NewClient(id, secret string, statsd *statsd.Client, connLimit int) *Client {
 	tracer := &httptrace.ClientTrace{
 		GotConn: func(info httptrace.GotConnInfo) {
 			if info.Reused {
@@ -66,9 +66,10 @@ func NewClient(id, secret string, statsd *statsd.Client) *Client {
 	}
 
 	t := http.DefaultTransport.(*http.Transport).Clone()
-	t.MaxIdleConns = 128
-	t.MaxConnsPerHost = 512
-	t.MaxIdleConnsPerHost = 128
+	t.MaxIdleConns = connLimit / 4
+	t.MaxConnsPerHost = connLimit
+	t.MaxIdleConnsPerHost = connLimit / 4
+	t.IdleConnTimeout = 10 * time.Second
 
 	client := &http.Client{Transport: t}
 

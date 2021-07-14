@@ -62,8 +62,8 @@ func WorkerCmd(ctx context.Context) *cobra.Command {
 
 			consumers := runtime.NumCPU() * multiplier
 
-			worker := workerFn(logger, statsd, db, redis, queue)
-			worker.Start(consumers)
+			worker := workerFn(logger, statsd, db, redis, queue, consumers)
+			worker.Start()
 
 			<-ctx.Done()
 
