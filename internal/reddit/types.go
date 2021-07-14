@@ -3,6 +3,8 @@ package reddit
 import (
 	"fmt"
 	"strings"
+
+	"github.com/valyala/fastjson"
 )
 
 type Error struct {
@@ -58,4 +60,13 @@ type MeResponse struct {
 
 func (mr *MeResponse) NormalizedUsername() string {
 	return strings.ToLower(mr.Name)
+}
+
+func NewMeResponse(val *fastjson.Value) *MeResponse {
+	mr := &MeResponse{}
+
+	mr.ID = string(val.GetStringBytes("id"))
+	mr.Name = string(val.GetStringBytes("name"))
+
+	return mr
 }
