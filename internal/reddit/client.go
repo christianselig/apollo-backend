@@ -70,6 +70,7 @@ func NewClient(id, secret string, statsd *statsd.Client, connLimit int) *Client 
 	t.MaxConnsPerHost = connLimit
 	t.MaxIdleConnsPerHost = connLimit / 4
 	t.IdleConnTimeout = 10 * time.Second
+	t.ResponseHeaderTimeout = 5 * time.Second
 
 	client := &http.Client{Transport: t}
 
