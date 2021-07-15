@@ -13,10 +13,6 @@ import (
 	"github.com/valyala/fastjson"
 )
 
-const (
-	tokenURL = "https://www.reddit.com/api/v1/access_token"
-)
-
 type Client struct {
 	id     string
 	secret string
@@ -155,7 +151,7 @@ func (rac *AuthenticatedClient) RefreshTokens() (*RefreshTokenResponse, error) {
 	req := NewRequest(
 		WithTags([]string{"url:/api/v1/access_token"}),
 		WithMethod("POST"),
-		WithURL(tokenURL),
+		WithURL("https://www.reddit.com/api/v1/access_token"),
 		WithBody("grant_type", "refresh_token"),
 		WithBody("refresh_token", rac.refreshToken),
 		WithBasicAuth(rac.id, rac.secret),
@@ -165,6 +161,7 @@ func (rac *AuthenticatedClient) RefreshTokens() (*RefreshTokenResponse, error) {
 	if err != nil {
 		return nil, err
 	}
+	fmt.Println(rtr)
 	return rtr.(*RefreshTokenResponse), nil
 }
 
