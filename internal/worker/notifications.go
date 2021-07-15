@@ -276,7 +276,7 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 		oldest = i
 	}
 
-	tt := msgs.Children[:oldest]
+	tt := msgs.Children[:oldest+1]
 
 	nc.logger.WithFields(logrus.Fields{
 		"accountID": id,
@@ -285,6 +285,7 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 
 	// Set latest message we alerted on
 	latestMsg := tt[0]
+
 	if err = nc.db.BeginFunc(ctx, func(tx pgx.Tx) error {
 		stmt := `
 			UPDATE accounts
