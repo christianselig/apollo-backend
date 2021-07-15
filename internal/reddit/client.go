@@ -161,8 +161,13 @@ func (rac *AuthenticatedClient) RefreshTokens() (*RefreshTokenResponse, error) {
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println(rtr)
-	return rtr.(*RefreshTokenResponse), nil
+
+	ret := rtr.(*RefreshTokenResponse)
+	if ret.RefreshToken == "" {
+		ret.RefreshToken = rac.refreshToken
+	}
+
+	return ret, nil
 }
 
 func (rac *AuthenticatedClient) MessageInbox(opts ...RequestOption) (*ListingResponse, error) {
