@@ -7,6 +7,8 @@ import (
 	"github.com/valyala/fastjson"
 )
 
+type ResponseHandler func(*fastjson.Value) interface{}
+
 type Error struct {
 	Message string `json:"message"`
 	Code    int    `json:"error"`
@@ -30,7 +32,7 @@ type RefreshTokenResponse struct {
 	RefreshToken string `json:"refresh_token"`
 }
 
-func NewRefreshTokenResponse(val *fastjson.Value) *RefreshTokenResponse {
+func NewRefreshTokenResponse(val *fastjson.Value) interface{} {
 	rtr := &RefreshTokenResponse{}
 
 	rtr.AccessToken = string(val.GetStringBytes("access_token"))
@@ -48,7 +50,7 @@ func (mr *MeResponse) NormalizedUsername() string {
 	return strings.ToLower(mr.Name)
 }
 
-func NewMeResponse(val *fastjson.Value) *MeResponse {
+func NewMeResponse(val *fastjson.Value) interface{} {
 	mr := &MeResponse{}
 
 	mr.ID = string(val.GetStringBytes("id"))
@@ -105,7 +107,7 @@ type ListingResponse struct {
 	Before   string
 }
 
-func NewListingResponse(val *fastjson.Value) *ListingResponse {
+func NewListingResponse(val *fastjson.Value) interface{} {
 	lr := &ListingResponse{}
 
 	data := val.Get("data")

@@ -284,14 +284,12 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 	}).Debug("fetched messages")
 
 	// Set latest message we alerted on
-	latestMsg := tt[0]
-
 	if err = nc.db.BeginFunc(ctx, func(tx pgx.Tx) error {
 		stmt := `
 			UPDATE accounts
 			SET last_message_id = $1
 			WHERE id = $2`
-		_, err := tx.Exec(ctx, stmt, latestMsg.FullName(), account.ID)
+		_, err := tx.Exec(ctx, stmt, tt[0].FullName(), account.ID)
 		return err
 	}); err != nil {
 		nc.logger.WithFields(logrus.Fields{
