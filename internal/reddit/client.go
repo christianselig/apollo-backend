@@ -155,7 +155,7 @@ func (rac *AuthenticatedClient) RefreshTokens() (*RefreshTokenResponse, error) {
 	return rtr, nil
 }
 
-func (rac *AuthenticatedClient) MessageInbox(from string) (*MessageListingResponse, error) {
+func (rac *AuthenticatedClient) MessageInbox(from string) (*ListingResponse, error) {
 	req := NewRequest(
 		WithTags([]string{"url:/api/v1/message/inbox"}),
 		WithMethod("GET"),
@@ -170,9 +170,12 @@ func (rac *AuthenticatedClient) MessageInbox(from string) (*MessageListingRespon
 		return nil, err
 	}
 
-	mlr := &MessageListingResponse{}
-	json.Unmarshal([]byte(body), mlr)
-	return mlr, nil
+	val, err := rac.parser.ParseBytes(body)
+	if err != nil {
+		return nil, err
+	}
+
+	return NewListingResponse(val), nil
 }
 
 func (rac *AuthenticatedClient) MessageUnread(from string) (*MessageListingResponse, error) {
