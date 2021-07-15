@@ -38,7 +38,9 @@ func WorkerCmd(ctx context.Context) *cobra.Command {
 			}
 			defer statsd.Close()
 
-			db, err := cmdutil.NewDatabasePool(ctx)
+			consumers := runtime.NumCPU() * multiplier
+
+			db, err := cmdutil.NewDatabasePool(ctx, multiplier)
 			if err != nil {
 				return err
 			}
@@ -59,8 +61,6 @@ func WorkerCmd(ctx context.Context) *cobra.Command {
 			if !ok {
 				return fmt.Errorf("invalid queue: %s", queueID)
 			}
-
-			consumers := runtime.NumCPU() * multiplier
 
 			worker := workerFn(logger, statsd, db, redis, queue, consumers)
 			worker.Start()
