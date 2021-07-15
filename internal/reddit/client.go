@@ -97,7 +97,7 @@ func (rc *Client) NewAuthenticatedClient(refreshToken, accessToken string) *Auth
 	return &AuthenticatedClient{rc, refreshToken, accessToken, nil}
 }
 
-func (rac *AuthenticatedClient) request(r *Request) (*fastjson.Value, error) {
+func (rac *AuthenticatedClient) request(r *Request, rh ResponseHandler) (interface{}, error) {
 	req, err := r.HTTPRequest()
 	if err != nil {
 		return nil, err
@@ -135,7 +135,12 @@ func (rac *AuthenticatedClient) request(r *Request) (*fastjson.Value, error) {
 		}
 		return nil, NewError(val)
 	}
-	return parser.ParseBytes(bb)
+	val, err := parser.ParseBytes(bb)
+	if err != nil {
+		return nil, err
+	}
+
+	return rh(val), nil
 }
 
 func (rac *AuthenticatedClient) RefreshTokens() (*RefreshTokenResponse, error) {
@@ -148,12 +153,11 @@ func (rac *AuthenticatedClient) RefreshTokens() (*RefreshTokenResponse, error) {
 		WithBasicAuth(rac.id, rac.secret),
 	)
 
-	val, err := rac.request(req)
+	rtr, err := rac.request(req, NewRefreshTokenResponse)
 	if err != nil {
 		return nil, err
 	}
-
-	return NewRefreshTokenResponse(val), nil
+	return rtr.(*RefreshTokenResponse), nil
 }
 
 func (rac *AuthenticatedClient) MessageInbox(opts ...RequestOption) (*ListingResponse, error) {
@@ -165,12 +169,11 @@ func (rac *AuthenticatedClient) MessageInbox(opts ...RequestOption) (*ListingRes
 	}, opts...)
 	req := NewRequest(opts...)
 
-	val, err := rac.request(req)
+	lr, err := rac.request(req, NewListingResponse)
 	if err != nil {
 		return nil, err
 	}
-
-	return NewListingResponse(val), nil
+	return lr.(*ListingResponse), nil
 }
 
 func (rac *AuthenticatedClient) MessageUnread(opts ...RequestOption) (*ListingResponse, error) {
@@ -183,12 +186,11 @@ func (rac *AuthenticatedClient) MessageUnread(opts ...RequestOption) (*ListingRe
 
 	req := NewRequest(opts...)
 
-	val, err := rac.request(req)
+	lr, err := rac.request(req, NewListingResponse)
 	if err != nil {
 		return nil, err
 	}
-
-	return NewListingResponse(val), nil
+	return lr.(*ListingResponse), nil
 }
 
 func (rac *AuthenticatedClient) Me() (*MeResponse, error) {
@@ -199,10 +201,9 @@ func (rac *AuthenticatedClient) Me() (*MeResponse, error) {
 		WithURL("https://oauth.reddit.com/api/v1/me"),
 	)
 
-	val, err := rac.request(req)
+	mr, err := rac.request(req, NewMeResponse)
 	if err != nil {
 		return nil, err
 	}
-
-	return NewMeResponse(val), nil
+	return mr.(*MeResponse), nil
 }
