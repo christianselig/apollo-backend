@@ -109,16 +109,17 @@ func NewListingResponse(val *fastjson.Value) *ListingResponse {
 	lr := &ListingResponse{}
 
 	data := val.Get("data")
+	children := data.GetArray("children")
+
 	lr.After = string(data.GetStringBytes("after"))
 	lr.Before = string(data.GetStringBytes("before"))
-	lr.Count = data.GetInt("dist")
+	lr.Count = len(children)
 
 	if lr.Count == 0 {
 		return lr
 	}
 
 	lr.Children = make([]*Thing, lr.Count)
-	children := data.GetArray("children")
 	for i := 0; i < lr.Count; i++ {
 		t := NewThing(children[i])
 		lr.Children[i] = t
