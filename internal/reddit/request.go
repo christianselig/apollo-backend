@@ -11,19 +11,20 @@ import (
 const userAgent = "server:apollo-backend:v1.0 (by /u/iamthatis)"
 
 type Request struct {
-	body   url.Values
-	query  url.Values
-	method string
-	token  string
-	url    string
-	auth   string
-	tags   []string
+	body               url.Values
+	query              url.Values
+	method             string
+	token              string
+	url                string
+	auth               string
+	tags               []string
+	emptyResponseBytes int
 }
 
 type RequestOption func(*Request)
 
 func NewRequest(opts ...RequestOption) *Request {
-	req := &Request{url.Values{}, url.Values{}, "GET", "", "", "", nil}
+	req := &Request{url.Values{}, url.Values{}, "GET", "", "", "", nil, 0}
 	for _, opt := range opts {
 		opt(req)
 	}
@@ -88,5 +89,11 @@ func WithBody(key, val string) RequestOption {
 func WithQuery(key, val string) RequestOption {
 	return func(req *Request) {
 		req.query.Set(key, val)
+	}
+}
+
+func WithEmptyResponseBytes(bytes int) RequestOption {
+	return func(req *Request) {
+		req.emptyResponseBytes = bytes
 	}
 }

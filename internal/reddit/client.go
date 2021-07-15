@@ -97,7 +97,7 @@ func (rc *Client) NewAuthenticatedClient(refreshToken, accessToken string) *Auth
 	return &AuthenticatedClient{rc, refreshToken, accessToken, nil}
 }
 
-func (rac *AuthenticatedClient) request(r *Request, rh ResponseHandler) (interface{}, error) {
+func (rac *AuthenticatedClient) request(r *Request, rh ResponseHandler, empty interface{}) (interface{}, error) {
 	req, err := r.HTTPRequest()
 	if err != nil {
 		return nil, err
@@ -135,6 +135,11 @@ func (rac *AuthenticatedClient) request(r *Request, rh ResponseHandler) (interfa
 		}
 		return nil, NewError(val)
 	}
+
+	if r.emptyResponseBytes > 0 && len(bb) == r.emptyResponseBytes {
+		return empty, nil
+	}
+
 	val, err := parser.ParseBytes(bb)
 	if err != nil {
 		return nil, err
@@ -153,7 +158,7 @@ func (rac *AuthenticatedClient) RefreshTokens() (*RefreshTokenResponse, error) {
 		WithBasicAuth(rac.id, rac.secret),
 	)
 
-	rtr, err := rac.request(req, NewRefreshTokenResponse)
+	rtr, err := rac.request(req, NewRefreshTokenResponse, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -166,10 +171,11 @@ func (rac *AuthenticatedClient) MessageInbox(opts ...RequestOption) (*ListingRes
 		WithMethod("GET"),
 		WithToken(rac.accessToken),
 		WithURL("https://oauth.reddit.com/message/inbox.json"),
+		WithEmptyResponseBytes(122),
 	}, opts...)
 	req := NewRequest(opts...)
 
-	lr, err := rac.request(req, NewListingResponse)
+	lr, err := rac.request(req, NewListingResponse, EmptyListingResponse)
 	if err != nil {
 		return nil, err
 	}
@@ -182,11 +188,12 @@ func (rac *AuthenticatedClient) MessageUnread(opts ...RequestOption) (*ListingRe
 		WithMethod("GET"),
 		WithToken(rac.accessToken),
 		WithURL("https://oauth.reddit.com/message/unread.json"),
+		WithEmptyResponseBytes(122),
 	}, opts...)
 
 	req := NewRequest(opts...)
 
-	lr, err := rac.request(req, NewListingResponse)
+	lr, err := rac.request(req, NewListingResponse, EmptyListingResponse)
 	if err != nil {
 		return nil, err
 	}
@@ -201,7 +208,7 @@ func (rac *AuthenticatedClient) Me() (*MeResponse, error) {
 		WithURL("https://oauth.reddit.com/api/v1/me"),
 	)
 
-	mr, err := rac.request(req, NewMeResponse)
+	mr, err := rac.request(req, NewMeResponse, nil)
 	if err != nil {
 		return nil, err
 	}

@@ -129,3 +129,5 @@ func NewListingResponse(val *fastjson.Value) interface{} {
 
 	return lr
 }
+
+var EmptyListingResponse = &ListingResponse{}
