@@ -283,13 +283,6 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 		"count":     len(tt),
 	}).Debug("fetched messages")
 
-	if len(tt) == 0 {
-		nc.logger.WithFields(logrus.Fields{
-			"accountID": id,
-		}).Debug("no new messages, bailing early")
-		return
-	}
-
 	// Set latest message we alerted on
 	latestMsg := tt[0]
 	if err = nc.db.BeginFunc(ctx, func(tx pgx.Tx) error {
