@@ -1,0 +1,7 @@
+{
+  "access_token": "56192486-VMT1xoioZmgAwyf4wob4LHMYmKdYGA",
+  "token_type": "bearer",
+  "expires_in": 3600,
+  "refresh_token": "56192486-tCz513pO3IMgrtu4ODrZBKqyvrXptw",
+  "scope": "account creddits edit flair history identity livemanage modconfig modcontributors modflair modlog modmail modothers modposts modself modtraffic modwiki mysubreddits privatemessages read report save structuredstyles submit subscribe vote wikiedit wikiread"
+}
