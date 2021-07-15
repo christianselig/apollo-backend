@@ -248,7 +248,10 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 	nc.logger.WithFields(logrus.Fields{
 		"accountID": id,
 	}).Debug("fetching message inbox")
-	msgs, err := rac.MessageInbox(reddit.WithQuery("limit", "10"))
+	msgs, err := rac.MessageInbox(
+		reddit.WithQuery("limit", "10"),
+		reddit.WithQuery("before", account.LastMessageID),
+	)
 
 	if err != nil {
 		nc.logger.WithFields(logrus.Fields{
@@ -259,28 +262,16 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 	}
 
 	// Figure out where we stand
-	if msgs.Count == 0 || msgs.Children[0].FullName() == account.LastMessageID {
+	if msgs.Count == 0 {
 		nc.logger.WithFields(logrus.Fields{
 			"accountID": id,
 		}).Debug("no new messages, bailing early")
 		return
 	}
 
-	// Find which one is the oldest we haven't notified on
-	oldest := 0
-	for i, t := range msgs.Children {
-		if t.FullName() == account.LastMessageID {
-			break
-		}
-
-		oldest = i
-	}
-
-	tt := msgs.Children[:oldest+1]
-
 	nc.logger.WithFields(logrus.Fields{
 		"accountID": id,
-		"count":     len(tt),
+		"count":     msgs.Count,
 	}).Debug("fetched messages")
 
 	// Set latest message we alerted on
@@ -289,7 +280,7 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 			UPDATE accounts
 			SET last_message_id = $1
 			WHERE id = $2`
-		_, err := tx.Exec(ctx, stmt, tt[0].FullName(), account.ID)
+		_, err := tx.Exec(ctx, stmt, msgs.Children[0].FullName(), account.ID)
 		return err
 	}); err != nil {
 		nc.logger.WithFields(logrus.Fields{
@@ -329,11 +320,11 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 	}
 
 	// Iterate backwards so we notify from older to newer
-	for i := len(tt) - 1; i >= 0; i-- {
-		msg := tt[i]
+	for i := msgs.Count - 1; i >= 0; i-- {
+		msg := msgs.Children[i]
 		notification := &apns2.Notification{}
 		notification.Topic = "com.christianselig.Apollo"
-		notification.Payload = payloadFromMessage(account, msg, len(tt))
+		notification.Payload = payloadFromMessage(account, msg, msgs.Count)
 
 		for _, device := range devices {
 			notification.DeviceToken = device.APNSToken
