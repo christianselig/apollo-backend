@@ -1,7 +1,6 @@
 package reddit
 
 import (
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -23,7 +22,7 @@ type Client struct {
 	secret string
 	client *http.Client
 	tracer *httptrace.ClientTrace
-	parser *fastjson.Parser
+	pool   *fastjson.ParserPool
 	statsd *statsd.Client
 }
 
@@ -74,14 +73,14 @@ func NewClient(id, secret string, statsd *statsd.Client, connLimit int) *Client 
 
 	client := &http.Client{Transport: t}
 
-	parser := &fastjson.Parser{}
+	pool := &fastjson.ParserPool{}
 
 	return &Client{
 		id,
 		secret,
 		client,
 		tracer,
-		parser,
+		pool,
 		statsd,
 	}
 }
@@ -98,7 +97,7 @@ func (rc *Client) NewAuthenticatedClient(refreshToken, accessToken string) *Auth
 	return &AuthenticatedClient{rc, refreshToken, accessToken, nil}
 }
 
-func (rac *AuthenticatedClient) request(r *Request) ([]byte, error) {
+func (rac *AuthenticatedClient) request(r *Request) (*fastjson.Value, error) {
 	req, err := r.HTTPRequest()
 	if err != nil {
 		return nil, err
@@ -122,16 +121,21 @@ func (rac *AuthenticatedClient) request(r *Request) ([]byte, error) {
 		rac.statsd.Incr("reddit.api.errors", r.tags, 0.1)
 		return nil, err
 	}
+
+	parser := rac.pool.Get()
+	defer rac.pool.Put(parser)
+
 	if resp.StatusCode != 200 {
 		rac.statsd.Incr("reddit.api.errors", r.tags, 0.1)
+
 		// Try to parse a json error. Otherwise we generate a generic one
-		rerr := &Error{}
-		if jerr := json.Unmarshal(bb, rerr); jerr != nil {
+		val, jerr := parser.ParseBytes(bb)
+		if jerr != nil {
 			return nil, fmt.Errorf("error from reddit: %d", resp.StatusCode)
 		}
-		return nil, rerr
+		return nil, NewError(val)
 	}
-	return bb, nil
+	return parser.ParseBytes(bb)
 }
 
 func (rac *AuthenticatedClient) RefreshTokens() (*RefreshTokenResponse, error) {
@@ -144,55 +148,47 @@ func (rac *AuthenticatedClient) RefreshTokens() (*RefreshTokenResponse, error) {
 		WithBasicAuth(rac.id, rac.secret),
 	)
 
-	body, err := rac.request(req)
-
+	val, err := rac.request(req)
 	if err != nil {
 		return nil, err
 	}
 
-	rtr := &RefreshTokenResponse{}
-	json.Unmarshal([]byte(body), rtr)
-	return rtr, nil
+	return NewRefreshTokenResponse(val), nil
 }
 
-func (rac *AuthenticatedClient) MessageInbox(from string) (*MessageListingResponse, error) {
-	req := NewRequest(
+func (rac *AuthenticatedClient) MessageInbox(opts ...RequestOption) (*ListingResponse, error) {
+	opts = append([]RequestOption{
 		WithTags([]string{"url:/api/v1/message/inbox"}),
 		WithMethod("GET"),
 		WithToken(rac.accessToken),
 		WithURL("https://oauth.reddit.com/message/inbox.json"),
-		WithQuery("before", from),
-	)
+	}, opts...)
+	req := NewRequest(opts...)
 
-	body, err := rac.request(req)
-
+	val, err := rac.request(req)
 	if err != nil {
 		return nil, err
 	}
 
-	mlr := &MessageListingResponse{}
-	json.Unmarshal([]byte(body), mlr)
-	return mlr, nil
+	return NewListingResponse(val), nil
 }
 
-func (rac *AuthenticatedClient) MessageUnread(from string) (*MessageListingResponse, error) {
-	req := NewRequest(
+func (rac *AuthenticatedClient) MessageUnread(opts ...RequestOption) (*ListingResponse, error) {
+	opts = append([]RequestOption{
 		WithTags([]string{"url:/api/v1/message/unread"}),
 		WithMethod("GET"),
 		WithToken(rac.accessToken),
 		WithURL("https://oauth.reddit.com/message/unread.json"),
-		WithQuery("before", from),
-	)
+	}, opts...)
 
-	body, err := rac.request(req)
+	req := NewRequest(opts...)
 
+	val, err := rac.request(req)
 	if err != nil {
 		return nil, err
 	}
 
-	mlr := &MessageListingResponse{}
-	json.Unmarshal([]byte(body), mlr)
-	return mlr, nil
+	return NewListingResponse(val), nil
 }
 
 func (rac *AuthenticatedClient) Me() (*MeResponse, error) {
@@ -203,14 +199,10 @@ func (rac *AuthenticatedClient) Me() (*MeResponse, error) {
 		WithURL("https://oauth.reddit.com/api/v1/me"),
 	)
 
-	body, err := rac.request(req)
-
+	val, err := rac.request(req)
 	if err != nil {
 		return nil, err
 	}
 
-	mr := &MeResponse{}
-	err = json.Unmarshal(body, mr)
-
-	return mr, err
+	return NewMeResponse(val), nil
 }
