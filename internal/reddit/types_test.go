@@ -26,6 +26,20 @@ func TestMeResponseParsing(t *testing.T) {
 	assert.Equal(t, "hugocat", me.Name)
 }
 
+func TestRefreshTokenResponseParsing(t *testing.T) {
+	bb, err := ioutil.ReadFile("testdata/refresh_token.json")
+	assert.NoError(t, err)
+
+	val, err := parser.ParseBytes(bb)
+	assert.NoError(t, err)
+
+	rtr := NewRefreshTokenResponse(val)
+	assert.NotNil(t, rtr)
+
+	assert.Equal(t, "***REMOVED***", rtr.AccessToken)
+	assert.Equal(t, "***REMOVED***", rtr.RefreshToken)
+}
+
 func TestListingResponseParsing(t *testing.T) {
 	bb, err := ioutil.ReadFile("testdata/message_inbox.json")
 	assert.NoError(t, err)

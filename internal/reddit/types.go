@@ -16,41 +16,27 @@ func (err *Error) Error() string {
 	return fmt.Sprintf("%s (%d)", err.Message, err.Code)
 }
 
-type Message struct {
-	ID          string  `json:"id"`
-	Kind        string  `json:"kind"`
-	Type        string  `json:"type"`
-	Author      string  `json:"author"`
-	Subject     string  `json:"subject"`
-	Body        string  `json:"body"`
-	CreatedAt   float64 `json:"created_utc"`
-	Context     string  `json:"context"`
-	ParentID    string  `json:"parent_id"`
-	LinkTitle   string  `json:"link_title"`
-	Destination string  `json:"dest"`
-	Subreddit   string  `json:"subreddit"`
-}
+func NewError(val *fastjson.Value) *Error {
+	err := &Error{}
 
-type MessageData struct {
-	Message `json:"data"`
-	Kind    string `json:"kind"`
-}
+	err.Message = string(val.GetStringBytes("message"))
+	err.Code = val.GetInt("error")
 
-func (md MessageData) FullName() string {
-	return fmt.Sprintf("%s_%s", md.Kind, md.ID)
-}
-
-type MessageListing struct {
-	Messages []MessageData `json:"children"`
-}
-
-type MessageListingResponse struct {
-	MessageListing MessageListing `json:"data"`
+	return err
 }
 
 type RefreshTokenResponse struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
+}
+
+func NewRefreshTokenResponse(val *fastjson.Value) *RefreshTokenResponse {
+	rtr := &RefreshTokenResponse{}
+
+	rtr.AccessToken = string(val.GetStringBytes("access_token"))
+	rtr.RefreshToken = string(val.GetStringBytes("refresh_token"))
+
+	return rtr
 }
 
 type MeResponse struct {
@@ -84,6 +70,10 @@ type Thing struct {
 	LinkTitle   string  `json:"link_title"`
 	Destination string  `json:"dest"`
 	Subreddit   string  `json:"subreddit"`
+}
+
+func (t *Thing) FullName() string {
+	return fmt.Sprintf("%s_%s", t.Kind, t.ID)
 }
 
 func NewThing(val *fastjson.Value) *Thing {
@@ -122,8 +112,12 @@ func NewListingResponse(val *fastjson.Value) *ListingResponse {
 	lr.After = string(data.GetStringBytes("after"))
 	lr.Before = string(data.GetStringBytes("before"))
 	lr.Count = data.GetInt("dist")
-	lr.Children = make([]*Thing, lr.Count)
 
+	if lr.Count == 0 {
+		return lr
+	}
+
+	lr.Children = make([]*Thing, lr.Count)
 	children := data.GetArray("children")
 	for i := 0; i < lr.Count; i++ {
 		t := NewThing(children[i])

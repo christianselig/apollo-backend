@@ -248,7 +248,7 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 	nc.logger.WithFields(logrus.Fields{
 		"accountID": id,
 	}).Debug("fetching message inbox")
-	msgs, err := rac.MessageInbox(account.LastMessageID)
+	msgs, err := rac.MessageInbox(reddit.WithQuery("limit", "10"))
 
 	if err != nil {
 		nc.logger.WithFields(logrus.Fields{
@@ -258,12 +258,32 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 		return
 	}
 
+	// Figure out where we stand
+	if msgs.Count == 0 || msgs.Children[0].FullName() == account.LastMessageID {
+		nc.logger.WithFields(logrus.Fields{
+			"accountID": id,
+		}).Debug("no new messages, bailing early")
+		return
+	}
+
+	// Find which one is the oldest we haven't notified on
+	oldest := 0
+	for i, t := range msgs.Children {
+		if t.FullName() == account.LastMessageID {
+			break
+		}
+
+		oldest = i
+	}
+
+	tt := msgs.Children[:oldest]
+
 	nc.logger.WithFields(logrus.Fields{
 		"accountID": id,
-		"count":     len(msgs.MessageListing.Messages),
+		"count":     len(tt),
 	}).Debug("fetched messages")
 
-	if len(msgs.MessageListing.Messages) == 0 {
+	if len(tt) == 0 {
 		nc.logger.WithFields(logrus.Fields{
 			"accountID": id,
 		}).Debug("no new messages, bailing early")
@@ -271,7 +291,7 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 	}
 
 	// Set latest message we alerted on
-	latestMsg := msgs.MessageListing.Messages[0]
+	latestMsg := tt[0]
 	if err = nc.db.BeginFunc(ctx, func(tx pgx.Tx) error {
 		stmt := `
 			UPDATE accounts
@@ -316,10 +336,12 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 		devices = append(devices, device)
 	}
 
-	for _, msg := range msgs.MessageListing.Messages {
+	// Iterate backwards so we notify from older to newer
+	for i := len(tt) - 1; i >= 0; i-- {
+		msg := tt[i]
 		notification := &apns2.Notification{}
 		notification.Topic = "com.christianselig.Apollo"
-		notification.Payload = payloadFromMessage(account, &msg, len(msgs.MessageListing.Messages))
+		notification.Payload = payloadFromMessage(account, msg, len(tt))
 
 		for _, device := range devices {
 			notification.DeviceToken = device.APNSToken
@@ -353,7 +375,7 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 	}).Debug("finishing job")
 }
 
-func payloadFromMessage(acct *data.Account, msg *reddit.MessageData, badgeCount int) *payload.Payload {
+func payloadFromMessage(acct *data.Account, msg *reddit.Thing, badgeCount int) *payload.Payload {
 	postBody := msg.Body
 	if len(postBody) > 2000 {
 		postBody = msg.Body[:2000]
