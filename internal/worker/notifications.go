@@ -291,7 +291,7 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 	}
 
 	// Let's populate this with the latest message so we don't flood users with stuff
-	if account.LastMessageID == "" {
+	if account.LastMessageID == "" && account.LastCheckedAt == 0 {
 		nc.logger.WithFields(logrus.Fields{
 			"accountID": delivery.Payload(),
 		}).Debug("populating first message ID to prevent spamming")
