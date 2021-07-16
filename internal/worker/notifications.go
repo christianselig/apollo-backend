@@ -353,6 +353,8 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 		}
 	}
 
+	nc.statsd.SimpleEvent("Sent notification", account.Username)
+
 	nc.logger.WithFields(logrus.Fields{
 		"accountID": delivery.Payload(),
 	}).Debug("finishing job")
