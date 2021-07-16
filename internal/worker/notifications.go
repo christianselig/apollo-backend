@@ -353,7 +353,7 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 		}
 	}
 
-	ev := fmt.Sprintf("Sent notification to /u/%s", account.Username)
+	ev := fmt.Sprintf("Sent notification to /u/%s (x%d)", account.Username, msgs.Count)
 	nc.statsd.SimpleEvent(ev, "")
 
 	nc.logger.WithFields(logrus.Fields{
