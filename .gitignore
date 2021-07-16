@@ -1,3 +1,4 @@
 tmp/
 .env
 dump.rdb
+cpu.pprof
