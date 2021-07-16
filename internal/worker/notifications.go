@@ -353,7 +353,8 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 		}
 	}
 
-	nc.statsd.SimpleEvent("Sent notification", account.Username)
+	ev := fmt.Sprintf("Sent notification to /u/%s", account.Username)
+	nc.statsd.SimpleEvent(ev, "")
 
 	nc.logger.WithFields(logrus.Fields{
 		"accountID": delivery.Payload(),
