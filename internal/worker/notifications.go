@@ -248,10 +248,12 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 	nc.logger.WithFields(logrus.Fields{
 		"accountID": id,
 	}).Debug("fetching message inbox")
-	msgs, err := rac.MessageInbox(
-		reddit.WithQuery("limit", "10"),
-		reddit.WithQuery("before", account.LastMessageID),
-	)
+
+	opts := []reddit.RequestOption{reddit.WithQuery("limit", "10")}
+	if account.LastMessageID != "" {
+		opts = append(opts, reddit.WithQuery("before", account.LastMessageID))
+	}
+	msgs, err := rac.MessageInbox(opts...)
 
 	if err != nil {
 		nc.logger.WithFields(logrus.Fields{
