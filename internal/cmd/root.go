@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"os"
+	"runtime"
 	"runtime/pprof"
 
 	"github.com/DataDog/datadog-go/statsd"
@@ -36,17 +37,31 @@ func Execute(ctx context.Context) int {
 			if !profile {
 				return nil
 			}
+
 			f, perr := os.Create("cpu.pprof")
 			if perr != nil {
 				return perr
 			}
+
 			pprof.StartCPUProfile(f)
 			return nil
 		},
-		PersistentPostRun: func(cmd *cobra.Command, args []string) {
-			if profile {
-				pprof.StopCPUProfile()
+		PersistentPostRunE: func(cmd *cobra.Command, args []string) error {
+			if !profile {
+				return nil
 			}
+
+			pprof.StopCPUProfile()
+
+			f, perr := os.Create("mem.pprof")
+			if perr != nil {
+				return perr
+			}
+			defer f.Close()
+
+			runtime.GC()
+			err := pprof.WriteHeapProfile(f)
+			return err
 		},
 	}
 
