@@ -1,4 +1,6 @@
+apollo
 tmp/
 .env
 dump.rdb
 cpu.pprof
+mem.pprof
