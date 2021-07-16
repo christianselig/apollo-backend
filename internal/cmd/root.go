@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"context"
+	"os"
+	"runtime/pprof"
 
 	"github.com/DataDog/datadog-go/statsd"
 	"github.com/adjust/rmq/v4"
@@ -25,10 +27,30 @@ type Command struct {
 func Execute(ctx context.Context) int {
 	_ = godotenv.Load()
 
+	profile := false
+
 	rootCmd := &cobra.Command{
 		Use:   "apollo",
 		Short: "Apollo is an amazing Reddit client for iOS. This isn't it, but it helps.",
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			if !profile {
+				return nil
+			}
+			f, perr := os.Create("cpu.pprof")
+			if perr != nil {
+				return perr
+			}
+			pprof.StartCPUProfile(f)
+			return nil
+		},
+		PersistentPostRun: func(cmd *cobra.Command, args []string) {
+			if profile {
+				pprof.StopCPUProfile()
+			}
+		},
 	}
+
+	rootCmd.PersistentFlags().BoolVarP(&profile, "profile", "p", false, "record CPU pprof")
 
 	rootCmd.AddCommand(APICmd(ctx))
 	rootCmd.AddCommand(SchedulerCmd(ctx))
