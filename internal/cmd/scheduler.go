@@ -38,7 +38,7 @@ func SchedulerCmd(ctx context.Context) *cobra.Command {
 			}
 			defer statsd.Close()
 
-			db, err := cmdutil.NewDatabasePool(ctx, 32)
+			db, err := cmdutil.NewDatabasePool(ctx, 1)
 			if err != nil {
 				return err
 			}
