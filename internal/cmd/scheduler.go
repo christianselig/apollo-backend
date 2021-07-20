@@ -67,7 +67,7 @@ func SchedulerCmd(ctx context.Context) *cobra.Command {
 			}
 
 			s := gocron.NewScheduler(time.UTC)
-			s.Every(1).Second().Do(func() { enqueueAccounts(ctx, logger, statsd, db, redis, luaSha, notifQueue) })
+			s.Every(1).Second().SingletonMode().Do(func() { enqueueAccounts(ctx, logger, statsd, db, redis, luaSha, notifQueue) })
 			s.Every(1).Second().Do(func() { cleanQueues(ctx, logger, queue) })
 			s.Every(1).Minute().Do(func() { reportStats(ctx, logger, statsd, db, redis) })
 			s.Every(1).Minute().Do(func() { cleanAccounts(ctx, logger, db) })
@@ -209,6 +209,7 @@ func enqueueAccounts(ctx context.Context, logger *logrus.Logger, statsd *statsd.
 					OR last_checked_at < $2
 				ORDER BY last_checked_at
 				LIMIT 2000
+				FOR UPDATE SKIP LOCKED
 			)
 			UPDATE accounts
 			SET last_enqueued_at = $3
