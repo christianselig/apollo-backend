@@ -50,12 +50,12 @@ func NewRedisClient(ctx context.Context) (*redis.Client, error) {
 	return client, nil
 }
 
-func NewDatabasePool(ctx context.Context, minConns int) (*pgxpool.Pool, error) {
+func NewDatabasePool(ctx context.Context, maxConns int) (*pgxpool.Pool, error) {
 	url := fmt.Sprintf(
 		"%s?pool_max_conns=%d&pool_min_conns=%d",
 		os.Getenv("DATABASE_CONNECTION_POOL_URL"),
-		minConns*8,
-		minConns,
+		maxConns,
+		2,
 	)
 	config, err := pgxpool.ParseConfig(url)
 	if err != nil {
