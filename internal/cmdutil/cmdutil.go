@@ -32,11 +32,11 @@ func NewStatsdClient(tags ...string) (*statsd.Client, error) {
 		tags = append(tags, fmt.Sprintf("env:%s", env))
 	}
 
-	return statsd.New("127.0.0.1:8125", statsd.WithTags(tags))
+	return statsd.New(os.Getenv("STATSD_URL"), statsd.WithTags(tags))
 }
 
 func NewRedisClient(ctx context.Context) (*redis.Client, error) {
-	opt, err := redis.ParseURL(os.Getenv("REDISCLOUD_URL"))
+	opt, err := redis.ParseURL(os.Getenv("REDIS_URL"))
 	if err != nil {
 		return nil, err
 	}

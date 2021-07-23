@@ -38,9 +38,7 @@ func (am *AccountModel) Upsert(a *Account) error {
 						UPDATE SET
 							access_token = $3,
 							refresh_token = $4,
-							expires_at = $5,
-							last_message_id = $6,
-							last_checked_at = $7
+							expires_at = $5
 					RETURNING id`
 		return tx.QueryRow(
 			am.ctx,
@@ -50,8 +48,6 @@ func (am *AccountModel) Upsert(a *Account) error {
 			a.AccessToken,
 			a.RefreshToken,
 			a.ExpiresAt,
-			a.LastMessageID,
-			a.LastCheckedAt,
 		).Scan(&a.ID)
 	})
 }
