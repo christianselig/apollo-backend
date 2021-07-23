@@ -141,9 +141,11 @@ func cleanAccounts(ctx context.Context, logger *logrus.Logger, pool *pgxpool.Poo
 		return
 	}
 
-	logger.WithFields(logrus.Fields{
-		"count": count,
-	}).Info("cleaned stale accounts")
+	if count > 0 {
+		logger.WithFields(logrus.Fields{
+			"count": count,
+		}).Info("cleaned stale accounts")
+	}
 }
 
 func cleanQueues(ctx context.Context, logger *logrus.Logger, jobsConn rmq.Connection) {
