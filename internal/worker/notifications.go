@@ -48,7 +48,7 @@ func NewNotificationsWorker(logger *logrus.Logger, statsd *statsd.Client, db *pg
 
 	var apns *token.Token
 	{
-		authKey, err := token.AuthKeyFromBytes([]byte(os.Getenv("APPLE_KEY_PKEY")))
+		authKey, err := token.AuthKeyFromFile(os.Getenv("APPLE_KEY_PATH"))
 		if err != nil {
 			panic(err)
 		}
