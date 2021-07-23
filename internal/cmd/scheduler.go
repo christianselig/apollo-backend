@@ -210,8 +210,7 @@ func enqueueAccounts(ctx context.Context, logger *logrus.Logger, statsd *statsd.
 					last_enqueued_at < $1
 					OR last_checked_at < $2
 				ORDER BY last_checked_at
-				LIMIT 1000
-				FOR UPDATE SKIP LOCKED
+				LIMIT 2000
 			)
 			UPDATE accounts
 			SET last_enqueued_at = $3
