@@ -39,8 +39,9 @@ func WorkerCmd(ctx context.Context) *cobra.Command {
 			defer statsd.Close()
 
 			consumers := runtime.NumCPU() * multiplier
+			poolSize := multiplier / 8
 
-			db, err := cmdutil.NewDatabasePool(ctx, multiplier)
+			db, err := cmdutil.NewDatabasePool(ctx, poolSize)
 			if err != nil {
 				return err
 			}
