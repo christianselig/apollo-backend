@@ -52,7 +52,7 @@ func NewRedisClient(ctx context.Context) (*redis.Client, error) {
 
 func NewDatabasePool(ctx context.Context, minConns int) (*pgxpool.Pool, error) {
 	url := fmt.Sprintf(
-		"%s?sslmode=require&pool_max_conns=%d&pool_min_conns=%d",
+		"%s?pool_max_conns=%d&pool_min_conns=%d",
 		os.Getenv("DATABASE_CONNECTION_POOL_URL"),
 		minConns*8,
 		minConns,
