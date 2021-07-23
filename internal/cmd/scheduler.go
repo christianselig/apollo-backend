@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	batchSize      = 200
+	batchSize      = 250
 	checkTimeout   = 60 // how long until we force a check
 	enqueueTimeout = 5  // how long until we try to re-enqueue
 )
@@ -210,7 +210,7 @@ func enqueueAccounts(ctx context.Context, logger *logrus.Logger, statsd *statsd.
 					last_enqueued_at < $1
 					OR last_checked_at < $2
 				ORDER BY last_checked_at
-				LIMIT 2000
+				LIMIT 2500
 			)
 			UPDATE accounts
 			SET last_enqueued_at = $3
