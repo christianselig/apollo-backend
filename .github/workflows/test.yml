@@ -14,5 +14,7 @@ jobs:
       uses: actions/setup-go@v2
       with:
         go-version: ${{ matrix.go-version }}
+    - name: Lint
+      uses: golangci/golangci-lint-action@v2
     - name: Test
       run: go test ./... -v
