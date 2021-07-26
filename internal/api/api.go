@@ -65,7 +65,7 @@ func (a *api) Routes() *httprouter.Router {
 	router.GET("/v1/health", a.healthCheckHandler)
 
 	router.POST("/v1/device", a.upsertDeviceHandler)
-	router.POST("/v1/device/test", a.testDeviceHandler)
+	router.POST("/v1/device/:apns/test", a.testDeviceHandler)
 	router.POST("/v1/device/:apns/account", a.upsertAccountHandler)
 
 	return router
