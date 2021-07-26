@@ -91,3 +91,7 @@ func (a *api) testDeviceHandler(w http.ResponseWriter, r *http.Request, ps httpr
 	}
 	w.WriteHeader(http.StatusOK)
 }
+
+func (a *api) deleteDeviceHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	w.WriteHeader(http.StatusOK)
+}

@@ -67,6 +67,10 @@ func (a *api) Routes() *httprouter.Router {
 	router.POST("/v1/device", a.upsertDeviceHandler)
 	router.POST("/v1/device/:apns/test", a.testDeviceHandler)
 	router.POST("/v1/device/:apns/account", a.upsertAccountHandler)
+	router.DELETE("/v1/device/:apns", a.deleteDeviceHandler)
+
+	router.POST("/v1/receipt", a.checkReceiptHandler)
+	router.POST("/v1/receipt/:apns", a.checkReceiptHandler)
 
 	return router
 }
