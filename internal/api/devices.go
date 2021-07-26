@@ -32,8 +32,9 @@ func (a *api) upsertDeviceHandler(w http.ResponseWriter, r *http.Request, _ http
 
 func (a *api) testDeviceHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	ctx := context.Background()
+	tok := ps.ByName("apns")
 
-	d, err := a.models.Devices.GetByAPNSToken(ps.ByName("apns"))
+	d, err := a.models.Devices.GetByAPNSToken(tok)
 	if err != nil {
 		a.logger.WithFields(logrus.Fields{
 			"err": err,
@@ -45,12 +46,12 @@ func (a *api) testDeviceHandler(w http.ResponseWriter, r *http.Request, ps httpr
 	stmt := `
 			SELECT username
 			FROM accounts
-			INNER JOIN devices_accounts ON devices.account_id = accounts.id
+			INNER JOIN devices_accounts ON devices_accounts.account_id = accounts.id
 			WHERE devices_accounts.device_id = $1`
 	rows, err := a.db.Query(ctx, stmt, d.ID)
 	if err != nil {
 		a.logger.WithFields(logrus.Fields{
-			"apns": ps.ByName("apns"),
+			"apns": tok,
 			"err":  err,
 		}).Error("failed to fetch device accounts")
 		return
