@@ -7,6 +7,7 @@ require (
 	github.com/DataDog/datadog-go v4.8.1+incompatible
 	github.com/Microsoft/go-winio v0.5.0 // indirect
 	github.com/adjust/rmq/v4 v4.0.1
+	github.com/dustin/go-humanize v1.0.0 // indirect
 	github.com/go-co-op/gocron v1.6.2
 	github.com/go-redis/redis/v8 v8.11.0
 	github.com/heroku/x v0.0.31
