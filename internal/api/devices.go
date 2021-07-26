@@ -68,6 +68,7 @@ func (a *api) testDeviceHandler(w http.ResponseWriter, r *http.Request, ps httpr
 	body := fmt.Sprintf("Active usernames are: %s", english.OxfordWordSeries(users, "and"))
 	notification := &apns2.Notification{}
 	notification.Topic = "com.christianselig.Apollo"
+	notification.DeviceToken = d.APNSToken
 	notification.Payload = payload.
 		NewPayload().
 		Category("test-notification").
