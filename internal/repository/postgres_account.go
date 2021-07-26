@@ -1,18 +1,19 @@
-package postgres
+package repository
 
 import (
 	"context"
 	"fmt"
 
-	"github.com/christianselig/apollo-backend/internal/domain"
 	"github.com/jackc/pgx/v4/pgxpool"
+
+	"github.com/christianselig/apollo-backend/internal/domain"
 )
 
 type postgresAccountRepository struct {
 	pool *pgxpool.Pool
 }
 
-func NewPostgresAccountRepository(pool *pgxpool.Pool) domain.AccountRepository {
+func NewPostgresAccount(pool *pgxpool.Pool) domain.AccountRepository {
 	return &postgresAccountRepository{pool: pool}
 }
 
@@ -40,7 +41,6 @@ func (p *postgresAccountRepository) fetch(ctx context.Context, query string, arg
 		}
 		accs = append(accs, acc)
 	}
-
 	return accs, nil
 }
 
@@ -58,7 +58,6 @@ func (p *postgresAccountRepository) GetByID(ctx context.Context, id int64) (doma
 	if len(accs) == 0 {
 		return domain.Account{}, domain.ErrNotFound
 	}
-
 	return accs[0], nil
 }
 
@@ -78,6 +77,31 @@ func (p *postgresAccountRepository) GetByRedditID(ctx context.Context, id string
 	}
 
 	return accs[0], nil
+}
+func (p *postgresAccountRepository) CreateOrUpdate(ctx context.Context, acc *domain.Account) error {
+	query := `
+		INSERT INTO accounts (username, account_id, access_token, refresh_token, expires_at, last_message_id, device_count, last_checked_at)
+		VALUES ($1, $2, $3, $4, $5, '', 0, 0)
+		ON CONFLICT(username) DO
+			UPDATE SET access_token = $3,
+				refresh_token = $4,
+				expires_at = $5
+		RETURNING id`
+
+	res, err := p.pool.Query(
+		ctx,
+		query,
+		acc.Username,
+		acc.AccountID,
+		acc.AccessToken,
+		acc.RefreshToken,
+		acc.ExpiresAt,
+	)
+	if err != nil {
+		return err
+	}
+
+	return res.Scan(&acc.ID)
 }
 
 func (p *postgresAccountRepository) Create(ctx context.Context, acc *domain.Account) error {

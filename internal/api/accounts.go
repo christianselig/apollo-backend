@@ -1,18 +1,20 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"time"
 
+	"github.com/christianselig/apollo-backend/internal/domain"
 	"github.com/julienschmidt/httprouter"
 	"github.com/sirupsen/logrus"
-
-	"github.com/christianselig/apollo-backend/internal/data"
 )
 
 func (a *api) upsertAccountHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	acct := &data.Account{}
+	ctx := context.Background()
+	var acct domain.Account
+
 	if err := json.NewDecoder(r.Body).Decode(acct); err != nil {
 		a.logger.WithFields(logrus.Fields{
 			"err": err,
@@ -60,7 +62,7 @@ func (a *api) upsertAccountHandler(w http.ResponseWriter, r *http.Request, ps ht
 	acct.AccountID = me.ID
 
 	// Associate
-	d, err := a.models.Devices.GetByAPNSToken(ps.ByName("apns"))
+	dev, err := a.deviceRepo.GetByAPNSToken(ctx, ps.ByName("apns"))
 	if err != nil {
 		a.logger.WithFields(logrus.Fields{
 			"err": err,
@@ -70,7 +72,7 @@ func (a *api) upsertAccountHandler(w http.ResponseWriter, r *http.Request, ps ht
 	}
 
 	// Upsert account
-	if err := a.models.Accounts.Upsert(acct); err != nil {
+	if err := a.accountRepo.CreateOrUpdate(ctx, &acct); err != nil {
 		a.logger.WithFields(logrus.Fields{
 			"err": err,
 		}).Info("failed updating account in database")
