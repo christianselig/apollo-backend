@@ -46,7 +46,7 @@ func (a *api) testDeviceHandler(w http.ResponseWriter, r *http.Request, ps httpr
 			SELECT username
 			FROM accounts
 			INNER JOIN devices_accounts ON devices.account_id = accounts.id
-			WHERE devices_accounts.device = $1`
+			WHERE devices_accounts.device_id = $1`
 	rows, err := a.db.Query(ctx, stmt, d.ID)
 	if err != nil {
 		a.logger.WithFields(logrus.Fields{
