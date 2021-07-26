@@ -15,6 +15,8 @@ import (
 	"github.com/christianselig/apollo-backend/internal/data"
 )
 
+const notificationTitle = "📣 Hello, is this thing on?"
+
 func (a *api) upsertDeviceHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	d := &data.Device{}
 	if err := json.NewDecoder(r.Body).Decode(d); err != nil {
@@ -72,7 +74,7 @@ func (a *api) testDeviceHandler(w http.ResponseWriter, r *http.Request, ps httpr
 	notification.Payload = payload.
 		NewPayload().
 		Category("test-notification").
-		AlertTitle("Test notification").
+		AlertTitle(notificationTitle).
 		AlertBody(body)
 
 	client := apns2.NewTokenClient(a.apns)
