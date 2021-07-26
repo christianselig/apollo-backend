@@ -72,6 +72,7 @@ func (a *api) testDeviceHandler(w http.ResponseWriter, r *http.Request, ps httpr
 	notification.Payload = payload.
 		NewPayload().
 		Category("test-notification").
+		AlertTitle("Test notification").
 		AlertBody(body)
 
 	client := apns2.NewTokenClient(a.apns)
