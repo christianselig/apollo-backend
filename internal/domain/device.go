@@ -11,7 +11,7 @@ type Device struct {
 
 type DeviceRepository interface {
 	GetByAPNSToken(ctx context.Context, token string) (Device, error)
-
+	CreateOrUpdate(ctx context.Context, dev *Device) error
 	Update(ctx context.Context, dev *Device) error
 	Create(ctx context.Context, dev *Device) error
 	Delete(ctx context.Context, token string) error

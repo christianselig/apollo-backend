@@ -11,19 +11,21 @@ import (
 	"github.com/julienschmidt/httprouter"
 	"github.com/sirupsen/logrus"
 
-	"github.com/christianselig/apollo-backend/internal/data"
+	"github.com/christianselig/apollo-backend/internal/domain"
 	"github.com/christianselig/apollo-backend/internal/reddit"
+	"github.com/christianselig/apollo-backend/internal/repository"
 )
 
 type api struct {
 	logger *logrus.Logger
 	statsd *statsd.Client
-	db     *pgxpool.Pool
 	reddit *reddit.Client
-	models *data.Models
+
+	accountRepo domain.AccountRepository
+	deviceRepo  domain.DeviceRepository
 }
 
-func NewAPI(ctx context.Context, logger *logrus.Logger, statsd *statsd.Client, db *pgxpool.Pool) *api {
+func NewAPI(ctx context.Context, logger *logrus.Logger, statsd *statsd.Client, pool *pgxpool.Pool) *api {
 	reddit := reddit.NewClient(
 		os.Getenv("REDDIT_CLIENT_ID"),
 		os.Getenv("REDDIT_CLIENT_SECRET"),
@@ -31,9 +33,16 @@ func NewAPI(ctx context.Context, logger *logrus.Logger, statsd *statsd.Client, d
 		16,
 	)
 
-	models := data.NewModels(ctx, db)
+	accountRepo := repository.NewPostgresAccount(pool)
+	deviceRepo := repository.NewPostgresDevice(pool)
 
-	return &api{logger, statsd, db, reddit, models}
+	return &api{
+		logger:      logger,
+		statsd:      statsd,
+		reddit:      reddit,
+		accountRepo: accountRepo,
+		deviceRepo:  deviceRepo,
+	}
 }
 
 func (a *api) Server(port int) *http.Server {

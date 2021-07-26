@@ -23,6 +23,7 @@ type AccountRepository interface {
 	GetByID(ctx context.Context, id int64) (Account, error)
 	GetByRedditID(ctx context.Context, id string) (Account, error)
 
+	CreateOrUpdate(ctx context.Context, acc *Account) error
 	Update(ctx context.Context, acc *Account) error
 	Create(ctx context.Context, acc *Account) error
 	Delete(ctx context.Context, id int64) error
