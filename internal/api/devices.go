@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/dustin/go-humanize/english"
 	"github.com/julienschmidt/httprouter"
@@ -67,13 +68,14 @@ func (a *api) testDeviceHandler(w http.ResponseWriter, r *http.Request, ps httpr
 		users = append(users, user)
 	}
 
-	body := fmt.Sprintf("Active usernames are: %s", english.OxfordWordSeries(users, "and"))
+	body := fmt.Sprintf("Active usernames are: %s. Tap me for more info!", english.OxfordWordSeries(users, "and"))
 	notification := &apns2.Notification{}
 	notification.Topic = "com.christianselig.Apollo"
 	notification.DeviceToken = d.APNSToken
 	notification.Payload = payload.
 		NewPayload().
 		Category("test-notification").
+		Custom("test_accounts", strings.Join(users, ",")).
 		AlertTitle(notificationTitle).
 		AlertBody(body)
 
