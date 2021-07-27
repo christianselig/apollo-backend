@@ -167,3 +167,7 @@ func (p *postgresAccountRepository) Delete(ctx context.Context, id int64) error 
 	}
 	return err
 }
+
+func (p *postgresAccountRepository) Associate(ctx context.Context, acc *domain.Account, dev *domain.Device) error {
+	return nil
+}

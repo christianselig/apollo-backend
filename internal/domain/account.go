@@ -27,6 +27,7 @@ type AccountRepository interface {
 	Update(ctx context.Context, acc *Account) error
 	Create(ctx context.Context, acc *Account) error
 	Delete(ctx context.Context, id int64) error
+	Associate(ctx context.Context, acc *Account, dev *Device) error
 }
 
 // AccountUsecase represents the account's usecases
