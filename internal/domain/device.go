@@ -16,9 +16,3 @@ type DeviceRepository interface {
 	Create(ctx context.Context, dev *Device) error
 	Delete(ctx context.Context, token string) error
 }
-
-type DeviceUsecase interface {
-	GetByAPNSToken(ctx context.Context, token string) (Device, error)
-	CreateOrUpdate(ctx context.Context, dev *Device) error
-	Delete(ctx context.Context, token string) error
-}

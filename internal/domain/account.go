@@ -1,6 +1,9 @@
 package domain
 
-import "context"
+import (
+	"context"
+	"strings"
+)
 
 // Account represents an account we need to periodically check in the notifications worker.
 type Account struct {
@@ -18,22 +21,22 @@ type Account struct {
 	LastCheckedAt float64
 }
 
+func (acct *Account) NormalizedUsername() string {
+	return strings.ToLower(acct.Username)
+}
+
 // AccountRepository represents the account's repository contract
 type AccountRepository interface {
 	GetByID(ctx context.Context, id int64) (Account, error)
 	GetByRedditID(ctx context.Context, id string) (Account, error)
+	GetByAPNSToken(ctx context.Context, token string) ([]Account, error)
 
 	CreateOrUpdate(ctx context.Context, acc *Account) error
 	Update(ctx context.Context, acc *Account) error
 	Create(ctx context.Context, acc *Account) error
 	Delete(ctx context.Context, id int64) error
 	Associate(ctx context.Context, acc *Account, dev *Device) error
-}
+	Disassociate(ctx context.Context, acc *Account, dev *Device) error
 
-// AccountUsecase represents the account's usecases
-type AccountUsecase interface {
-	GetByID(ctx context.Context, id int64) (Account, error)
-	GetByRedditID(ctx context.Context, id string) (Account, error)
-	CreateOrUpdate(ctx context.Context, acc *Account) error
-	Delete(ctx context.Context, id int64) error
+	PruneStale(ctx context.Context) (int64, error)
 }

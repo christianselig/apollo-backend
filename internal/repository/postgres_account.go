@@ -80,15 +80,15 @@ func (p *postgresAccountRepository) GetByRedditID(ctx context.Context, id string
 }
 func (p *postgresAccountRepository) CreateOrUpdate(ctx context.Context, acc *domain.Account) error {
 	query := `
-		INSERT INTO accounts (username, account_id, access_token, refresh_token, expires_at, last_message_id, device_count, last_checked_at)
-		VALUES ($1, $2, $3, $4, $5, '', 0, 0)
+		INSERT INTO accounts (username, account_id, access_token, refresh_token, expires_at, last_message_id, last_checked_at)
+		VALUES ($1, $2, $3, $4, $5, '', 0)
 		ON CONFLICT(username) DO
 			UPDATE SET access_token = $3,
 				refresh_token = $4,
 				expires_at = $5
 		RETURNING id`
 
-	res, err := p.pool.Query(
+	return p.pool.QueryRow(
 		ctx,
 		query,
 		acc.Username,
@@ -96,12 +96,7 @@ func (p *postgresAccountRepository) CreateOrUpdate(ctx context.Context, acc *dom
 		acc.AccessToken,
 		acc.RefreshToken,
 		acc.ExpiresAt,
-	)
-	if err != nil {
-		return err
-	}
-
-	return res.Scan(&acc.ID)
+	).Scan(&acc.ID)
 }
 
 func (p *postgresAccountRepository) Create(ctx context.Context, acc *domain.Account) error {
@@ -111,7 +106,7 @@ func (p *postgresAccountRepository) Create(ctx context.Context, acc *domain.Acco
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		RETURNING id`
 
-	res, err := p.pool.Query(
+	return p.pool.QueryRow(
 		ctx,
 		query,
 		acc.Username,
@@ -121,12 +116,7 @@ func (p *postgresAccountRepository) Create(ctx context.Context, acc *domain.Acco
 		acc.ExpiresAt,
 		acc.LastMessageID,
 		acc.LastCheckedAt,
-	)
-	if err != nil {
-		return err
-	}
-
-	return res.Scan(&acc.ID)
+	).Scan(&acc.ID)
 }
 
 func (p *postgresAccountRepository) Update(ctx context.Context, acc *domain.Account) error {
@@ -169,5 +159,51 @@ func (p *postgresAccountRepository) Delete(ctx context.Context, id int64) error 
 }
 
 func (p *postgresAccountRepository) Associate(ctx context.Context, acc *domain.Account, dev *domain.Device) error {
-	return nil
+	query := `
+		INSERT INTO devices_accounts
+			(account_id, device_id)
+		VALUES ($1, $2)
+		ON CONFLICT(account_id, device_id) DO NOTHING`
+	_, err := p.pool.Exec(ctx, query, acc.ID, dev.ID)
+	return err
+}
+
+func (p *postgresAccountRepository) Disassociate(ctx context.Context, acc *domain.Account, dev *domain.Device) error {
+	query := `DELETE FROM devices_accounts WHERE account_id = $1 AND device_id = $2`
+	res, err := p.pool.Exec(ctx, query, acc.ID, dev.ID)
+
+	if res.RowsAffected() != 1 {
+		return fmt.Errorf("weird behaviour, total rows affected: %d", res.RowsAffected())
+	}
+	return err
+}
+
+func (p *postgresAccountRepository) GetByAPNSToken(ctx context.Context, token string) ([]domain.Account, error) {
+	query := `
+		SELECT accounts.id, username, accounts.account_id, access_token, refresh_token, expires_at, last_message_id, last_checked_at
+		FROM accounts
+		INNER JOIN devices_accounts ON accounts.id = devices_accounts.account_id
+		INNER JOIN devices ON devices.id = devices_accounts.device_id
+		WHERE devices.apns_token = $1`
+
+	return p.fetch(ctx, query, token)
+}
+
+func (p *postgresAccountRepository) PruneStale(ctx context.Context) (int64, error) {
+	query := `
+		WITH accounts_with_device_count AS (
+			SELECT accounts.id, COUNT(device_id) AS device_count
+			FROM accounts
+			LEFT JOIN devices_accounts ON accounts.id = devices_accounts.account_id
+			GROUP BY accounts.id
+		)
+		DELETE FROM accounts WHERE id IN (
+			SELECT id
+			FROM accounts_with_device_count
+			WHERE device_count = 0
+		)`
+
+	res, err := p.pool.Exec(ctx, query)
+
+	return res.RowsAffected(), err
 }
