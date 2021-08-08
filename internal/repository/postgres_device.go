@@ -44,7 +44,7 @@ func (p *postgresDeviceRepository) GetByAPNSToken(ctx context.Context, token str
 	query := `
 		SELECT id, apns_token, sandbox, last_pinged_at
 		FROM devices
-		WHERE id = $1`
+		WHERE apns_token = $1`
 
 	devs, err := p.fetch(ctx, query, token)
 
@@ -58,27 +58,21 @@ func (p *postgresDeviceRepository) GetByAPNSToken(ctx context.Context, token str
 }
 
 func (p *postgresDeviceRepository) CreateOrUpdate(ctx context.Context, dev *domain.Device) error {
+	fmt.Println(dev)
 	query := `
 		INSERT INTO devices (apns_token, sandbox, last_pinged_at)
 		VALUES ($1, $2, $3)
-		ON CONFLICT(apns_token)
-		DO
+		ON CONFLICT(apns_token) DO
 			UPDATE SET last_pinged_at = $3
 		RETURNING id`
 
-	res, err := p.pool.Query(
+	return p.pool.QueryRow(
 		ctx,
 		query,
 		dev.APNSToken,
 		dev.Sandbox,
 		dev.LastPingedAt,
-	)
-
-	if err != nil {
-		return err
-	}
-	return res.Scan(&dev.ID)
-
+	).Scan(&dev.ID)
 }
 
 func (p *postgresDeviceRepository) Create(ctx context.Context, dev *domain.Device) error {
@@ -88,18 +82,13 @@ func (p *postgresDeviceRepository) Create(ctx context.Context, dev *domain.Devic
 		VALUES ($1, $2, $3)
 		RETURNING id`
 
-	res, err := p.pool.Query(
+	return p.pool.QueryRow(
 		ctx,
 		query,
 		dev.APNSToken,
 		dev.Sandbox,
 		dev.LastPingedAt,
-	)
-
-	if err != nil {
-		return err
-	}
-	return res.Scan(&dev.ID)
+	).Scan(&dev.ID)
 }
 
 func (p *postgresDeviceRepository) Update(ctx context.Context, dev *domain.Device) error {
