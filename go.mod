@@ -10,7 +10,7 @@ require (
 	github.com/dustin/go-humanize v1.0.0 // indirect
 	github.com/go-co-op/gocron v1.6.2
 	github.com/go-kit/kit v0.10.0 // indirect
-	github.com/go-redis/redis/v8 v8.11.0
+	github.com/go-redis/redis/v8 v8.11.2
 	github.com/heroku/x v0.0.31
 	github.com/jackc/pgx/v4 v4.13.0
 	github.com/joho/godotenv v1.3.0
