@@ -58,7 +58,6 @@ func (p *postgresDeviceRepository) GetByAPNSToken(ctx context.Context, token str
 }
 
 func (p *postgresDeviceRepository) CreateOrUpdate(ctx context.Context, dev *domain.Device) error {
-	fmt.Println(dev)
 	query := `
 		INSERT INTO devices (apns_token, sandbox, last_pinged_at)
 		VALUES ($1, $2, $3)

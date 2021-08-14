@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/christianselig/apollo-backend/internal/domain"
 	"github.com/dustin/go-humanize/english"
@@ -25,6 +26,8 @@ func (a *api) upsertDeviceHandler(w http.ResponseWriter, r *http.Request) {
 		a.errorResponse(w, r, 500, err.Error())
 		return
 	}
+
+	d.LastPingedAt = time.Now().Unix()
 
 	if err := a.deviceRepo.CreateOrUpdate(ctx, d); err != nil {
 		a.errorResponse(w, r, 500, err.Error())
