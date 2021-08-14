@@ -248,6 +248,7 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 				"account#username": account.NormalizedUsername(),
 				"err":              err,
 			}).Error("failed to fetch message inbox")
+			return
 		}
 
 		err = nc.deleteAccount(ctx, account)
