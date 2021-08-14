@@ -114,6 +114,12 @@ func (lrw *LoggingResponseWriter) WriteHeader(statusCode int) {
 
 func (a *api) loggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Skip logging health checks
+		if r.RequestURI == "/v1/health" {
+			next.ServeHTTP(w, r)
+			return
+		}
+
 		start := time.Now()
 		lrw := &LoggingResponseWriter{w: w}
 		// Do stuff here
