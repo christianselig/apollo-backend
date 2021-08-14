@@ -15,4 +15,6 @@ type DeviceRepository interface {
 	Update(ctx context.Context, dev *Device) error
 	Create(ctx context.Context, dev *Device) error
 	Delete(ctx context.Context, token string) error
+
+	PruneStale(ctx context.Context, before int64) (int64, error)
 }

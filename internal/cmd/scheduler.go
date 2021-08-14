@@ -23,6 +23,9 @@ const (
 	batchSize      = 250
 	checkTimeout   = 60 // how long until we force a check
 	enqueueTimeout = 5  // how long until we try to re-enqueue
+
+	staleAccountThreshold = 7200   // 2 hours
+	staleDeviceThreshold  = 604800 // 1 week
 )
 
 func SchedulerCmd(ctx context.Context) *cobra.Command {
@@ -72,6 +75,7 @@ func SchedulerCmd(ctx context.Context) *cobra.Command {
 			s.Every(1).Second().Do(func() { cleanQueues(ctx, logger, queue) })
 			s.Every(1).Minute().Do(func() { reportStats(ctx, logger, statsd, db, redis) })
 			s.Every(1).Minute().Do(func() { pruneAccounts(ctx, logger, db) })
+			s.Every(1).Minute().Do(func() { pruneDevices(ctx, logger, db) })
 			s.StartAsync()
 
 			<-ctx.Done()
@@ -105,10 +109,10 @@ func evalScript(ctx context.Context, redis *redis.Client) (string, error) {
 }
 
 func pruneAccounts(ctx context.Context, logger *logrus.Logger, pool *pgxpool.Pool) {
-	now := time.Now().Unix() - 7200
+	before := time.Now().Unix() - staleAccountThreshold
 	ar := repository.NewPostgresAccount(pool)
 
-	stale, err := ar.PruneStale(ctx, now)
+	stale, err := ar.PruneStale(ctx, before)
 	if err != nil {
 		logger.WithFields(logrus.Fields{
 			"err": err,
@@ -130,6 +134,25 @@ func pruneAccounts(ctx context.Context, logger *logrus.Logger, pool *pgxpool.Poo
 		logger.WithFields(logrus.Fields{
 			"count": count,
 		}).Info("pruned accounts")
+	}
+}
+
+func pruneDevices(ctx context.Context, logger *logrus.Logger, pool *pgxpool.Pool) {
+	before := time.Now().Unix() - staleDeviceThreshold
+	dr := repository.NewPostgresDevice(pool)
+
+	count, err := dr.PruneStale(ctx, before)
+	if err != nil {
+		logger.WithFields(logrus.Fields{
+			"err": err,
+		}).Error("failed cleaning stale devices")
+		return
+	}
+
+	if count > 0 {
+		logger.WithFields(logrus.Fields{
+			"count": count,
+		}).Info("pruned devices")
 	}
 }
 
