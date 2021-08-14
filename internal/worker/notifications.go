@@ -333,7 +333,6 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 				nc.logger.WithFields(logrus.Fields{
 					"account#username": account.NormalizedUsername(),
 					"token":            device.APNSToken,
-					"redditUser":       account.Username,
 				}).Info("sent notification")
 			}
 		}
