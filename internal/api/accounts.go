@@ -7,9 +7,10 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/christianselig/apollo-backend/internal/domain"
 	"github.com/gorilla/mux"
 	"github.com/sirupsen/logrus"
+
+	"github.com/christianselig/apollo-backend/internal/domain"
 )
 
 func (a *api) disassociateAccountHandler(w http.ResponseWriter, r *http.Request) {

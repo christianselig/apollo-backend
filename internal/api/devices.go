@@ -8,12 +8,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/christianselig/apollo-backend/internal/domain"
 	"github.com/dustin/go-humanize/english"
 	"github.com/gorilla/mux"
 	"github.com/sideshow/apns2"
 	"github.com/sideshow/apns2/payload"
 	"github.com/sirupsen/logrus"
+
+	"github.com/christianselig/apollo-backend/internal/domain"
 )
 
 const notificationTitle = "📣 Hello, is this thing on?"
