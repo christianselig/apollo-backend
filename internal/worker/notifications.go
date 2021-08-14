@@ -10,15 +10,15 @@ import (
 	"github.com/DataDog/datadog-go/statsd"
 	"github.com/adjust/rmq/v4"
 	"github.com/go-redis/redis/v8"
-	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/sideshow/apns2"
 	"github.com/sideshow/apns2/payload"
 	"github.com/sideshow/apns2/token"
 	"github.com/sirupsen/logrus"
 
-	"github.com/christianselig/apollo-backend/internal/data"
+	"github.com/christianselig/apollo-backend/internal/domain"
 	"github.com/christianselig/apollo-backend/internal/reddit"
+	"github.com/christianselig/apollo-backend/internal/repository"
 )
 
 const (
@@ -28,14 +28,18 @@ const (
 )
 
 type notificationsWorker struct {
-	logger    *logrus.Logger
-	statsd    *statsd.Client
-	db        *pgxpool.Pool
-	redis     *redis.Client
-	queue     rmq.Connection
-	reddit    *reddit.Client
-	apns      *token.Token
+	logger *logrus.Logger
+	statsd *statsd.Client
+	db     *pgxpool.Pool
+	redis  *redis.Client
+	queue  rmq.Connection
+	reddit *reddit.Client
+	apns   *token.Token
+
 	consumers int
+
+	accountRepo domain.AccountRepository
+	deviceRepo  domain.DeviceRepository
 }
 
 func NewNotificationsWorker(logger *logrus.Logger, statsd *statsd.Client, db *pgxpool.Pool, redis *redis.Client, queue rmq.Connection, consumers int) Worker {
@@ -69,6 +73,9 @@ func NewNotificationsWorker(logger *logrus.Logger, statsd *statsd.Client, db *pg
 		reddit,
 		apns,
 		consumers,
+
+		repository.NewPostgresAccount(db),
+		repository.NewPostgresDevice(db),
 	}
 }
 
@@ -137,14 +144,14 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 	}()
 
 	nc.logger.WithFields(logrus.Fields{
-		"accountID": delivery.Payload(),
+		"account#id": delivery.Payload(),
 	}).Debug("starting job")
 
 	id, err := strconv.ParseInt(delivery.Payload(), 10, 64)
 	if err != nil {
 		nc.logger.WithFields(logrus.Fields{
-			"accountID": delivery.Payload(),
-			"err":       err,
+			"account#id": delivery.Payload(),
+			"err":        err,
 		}).Error("failed to parse account ID")
 
 		delivery.Reject()
@@ -155,46 +162,22 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 
 	now := float64(time.Now().UnixNano()/int64(time.Millisecond)) / 1000
 
-	stmt := `SELECT
-			id,
-			username,
-			account_id,
-			access_token,
-			refresh_token,
-			expires_at,
-			last_message_id,
-			last_checked_at
-		FROM accounts
-		WHERE id = $1`
-	account := &data.Account{}
-	if err := nc.db.QueryRow(ctx, stmt, id).Scan(
-		&account.ID,
-		&account.Username,
-		&account.AccountID,
-		&account.AccessToken,
-		&account.RefreshToken,
-		&account.ExpiresAt,
-		&account.LastMessageID,
-		&account.LastCheckedAt,
-	); err != nil {
+	account, err := nc.accountRepo.GetByID(ctx, id)
+	if err != nil {
 		nc.logger.WithFields(logrus.Fields{
-			"accountID": id,
-			"err":       err,
+			"account#username": account.NormalizedUsername(),
+			"err":              err,
 		}).Error("failed to fetch account from database")
 		return
 	}
 
-	if err = nc.db.BeginFunc(ctx, func(tx pgx.Tx) error {
-		stmt := `
-			UPDATE accounts
-			SET last_checked_at = $1
-			WHERE id = $2`
-		_, err := tx.Exec(ctx, stmt, now, account.ID)
-		return err
-	}); err != nil {
+	newAccount := (account.LastCheckedAt == 0)
+	account.LastCheckedAt = now
+
+	if err = nc.accountRepo.Update(ctx, &account); err != nil {
 		nc.logger.WithFields(logrus.Fields{
-			"accountID": id,
-			"err":       err,
+			"account#username": account.NormalizedUsername(),
+			"err":              err,
 		}).Error("failed to update last_checked_at for account")
 		return
 	}
@@ -202,16 +185,27 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 	rac := nc.reddit.NewAuthenticatedClient(account.RefreshToken, account.AccessToken)
 	if account.ExpiresAt < int64(now) {
 		nc.logger.WithFields(logrus.Fields{
-			"accountID": id,
+			"account#username": account.NormalizedUsername(),
 		}).Debug("refreshing reddit token")
 
 		tokens, err := rac.RefreshTokens()
 		if err != nil {
-			nc.logger.WithFields(logrus.Fields{
-				"accountID": id,
-				"err":       err,
-			}).Error("failed to refresh reddit tokens")
-			return
+			if err != reddit.ErrOauthRevoked {
+				nc.logger.WithFields(logrus.Fields{
+					"account#username": account.NormalizedUsername(),
+					"err":              err,
+				}).Error("failed to refresh reddit tokens")
+				return
+			}
+
+			err = nc.deleteAccount(ctx, account)
+			if err != nil {
+				nc.logger.WithFields(logrus.Fields{
+					"account#username": account.NormalizedUsername(),
+					"err":              err,
+				}).Error("failed to remove revoked account")
+				return
+			}
 		}
 
 		// Update account
@@ -222,17 +216,10 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 		// Refresh client
 		rac = nc.reddit.NewAuthenticatedClient(tokens.RefreshToken, tokens.AccessToken)
 
-		err = nc.db.BeginFunc(ctx, func(tx pgx.Tx) error {
-			stmt := `
-				UPDATE accounts
-				SET access_token = $1, refresh_token = $2, expires_at = $3 WHERE id = $4`
-			_, err := tx.Exec(ctx, stmt, account.AccessToken, account.RefreshToken, account.ExpiresAt, account.ID)
-			return err
-		})
-		if err != nil {
+		if err = nc.accountRepo.Update(ctx, &account); err != nil {
 			nc.logger.WithFields(logrus.Fields{
-				"accountID": id,
-				"err":       err,
+				"account#username": account.NormalizedUsername(),
+				"err":              err,
 			}).Error("failed to update reddit tokens for account")
 			return
 		}
@@ -240,13 +227,13 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 
 	// Only update delay on accounts we can actually check, otherwise it skews
 	// the numbers too much.
-	if account.LastCheckedAt > 0 {
+	if !newAccount {
 		latency := now - account.LastCheckedAt - float64(backoff)
 		nc.statsd.Histogram("apollo.queue.delay", latency, []string{}, rate)
 	}
 
 	nc.logger.WithFields(logrus.Fields{
-		"accountID": id,
+		"account#username": account.NormalizedUsername(),
 	}).Debug("fetching message inbox")
 
 	opts := []reddit.RequestOption{reddit.WithQuery("limit", "10")}
@@ -256,69 +243,65 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 	msgs, err := rac.MessageInbox(opts...)
 
 	if err != nil {
+		if err != reddit.ErrOauthRevoked {
+			nc.logger.WithFields(logrus.Fields{
+				"account#username": account.NormalizedUsername(),
+				"err":              err,
+			}).Error("failed to fetch message inbox")
+		}
+
+		err = nc.deleteAccount(ctx, account)
+		if err != nil {
+			nc.logger.WithFields(logrus.Fields{
+				"account#username": account.NormalizedUsername(),
+				"err":              err,
+			}).Error("failed to remove revoked account")
+			return
+		}
 		nc.logger.WithFields(logrus.Fields{
-			"accountID": id,
-			"err":       err,
-		}).Error("failed to fetch message inbox")
+			"account#username": account.NormalizedUsername(),
+		}).Info("removed revoked account")
 		return
 	}
 
 	// Figure out where we stand
 	if msgs.Count == 0 {
 		nc.logger.WithFields(logrus.Fields{
-			"accountID": id,
+			"account#username": account.NormalizedUsername(),
 		}).Debug("no new messages, bailing early")
 		return
 	}
 
 	nc.logger.WithFields(logrus.Fields{
-		"accountID": id,
-		"count":     msgs.Count,
+		"account#username": account.NormalizedUsername(),
+		"count":            msgs.Count,
 	}).Debug("fetched messages")
 
-	// Set latest message we alerted on
-	if err = nc.db.BeginFunc(ctx, func(tx pgx.Tx) error {
-		stmt := `
-			UPDATE accounts
-			SET last_message_id = $1
-			WHERE id = $2`
-		_, err := tx.Exec(ctx, stmt, msgs.Children[0].FullName(), account.ID)
-		return err
-	}); err != nil {
+	account.LastMessageID = msgs.Children[0].FullName()
+
+	if err = nc.accountRepo.Update(ctx, &account); err != nil {
 		nc.logger.WithFields(logrus.Fields{
-			"accountID": id,
-			"err":       err,
+			"account#username": account.NormalizedUsername(),
+			"err":              err,
 		}).Error("failed to update last_message_id for account")
 		return
 	}
 
 	// Let's populate this with the latest message so we don't flood users with stuff
-	if account.LastMessageID == "" && account.LastCheckedAt == 0 {
+	if newAccount {
 		nc.logger.WithFields(logrus.Fields{
-			"accountID": delivery.Payload(),
+			"account#username": account.NormalizedUsername(),
 		}).Debug("populating first message ID to prevent spamming")
 		return
 	}
 
-	devices := []data.Device{}
-	stmt = `
-		SELECT apns_token, sandbox
-		FROM devices
-		INNER JOIN devices_accounts ON devices.id = devices_accounts.device_id
-		WHERE devices_accounts.account_id = $1`
-	rows, err := nc.db.Query(ctx, stmt, account.ID)
+	devices, err := nc.deviceRepo.GetByAccountID(ctx, account.ID)
 	if err != nil {
 		nc.logger.WithFields(logrus.Fields{
-			"accountID": id,
-			"err":       err,
+			"account#username": account.NormalizedUsername(),
+			"err":              err,
 		}).Error("failed to fetch account devices")
 		return
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var device data.Device
-		rows.Scan(&device.APNSToken, &device.Sandbox)
-		devices = append(devices, device)
 	}
 
 	// Iterate backwards so we notify from older to newer
@@ -359,11 +342,27 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 	nc.statsd.SimpleEvent(ev, "")
 
 	nc.logger.WithFields(logrus.Fields{
-		"accountID": delivery.Payload(),
+		"account#username": account.NormalizedUsername(),
 	}).Debug("finishing job")
 }
 
-func payloadFromMessage(acct *data.Account, msg *reddit.Thing, badgeCount int) *payload.Payload {
+func (nc *notificationsConsumer) deleteAccount(ctx context.Context, account domain.Account) error {
+	// Disassociate account from devices
+	devs, err := nc.deviceRepo.GetByAccountID(ctx, account.ID)
+	if err != nil {
+		return err
+	}
+
+	for _, dev := range devs {
+		if err := nc.accountRepo.Disassociate(ctx, &account, &dev); err != nil {
+			return err
+		}
+	}
+
+	return nc.accountRepo.Delete(ctx, account.ID)
+}
+
+func payloadFromMessage(acct domain.Account, msg *reddit.Thing, badgeCount int) *payload.Payload {
 	postBody := msg.Body
 	if len(postBody) > 2000 {
 		postBody = msg.Body[:2000]
