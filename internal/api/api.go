@@ -122,6 +122,8 @@ func (a *api) loggingMiddleware(next http.Handler) http.Handler {
 
 		logEntry := a.logger.WithFields(logrus.Fields{
 			"duration":       time.Now().Sub(start).Milliseconds(),
+			"method":         r.Method,
+			"remote#addr":    r.RemoteAddr,
 			"response#bytes": lrw.bytes,
 			"status":         lrw.statusCode,
 			"uri":            r.RequestURI,
