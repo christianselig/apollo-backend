@@ -57,6 +57,16 @@ func (p *postgresDeviceRepository) GetByAPNSToken(ctx context.Context, token str
 	return devs[0], nil
 }
 
+func (p *postgresDeviceRepository) GetByAccountID(ctx context.Context, id int64) ([]domain.Device, error) {
+	query := `
+		SELECT devices.id, apns_token, sandbox, last_pinged_at
+		FROM devices
+		INNER JOIN devices_accounts ON devices.id = devices_accounts.device_id
+		WHERE devices_accounts.account_id = $1`
+
+	return p.fetch(ctx, query, id)
+}
+
 func (p *postgresDeviceRepository) CreateOrUpdate(ctx context.Context, dev *domain.Device) error {
 	query := `
 		INSERT INTO devices (apns_token, sandbox, last_pinged_at)

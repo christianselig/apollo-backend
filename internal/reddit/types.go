@@ -10,15 +10,16 @@ import (
 type ResponseHandler func(*fastjson.Value) interface{}
 
 type Error struct {
-	Message string `json:"message"`
-	Code    int    `json:"error"`
+	Message    string `json:"message"`
+	Code       int    `json:"error"`
+	StatusCode int
 }
 
 func (err *Error) Error() string {
 	return fmt.Sprintf("%s (%d)", err.Message, err.Code)
 }
 
-func NewError(val *fastjson.Value) *Error {
+func NewError(val *fastjson.Value, status int) *Error {
 	err := &Error{}
 
 	err.Message = string(val.GetStringBytes("message"))
