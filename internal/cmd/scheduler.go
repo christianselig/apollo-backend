@@ -10,6 +10,7 @@ import (
 	"github.com/DataDog/datadog-go/statsd"
 	"github.com/adjust/rmq/v4"
 	"github.com/christianselig/apollo-backend/internal/cmdutil"
+	"github.com/christianselig/apollo-backend/internal/repository"
 	"github.com/go-co-op/gocron"
 	"github.com/go-redis/redis/v8"
 	"github.com/jackc/pgx/v4"
@@ -70,7 +71,7 @@ func SchedulerCmd(ctx context.Context) *cobra.Command {
 			s.Every(200).Milliseconds().SingletonMode().Do(func() { enqueueAccounts(ctx, logger, statsd, db, redis, luaSha, notifQueue) })
 			s.Every(1).Second().Do(func() { cleanQueues(ctx, logger, queue) })
 			s.Every(1).Minute().Do(func() { reportStats(ctx, logger, statsd, db, redis) })
-			s.Every(1).Minute().Do(func() { cleanAccounts(ctx, logger, db) })
+			s.Every(1).Minute().Do(func() { pruneStale(ctx, logger, db) })
 			s.StartAsync()
 
 			<-ctx.Done()
@@ -103,12 +104,21 @@ func evalScript(ctx context.Context, redis *redis.Client) (string, error) {
 	return redis.ScriptLoad(ctx, lua).Result()
 }
 
-func cleanAccounts(ctx context.Context, logger *logrus.Logger, pool *pgxpool.Pool) {
+func pruneStale(ctx context.Context, logger *logrus.Logger, pool *pgxpool.Pool) {
+	ar := repository.NewPostgresAccount(pool)
+	count, err := ar.PruneStale(ctx)
+
+	if err != nil {
+		logger.WithFields(logrus.Fields{
+			"err": err,
+		}).Error("failed cleaning stale accounts")
+		return
+	}
+
 	now := time.Now().Unix() - 7200
-	count := 0
 	ids := []int64{}
 
-	err := pool.BeginFunc(ctx, func(tx pgx.Tx) error {
+	err = pool.BeginFunc(ctx, func(tx pgx.Tx) error {
 		stmt := `
 			WITH account AS (
 			  SELECT id
