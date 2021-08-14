@@ -38,5 +38,6 @@ type AccountRepository interface {
 	Associate(ctx context.Context, acc *Account, dev *Device) error
 	Disassociate(ctx context.Context, acc *Account, dev *Device) error
 
-	PruneStale(ctx context.Context) (int64, error)
+	PruneOrphaned(ctx context.Context) (int64, error)
+	PruneStale(ctx context.Context, before int64) (int64, error)
 }

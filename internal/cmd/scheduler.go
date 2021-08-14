@@ -71,7 +71,7 @@ func SchedulerCmd(ctx context.Context) *cobra.Command {
 			s.Every(200).Milliseconds().SingletonMode().Do(func() { enqueueAccounts(ctx, logger, statsd, db, redis, luaSha, notifQueue) })
 			s.Every(1).Second().Do(func() { cleanQueues(ctx, logger, queue) })
 			s.Every(1).Minute().Do(func() { reportStats(ctx, logger, statsd, db, redis) })
-			s.Every(1).Minute().Do(func() { pruneStale(ctx, logger, db) })
+			s.Every(1).Minute().Do(func() { pruneAccounts(ctx, logger, db) })
 			s.StartAsync()
 
 			<-ctx.Done()
@@ -104,57 +104,32 @@ func evalScript(ctx context.Context, redis *redis.Client) (string, error) {
 	return redis.ScriptLoad(ctx, lua).Result()
 }
 
-func pruneStale(ctx context.Context, logger *logrus.Logger, pool *pgxpool.Pool) {
-	ar := repository.NewPostgresAccount(pool)
-	count, err := ar.PruneStale(ctx)
-
-	if err != nil {
-		logger.WithFields(logrus.Fields{
-			"err": err,
-		}).Error("failed cleaning stale accounts")
-		return
-	}
-
+func pruneAccounts(ctx context.Context, logger *logrus.Logger, pool *pgxpool.Pool) {
 	now := time.Now().Unix() - 7200
-	ids := []int64{}
+	ar := repository.NewPostgresAccount(pool)
 
-	err = pool.BeginFunc(ctx, func(tx pgx.Tx) error {
-		stmt := `
-			WITH account AS (
-			  SELECT id
-				FROM accounts
-				WHERE
-					expires_at < $1
-			)
-			DELETE FROM accounts
-			WHERE accounts.id IN(SELECT id FROM account)
-			RETURNING accounts.id`
-		rows, err := tx.Query(ctx, stmt, now)
-		if err != nil {
-			return err
-		}
-		defer rows.Close()
-
-		for rows.Next() {
-			var id int64
-			rows.Scan(&id)
-			ids = append(ids, id)
-			count++
-		}
-		return nil
-	})
-
+	stale, err := ar.PruneStale(ctx, now)
 	if err != nil {
 		logger.WithFields(logrus.Fields{
 			"err": err,
 		}).Error("failed cleaning stale accounts")
 		return
 	}
+
+	orphaned, err := ar.PruneOrphaned(ctx)
+	if err != nil {
+		logger.WithFields(logrus.Fields{
+			"err": err,
+		}).Error("failed cleaning orphaned accounts")
+		return
+	}
+
+	count := stale + orphaned
 
 	if count > 0 {
 		logger.WithFields(logrus.Fields{
 			"count": count,
-		}).Info("cleaned stale accounts")
+		}).Info("pruned accounts")
 	}
 }
 

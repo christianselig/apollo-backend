@@ -189,7 +189,17 @@ func (p *postgresAccountRepository) GetByAPNSToken(ctx context.Context, token st
 	return p.fetch(ctx, query, token)
 }
 
-func (p *postgresAccountRepository) PruneStale(ctx context.Context) (int64, error) {
+func (p *postgresAccountRepository) PruneStale(ctx context.Context, before int64) (int64, error) {
+	query := `
+		DELETE FROM accounts
+		WHERE expires_at < $1`
+
+	res, err := p.pool.Exec(ctx, query, before)
+
+	return res.RowsAffected(), err
+}
+
+func (p *postgresAccountRepository) PruneOrphaned(ctx context.Context) (int64, error) {
 	query := `
 		WITH accounts_with_device_count AS (
 			SELECT accounts.id, COUNT(device_id) AS device_count
