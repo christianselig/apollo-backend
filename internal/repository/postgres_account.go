@@ -134,6 +134,8 @@ func (p *postgresAccountRepository) Update(ctx context.Context, acc *domain.Acco
 	res, err := p.pool.Exec(
 		ctx,
 		query,
+		acc.ID,
+		acc.Username,
 		acc.AccountID,
 		acc.AccessToken,
 		acc.RefreshToken,

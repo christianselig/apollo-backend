@@ -1,7 +1,6 @@
 package reddit
 
 import (
-	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptrace"
@@ -19,7 +18,7 @@ type Client struct {
 	client *http.Client
 	tracer *httptrace.ClientTrace
 	pool   *fastjson.ParserPool
-	statsd *statsd.Client
+	statsd statsd.ClientInterface
 }
 
 func SplitID(id string) (string, string) {
@@ -45,7 +44,7 @@ func PostIDFromContext(context string) string {
 	return ""
 }
 
-func NewClient(id, secret string, statsd *statsd.Client, connLimit int) *Client {
+func NewClient(id, secret string, statsd statsd.ClientInterface, connLimit int) *Client {
 	tracer := &httptrace.ClientTrace{
 		GotConn: func(info httptrace.GotConnInfo) {
 			if info.Reused {
@@ -127,9 +126,9 @@ func (rac *AuthenticatedClient) request(r *Request, rh ResponseHandler, empty in
 
 		val, jerr := parser.ParseBytes(bb)
 		if jerr != nil {
-			return nil, fmt.Errorf("error from reddit: %d", resp.StatusCode)
+			return nil, ServerError{resp.StatusCode}
 		}
-		return nil, NewError(val)
+		return nil, NewError(val, resp.StatusCode)
 	}
 
 	if r.emptyResponseBytes > 0 && len(bb) == r.emptyResponseBytes {
@@ -159,6 +158,13 @@ func (rac *AuthenticatedClient) RefreshTokens() (*RefreshTokenResponse, error) {
 
 	rtr, err := rac.request(req, NewRefreshTokenResponse, nil)
 	if err != nil {
+		switch rerr := err.(type) {
+		case ServerError:
+			if rerr.StatusCode == 400 {
+				return nil, ErrOauthRevoked
+			}
+		}
+
 		return nil, err
 	}
 
@@ -182,6 +188,13 @@ func (rac *AuthenticatedClient) MessageInbox(opts ...RequestOption) (*ListingRes
 
 	lr, err := rac.request(req, NewListingResponse, EmptyListingResponse)
 	if err != nil {
+		switch rerr := err.(type) {
+		case ServerError:
+			if rerr.StatusCode == 403 {
+				return nil, ErrOauthRevoked
+			}
+		}
+
 		return nil, err
 	}
 	return lr.(*ListingResponse), nil
@@ -200,6 +213,13 @@ func (rac *AuthenticatedClient) MessageUnread(opts ...RequestOption) (*ListingRe
 
 	lr, err := rac.request(req, NewListingResponse, EmptyListingResponse)
 	if err != nil {
+		switch rerr := err.(type) {
+		case ServerError:
+			if rerr.StatusCode == 403 {
+				return nil, ErrOauthRevoked
+			}
+		}
+
 		return nil, err
 	}
 	return lr.(*ListingResponse), nil
@@ -215,6 +235,13 @@ func (rac *AuthenticatedClient) Me() (*MeResponse, error) {
 
 	mr, err := rac.request(req, NewMeResponse, nil)
 	if err != nil {
+		switch rerr := err.(type) {
+		case ServerError:
+			if rerr.StatusCode == 403 {
+				return nil, ErrOauthRevoked
+			}
+		}
+
 		return nil, err
 	}
 	return mr.(*MeResponse), nil
