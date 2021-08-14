@@ -323,17 +323,17 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 			if err != nil {
 				nc.statsd.Incr("apns.notification.errors", []string{}, 1)
 				nc.logger.WithFields(logrus.Fields{
-					"accountID": id,
-					"err":       err,
-					"status":    res.StatusCode,
-					"reason":    res.Reason,
+					"account#username": account.NormalizedUsername(),
+					"err":              err,
+					"status":           res.StatusCode,
+					"reason":           res.Reason,
 				}).Error("failed to send notification")
 			} else {
 				nc.statsd.Incr("apns.notification.sent", []string{}, 1)
 				nc.logger.WithFields(logrus.Fields{
-					"accountID":  delivery.Payload(),
-					"token":      device.APNSToken,
-					"redditUser": account.Username,
+					"account#username": account.NormalizedUsername(),
+					"token":            device.APNSToken,
+					"redditUser":       account.Username,
 				}).Info("sent notification")
 			}
 		}
