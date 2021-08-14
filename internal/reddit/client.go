@@ -107,6 +107,9 @@ func (rac *AuthenticatedClient) request(r *Request, rh ResponseHandler, empty in
 
 	if err != nil {
 		rac.statsd.Incr("reddit.api.errors", r.tags, 0.1)
+		if strings.Contains(err.Error(), "http2: timeout awaiting response headers") {
+			return nil, ErrTimeout
+		}
 		return nil, err
 	}
 	defer resp.Body.Close()

@@ -16,4 +16,6 @@ func (se ServerError) Error() string {
 var (
 	// ErrOauthRevoked .
 	ErrOauthRevoked = errors.New("oauth revoked")
+	// ErrTimeout .
+	ErrTimeout = errors.New("timeout")
 )
