@@ -83,8 +83,8 @@ func (a *api) Routes() *mux.Router {
 	r.HandleFunc("/v1/device/{apns}/accounts", a.upsertAccountsHandler).Methods("POST")
 	r.HandleFunc("/v1/device/{apns}/account/{redditID}", a.disassociateAccountHandler).Methods("DELETE")
 
-	r.HandleFunc("/v1/receipt", a.checkReceiptHandler)
-	r.HandleFunc("/v1/receipt/{apns}", a.checkReceiptHandler)
+	r.HandleFunc("/v1/receipt", a.checkReceiptHandler).Methods("POST")
+	r.HandleFunc("/v1/receipt/{apns}", a.checkReceiptHandler).Methods("POST")
 
 	r.Use(a.loggingMiddleware)
 
