@@ -243,25 +243,28 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 	msgs, err := rac.MessageInbox(opts...)
 
 	if err != nil {
-		if err != reddit.ErrOauthRevoked {
+		switch err {
+		case reddit.ErrTimeout: // Don't log timeouts
+			break
+		case reddit.ErrOauthRevoked:
+			err = nc.deleteAccount(ctx, account)
+			if err != nil {
+				nc.logger.WithFields(logrus.Fields{
+					"account#username": account.NormalizedUsername(),
+					"err":              err,
+				}).Error("failed to remove revoked account")
+				return
+			}
+			nc.logger.WithFields(logrus.Fields{
+				"account#username": account.NormalizedUsername(),
+			}).Info("removed revoked account")
+			break
+		default:
 			nc.logger.WithFields(logrus.Fields{
 				"account#username": account.NormalizedUsername(),
 				"err":              err,
 			}).Error("failed to fetch message inbox")
-			return
 		}
-
-		err = nc.deleteAccount(ctx, account)
-		if err != nil {
-			nc.logger.WithFields(logrus.Fields{
-				"account#username": account.NormalizedUsername(),
-				"err":              err,
-			}).Error("failed to remove revoked account")
-			return
-		}
-		nc.logger.WithFields(logrus.Fields{
-			"account#username": account.NormalizedUsername(),
-		}).Info("removed revoked account")
 		return
 	}
 
