@@ -171,7 +171,8 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 		return
 	}
 
-	newAccount := (account.LastCheckedAt == 0)
+	previousLastCheckedAt := account.LastCheckedAt
+	newAccount := (previousLastCheckedAt == 0)
 	account.LastCheckedAt = now
 
 	if err = nc.accountRepo.Update(ctx, &account); err != nil {
@@ -228,7 +229,7 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 	// Only update delay on accounts we can actually check, otherwise it skews
 	// the numbers too much.
 	if !newAccount {
-		latency := now - account.LastCheckedAt - float64(backoff)
+		latency := now - previousLastCheckedAt - float64(backoff)
 		nc.statsd.Histogram("apollo.queue.delay", latency, []string{}, rate)
 	}
 
