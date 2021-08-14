@@ -91,6 +91,9 @@ func (a *api) upsertAccountsHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		// Set account ID from Reddit
+		acc.AccountID = me.ID
+
 		if err := a.accountRepo.CreateOrUpdate(ctx, &acc); err != nil {
 			a.errorResponse(w, r, 422, err.Error())
 			return
