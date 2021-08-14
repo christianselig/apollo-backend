@@ -2,8 +2,6 @@ package api
 
 import (
 	"net/http"
-
-	"github.com/julienschmidt/httprouter"
 )
 
 const receiptResponse = `{
@@ -28,7 +26,7 @@ const receiptResponse = `{
     ]
 }`
 
-func (a *api) checkReceiptHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+func (a *api) checkReceiptHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(receiptResponse))
 	w.WriteHeader(http.StatusOK)
 }
