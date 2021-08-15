@@ -8,7 +8,7 @@ const receiptResponse = `{
     "products": [
         {
             "name": "ultra",
-            "status": "SANBOX",
+            "status": "SANDBOX",
             "subscription_type": "SANDBOX"
         },
         {
