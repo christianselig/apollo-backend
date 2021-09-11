@@ -28,7 +28,7 @@ func (a *api) upsertDeviceHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	d.LastPingedAt = time.Now().Unix()
+	d.ActiveUntil = time.Now().Unix() + domain.DeviceGracePeriodDuration
 
 	if err := a.deviceRepo.CreateOrUpdate(ctx, d); err != nil {
 		a.errorResponse(w, r, 500, err.Error())
@@ -109,6 +109,8 @@ func (a *api) deleteDeviceHandler(w http.ResponseWriter, r *http.Request) {
 	for _, acc := range accs {
 		a.accountRepo.Disassociate(ctx, &acc, &dev)
 	}
+
+	a.deviceRepo.Delete(ctx, vars["apns"])
 
 	w.WriteHeader(http.StatusOK)
 }

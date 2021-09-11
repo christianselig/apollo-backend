@@ -1,32 +1,63 @@
 package api
 
 import (
+	"context"
+	"encoding/json"
+	"io/ioutil"
 	"net/http"
+	"time"
+
+	"github.com/gorilla/mux"
+	"github.com/sirupsen/logrus"
+
+	"github.com/christianselig/apollo-backend/internal/domain"
+	"github.com/christianselig/apollo-backend/internal/itunes"
 )
 
-const receiptResponse = `{
-    "products": [
-        {
-            "name": "ultra",
-            "status": "SANDBOX",
-            "subscription_type": "SANDBOX"
-        },
-        {
-            "name": "pro",
-            "status": "SANDBOX"
-        },
-        {
-            "name": "community_icons",
-            "status": "SANDBOX"
-        },
-        {
-            "name": "spca",
-            "status": "SANDBOX"
-        }
-    ]
-}`
-
 func (a *api) checkReceiptHandler(w http.ResponseWriter, r *http.Request) {
+	ctx := context.Background()
+
+	vars := mux.Vars(r)
+	apns := vars["apns"]
+
+	body, err := ioutil.ReadAll(r.Body)
+	iapr, err := itunes.NewIAPResponse(string(body), true)
+
+	if err != nil {
+		a.logger.WithFields(logrus.Fields{
+			"err": err,
+		}).Info("failed verifying receipt")
+		a.errorResponse(w, r, 500, err.Error())
+		return
+	}
+
+	if apns != "" {
+		dev, err := a.deviceRepo.GetByAPNSToken(ctx, apns)
+		if err != nil {
+			a.errorResponse(w, r, 500, err.Error())
+			return
+		}
+
+		if iapr.DeleteDevice {
+			accs, err := a.accountRepo.GetByAPNSToken(ctx, apns)
+			if err != nil {
+				a.errorResponse(w, r, 500, err.Error())
+				return
+			}
+
+			for _, acc := range accs {
+				a.accountRepo.Disassociate(ctx, &acc, &dev)
+			}
+
+			a.deviceRepo.Delete(ctx, apns)
+		} else {
+			dev.ActiveUntil = time.Now().Unix() + domain.DeviceActiveAfterReceitCheckDuration
+			a.deviceRepo.Update(ctx, &dev)
+		}
+	}
+
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(receiptResponse))
+
+	bb, _ := json.Marshal(iapr.VerificationInfo)
+	w.Write(bb)
 }
