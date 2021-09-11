@@ -31,7 +31,7 @@ func (p *postgresDeviceRepository) fetch(ctx context.Context, query string, args
 			&dev.ID,
 			&dev.APNSToken,
 			&dev.Sandbox,
-			&dev.LastPingedAt,
+			&dev.ActiveUntil,
 		); err != nil {
 			return nil, err
 		}
@@ -42,7 +42,7 @@ func (p *postgresDeviceRepository) fetch(ctx context.Context, query string, args
 
 func (p *postgresDeviceRepository) GetByAPNSToken(ctx context.Context, token string) (domain.Device, error) {
 	query := `
-		SELECT id, apns_token, sandbox, last_pinged_at
+		SELECT id, apns_token, sandbox, active_until
 		FROM devices
 		WHERE apns_token = $1`
 
@@ -59,7 +59,7 @@ func (p *postgresDeviceRepository) GetByAPNSToken(ctx context.Context, token str
 
 func (p *postgresDeviceRepository) GetByAccountID(ctx context.Context, id int64) ([]domain.Device, error) {
 	query := `
-		SELECT devices.id, apns_token, sandbox, last_pinged_at
+		SELECT devices.id, apns_token, sandbox, active_until
 		FROM devices
 		INNER JOIN devices_accounts ON devices.id = devices_accounts.device_id
 		WHERE devices_accounts.account_id = $1`
@@ -69,10 +69,10 @@ func (p *postgresDeviceRepository) GetByAccountID(ctx context.Context, id int64)
 
 func (p *postgresDeviceRepository) CreateOrUpdate(ctx context.Context, dev *domain.Device) error {
 	query := `
-		INSERT INTO devices (apns_token, sandbox, last_pinged_at)
+		INSERT INTO devices (apns_token, sandbox, active_until)
 		VALUES ($1, $2, $3)
 		ON CONFLICT(apns_token) DO
-			UPDATE SET last_pinged_at = $3
+			UPDATE SET active_until = $3
 		RETURNING id`
 
 	return p.pool.QueryRow(
@@ -80,14 +80,14 @@ func (p *postgresDeviceRepository) CreateOrUpdate(ctx context.Context, dev *doma
 		query,
 		dev.APNSToken,
 		dev.Sandbox,
-		dev.LastPingedAt,
+		dev.ActiveUntil,
 	).Scan(&dev.ID)
 }
 
 func (p *postgresDeviceRepository) Create(ctx context.Context, dev *domain.Device) error {
 	query := `
 		INSERT INTO devices
-			(apns_token, sandbox, last_pinged_at)
+			(apns_token, sandbox, active_until)
 		VALUES ($1, $2, $3)
 		RETURNING id`
 
@@ -96,17 +96,17 @@ func (p *postgresDeviceRepository) Create(ctx context.Context, dev *domain.Devic
 		query,
 		dev.APNSToken,
 		dev.Sandbox,
-		dev.LastPingedAt,
+		dev.ActiveUntil,
 	).Scan(&dev.ID)
 }
 
 func (p *postgresDeviceRepository) Update(ctx context.Context, dev *domain.Device) error {
 	query := `
 		UPDATE devices
-		SET last_pinged_at = $2
+		SET active_until = $2
 		WHERE id = $1`
 
-	res, err := p.pool.Exec(ctx, query, dev.ID, dev.LastPingedAt)
+	res, err := p.pool.Exec(ctx, query, dev.ID, dev.ActiveUntil)
 
 	if res.RowsAffected() != 1 {
 		return fmt.Errorf("weird behaviour, total rows affected: %d", res.RowsAffected())
@@ -129,7 +129,7 @@ func (p *postgresDeviceRepository) PruneStale(ctx context.Context, before int64)
 	query := `
 		WITH deleted_devices AS (
 			DELETE FROM devices
-			WHERE last_pinged_at < $1
+			WHERE active_until < $1
 			RETURNING id
 		)
 		DELETE FROM devices_accounts

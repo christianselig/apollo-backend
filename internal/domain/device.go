@@ -2,11 +2,16 @@ package domain
 
 import "context"
 
+const (
+	DeviceGracePeriodDuration            = 3600          // 1 hour
+	DeviceActiveAfterReceitCheckDuration = 3600 * 24 * 7 // 1 week
+)
+
 type Device struct {
-	ID           int64
-	APNSToken    string
-	Sandbox      bool
-	LastPingedAt int64
+	ID          int64
+	APNSToken   string
+	Sandbox     bool
+	ActiveUntil int64
 }
 
 type DeviceRepository interface {
