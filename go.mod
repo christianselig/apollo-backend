@@ -12,7 +12,7 @@ require (
 	github.com/go-co-op/gocron v1.7.1
 	github.com/go-redis/redis/v8 v8.11.3
 	github.com/gorilla/mux v1.8.0
-	github.com/heroku/x v0.0.31
+	github.com/heroku/x v0.0.32
 	github.com/jackc/pgx/v4 v4.13.0
 	github.com/joho/godotenv v1.3.0
 	github.com/sideshow/apns2 v0.20.0
