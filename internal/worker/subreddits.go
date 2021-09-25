@@ -329,6 +329,8 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 				continue
 			}
 
+			_ = sc.watcherRepo.IncrementHits(ctx, watcher.ID)
+
 			lockKey := fmt.Sprintf("watcher:%d:%s", watcher.DeviceID, post.ID)
 			notified, _ := sc.redis.Get(ctx, lockKey).Bool()
 

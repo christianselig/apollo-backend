@@ -140,6 +140,7 @@ type watcherItem struct {
 	Keyword string
 	Flair   string
 	Domain  string
+	Hits    int64
 }
 
 func (a *api) listWatchersHandler(w http.ResponseWriter, r *http.Request) {
@@ -163,6 +164,7 @@ func (a *api) listWatchersHandler(w http.ResponseWriter, r *http.Request) {
 			Keyword: watcher.Keyword,
 			Flair:   watcher.Flair,
 			Domain:  watcher.Domain,
+			Hits:    watcher.Hits,
 		}
 
 		wis[i] = wi

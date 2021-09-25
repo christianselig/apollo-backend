@@ -38,6 +38,7 @@ func (p *postgresWatcherRepository) fetch(ctx context.Context, query string, arg
 			&watcher.Keyword,
 			&watcher.Flair,
 			&watcher.Domain,
+			&watcher.Hits,
 		); err != nil {
 			return nil, err
 		}
@@ -48,7 +49,7 @@ func (p *postgresWatcherRepository) fetch(ctx context.Context, query string, arg
 
 func (p *postgresWatcherRepository) GetByID(ctx context.Context, id int64) (domain.Watcher, error) {
 	query := `
-		SELECT id, created_at, device_id, account_id, subreddit_id, upvotes, keyword, flair, domain
+		SELECT id, created_at, device_id, account_id, subreddit_id, upvotes, keyword, flair, domain, hits
 		FROM watchers
 		WHERE id = $1`
 
@@ -65,7 +66,7 @@ func (p *postgresWatcherRepository) GetByID(ctx context.Context, id int64) (doma
 
 func (p *postgresWatcherRepository) GetBySubredditID(ctx context.Context, id int64) ([]domain.Watcher, error) {
 	query := `
-		SELECT id, created_at, device_id, account_id, subreddit_id, upvotes, keyword, flair, domain
+		SELECT id, created_at, device_id, account_id, subreddit_id, upvotes, keyword, flair, domain, hits
 		FROM watchers
 		WHERE subreddit_id = $1`
 
@@ -83,7 +84,8 @@ func (p *postgresWatcherRepository) GetByDeviceAPNSTokenAndAccountRedditID(ctx c
 			watchers.upvotes,
 			watchers.keyword,
 			watchers.flair,
-			watchers.domain
+			watchers.domain,
+			watchers.hits
 		FROM watchers
 		INNER JOIN accounts ON watchers.account_id = accounts.id
 		INNER JOIN devices ON watchers.device_id = devices.id
@@ -135,6 +137,16 @@ func (p *postgresWatcherRepository) Update(ctx context.Context, watcher *domain.
 		watcher.Flair,
 		watcher.Domain,
 	)
+
+	if res.RowsAffected() != 1 {
+		return fmt.Errorf("weird behaviour, total rows affected: %d", res.RowsAffected())
+	}
+	return err
+}
+
+func (p *postgresWatcherRepository) IncrementHits(ctx context.Context, id int64) error {
+	query := `UPDATE watchers SET hits = hits + 1 WHERE id = $1`
+	res, err := p.pool.Exec(ctx, query, id)
 
 	if res.RowsAffected() != 1 {
 		return fmt.Errorf("weird behaviour, total rows affected: %d", res.RowsAffected())
