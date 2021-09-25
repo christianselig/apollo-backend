@@ -14,6 +14,7 @@ import (
 var (
 	queues = map[string]worker.NewWorkerFn{
 		"notifications": worker.NewNotificationsWorker,
+		"subreddits":    worker.NewSubredditsWorker,
 	}
 )
 
