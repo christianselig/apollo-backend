@@ -143,14 +143,7 @@ func (p *postgresDeviceRepository) Delete(ctx context.Context, token string) err
 }
 
 func (p *postgresDeviceRepository) PruneStale(ctx context.Context, before int64) (int64, error) {
-	query := `
-		WITH deleted_devices AS (
-			DELETE FROM devices
-			WHERE active_until < $1
-			RETURNING id
-		)
-		DELETE FROM devices_accounts
-		WHERE device_id IN (SELECT id FROM deleted_devices)`
+	query := `DELETE FROM devices WHERE active_until < $1`
 
 	res, err := p.pool.Exec(ctx, query, before)
 
