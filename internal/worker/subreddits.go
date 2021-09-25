@@ -409,13 +409,16 @@ func payloadFromPost(post *reddit.Thing) *payload.Payload {
 	payload := payload.
 		NewPayload().
 		AlertTitle(post.Title).
-		AlertBody("I got you something").
+		AlertSubtitle(fmt.Sprintf("in r/%s", post.Subreddit)).
 		AlertSummaryArg(post.Subreddit).
 		Category("post-watch").
 		Custom("post_title", post.Title).
 		Custom("post_id", post.ID).
+		Custom("subreddit", post.Subreddit).
 		Custom("author", post.Author).
-		Custom("post_age", post.CreatedAt)
+		Custom("post_age", post.CreatedAt).
+		MutableContent().
+		Sound("traloop.wav")
 
 	return payload
 }
