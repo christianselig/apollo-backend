@@ -6,24 +6,10 @@ import (
 	"runtime"
 	"runtime/pprof"
 
-	"github.com/DataDog/datadog-go/statsd"
-	"github.com/adjust/rmq/v4"
-	"github.com/go-redis/redis/v8"
 	_ "github.com/heroku/x/hmetrics/onload"
-	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/joho/godotenv"
-	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
-
-type Command struct {
-	ctx    context.Context
-	logger *logrus.Logger
-	statsd *statsd.Client
-	redis  *redis.Client
-	jobs   *rmq.Connection
-	db     *pgxpool.Pool
-}
 
 func Execute(ctx context.Context) int {
 	_ = godotenv.Load()
@@ -43,7 +29,7 @@ func Execute(ctx context.Context) int {
 				return perr
 			}
 
-			pprof.StartCPUProfile(f)
+			_ = pprof.StartCPUProfile(f)
 			return nil
 		},
 		PersistentPostRunE: func(cmd *cobra.Command, args []string) error {

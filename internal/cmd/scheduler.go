@@ -71,11 +71,11 @@ func SchedulerCmd(ctx context.Context) *cobra.Command {
 			}
 
 			s := gocron.NewScheduler(time.UTC)
-			s.Every(200).Milliseconds().SingletonMode().Do(func() { enqueueAccounts(ctx, logger, statsd, db, redis, luaSha, notifQueue) })
-			s.Every(1).Second().Do(func() { cleanQueues(ctx, logger, queue) })
-			s.Every(1).Minute().Do(func() { reportStats(ctx, logger, statsd, db, redis) })
-			s.Every(1).Minute().Do(func() { pruneAccounts(ctx, logger, db) })
-			s.Every(1).Minute().Do(func() { pruneDevices(ctx, logger, db) })
+			_, _ = s.Every(200).Milliseconds().SingletonMode().Do(func() { enqueueAccounts(ctx, logger, statsd, db, redis, luaSha, notifQueue) })
+			_, _ = s.Every(1).Second().Do(func() { cleanQueues(ctx, logger, queue) })
+			_, _ = s.Every(1).Minute().Do(func() { reportStats(ctx, logger, statsd, db, redis) })
+			_, _ = s.Every(1).Minute().Do(func() { pruneAccounts(ctx, logger, db) })
+			_, _ = s.Every(1).Minute().Do(func() { pruneDevices(ctx, logger, db) })
 			s.StartAsync()
 
 			<-ctx.Done()
@@ -185,8 +185,8 @@ func reportStats(ctx context.Context, logger *logrus.Logger, statsd *statsd.Clie
 	)
 
 	for _, metric := range metrics {
-		pool.QueryRow(ctx, metric.query).Scan(&count)
-		statsd.Gauge(metric.name, float64(count), []string{}, 1)
+		_ = pool.QueryRow(ctx, metric.query).Scan(&count)
+		_ = statsd.Gauge(metric.name, float64(count), []string{}, 1)
 
 		logger.WithFields(logrus.Fields{
 			"count":  count,
@@ -231,7 +231,7 @@ func enqueueAccounts(ctx context.Context, logger *logrus.Logger, statsd *statsd.
 		defer rows.Close()
 		for rows.Next() {
 			var id int64
-			rows.Scan(&id)
+			_ = rows.Scan(&id)
 			ids = append(ids, id)
 		}
 		return nil
@@ -292,9 +292,9 @@ func enqueueAccounts(ctx context.Context, logger *logrus.Logger, statsd *statsd.
 		}
 	}
 
-	statsd.Histogram("apollo.queue.enqueued", float64(enqueued), []string{}, 1)
-	statsd.Histogram("apollo.queue.skipped", float64(skipped), []string{}, 1)
-	statsd.Histogram("apollo.queue.runtime", float64(time.Now().Sub(start).Milliseconds()), []string{}, 1)
+	_ = statsd.Histogram("apollo.queue.enqueued", float64(enqueued), []string{}, 1)
+	_ = statsd.Histogram("apollo.queue.skipped", float64(skipped), []string{}, 1)
+	_ = statsd.Histogram("apollo.queue.runtime", float64(time.Since(start).Milliseconds()), []string{}, 1)
 
 	logger.WithFields(logrus.Fields{
 		"count":   enqueued,

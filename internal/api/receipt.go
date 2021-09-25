@@ -20,7 +20,7 @@ func (a *api) checkReceiptHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	apns := vars["apns"]
 
-	body, err := ioutil.ReadAll(r.Body)
+	body, _ := ioutil.ReadAll(r.Body)
 	iapr, err := itunes.NewIAPResponse(string(body), true)
 
 	if err != nil {
@@ -46,18 +46,18 @@ func (a *api) checkReceiptHandler(w http.ResponseWriter, r *http.Request) {
 			}
 
 			for _, acc := range accs {
-				a.accountRepo.Disassociate(ctx, &acc, &dev)
+				_ = a.accountRepo.Disassociate(ctx, &acc, &dev)
 			}
 
-			a.deviceRepo.Delete(ctx, apns)
+			_ = a.deviceRepo.Delete(ctx, apns)
 		} else {
 			dev.ActiveUntil = time.Now().Unix() + domain.DeviceActiveAfterReceitCheckDuration
-			a.deviceRepo.Update(ctx, &dev)
+			_ = a.deviceRepo.Update(ctx, &dev)
 		}
 	}
 
 	w.WriteHeader(http.StatusOK)
 
 	bb, _ := json.Marshal(iapr.VerificationInfo)
-	w.Write(bb)
+	_, _ = w.Write(bb)
 }

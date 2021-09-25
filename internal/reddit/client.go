@@ -48,13 +48,13 @@ func NewClient(id, secret string, statsd statsd.ClientInterface, connLimit int) 
 	tracer := &httptrace.ClientTrace{
 		GotConn: func(info httptrace.GotConnInfo) {
 			if info.Reused {
-				statsd.Incr("reddit.api.connections.reused", []string{}, 0.1)
+				_ = statsd.Incr("reddit.api.connections.reused", []string{}, 0.1)
 				if info.WasIdle {
 					idleTime := float64(int64(info.IdleTime) / int64(time.Millisecond))
-					statsd.Histogram("reddit.api.connections.idle_time", idleTime, []string{}, 0.1)
+					_ = statsd.Histogram("reddit.api.connections.idle_time", idleTime, []string{}, 0.1)
 				}
 			} else {
-				statsd.Incr("reddit.api.connections.created", []string{}, 0.1)
+				_ = statsd.Incr("reddit.api.connections.created", []string{}, 0.1)
 			}
 		},
 	}
@@ -102,11 +102,11 @@ func (rac *AuthenticatedClient) request(r *Request, rh ResponseHandler, empty in
 
 	start := time.Now()
 	resp, err := rac.client.Do(req)
-	rac.statsd.Incr("reddit.api.calls", r.tags, 0.1)
-	rac.statsd.Histogram("reddit.api.latency", float64(time.Now().Sub(start).Milliseconds()), r.tags, 0.1)
+	_ = rac.statsd.Incr("reddit.api.calls", r.tags, 0.1)
+	_ = rac.statsd.Histogram("reddit.api.latency", float64(time.Since(start).Milliseconds()), r.tags, 0.1)
 
 	if err != nil {
-		rac.statsd.Incr("reddit.api.errors", r.tags, 0.1)
+		_ = rac.statsd.Incr("reddit.api.errors", r.tags, 0.1)
 		if strings.Contains(err.Error(), "http2: timeout awaiting response headers") {
 			return nil, ErrTimeout
 		}
@@ -116,12 +116,12 @@ func (rac *AuthenticatedClient) request(r *Request, rh ResponseHandler, empty in
 
 	bb, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		rac.statsd.Incr("reddit.api.errors", r.tags, 0.1)
+		_ = rac.statsd.Incr("reddit.api.errors", r.tags, 0.1)
 		return nil, err
 	}
 
 	if resp.StatusCode != 200 {
-		rac.statsd.Incr("reddit.api.errors", r.tags, 0.1)
+		_ = rac.statsd.Incr("reddit.api.errors", r.tags, 0.1)
 
 		// Try to parse a json error. Otherwise we generate a generic one
 		parser := rac.pool.Get()
