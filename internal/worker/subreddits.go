@@ -179,35 +179,14 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 	posts := []*reddit.Thing{}
 	before := ""
 	finished := false
+	seenPosts := map[string]bool{}
 
+	// Load 500 newest posts
 	for pages := 0; pages < 5; pages++ {
 		i := rand.Intn(len(watchers))
 		watcher := watchers[i]
 
-		dev, err := sc.deviceRepo.GetByID(ctx, watcher.DeviceID)
-		if err != nil {
-			sc.logger.WithFields(logrus.Fields{
-				"subreddit#id": subreddit.ID,
-				"watcher#id":   watcher.ID,
-				"err":          err,
-			}).Error("failed to fetch device for watcher from database")
-			continue
-		}
-
-		accs, err := sc.accountRepo.GetByAPNSToken(ctx, dev.APNSToken)
-		if err != nil {
-			sc.logger.WithFields(logrus.Fields{
-				"subreddit#id": subreddit.ID,
-				"watcher#id":   watcher.ID,
-				"device#id":    dev.ID,
-				"err":          err,
-			}).Error("failed to fetch accounts for device from database")
-			continue
-		}
-
-		i = rand.Intn(len(accs))
-		acc := accs[i]
-
+		acc, _ := sc.accountRepo.GetByID(ctx, watcher.AccountID)
 		rac := sc.reddit.NewAuthenticatedClient(acc.RefreshToken, acc.AccessToken)
 
 		sps, err := rac.SubredditNew(
@@ -220,7 +199,6 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 			sc.logger.WithFields(logrus.Fields{
 				"subreddit#id": subreddit.ID,
 				"watcher#id":   watcher.ID,
-				"device#id":    dev.ID,
 				"err":          err,
 			}).Error("failed to fetch posts")
 			continue
@@ -242,11 +220,39 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 				break
 			}
 
-			posts = append(posts, post)
+			if _, ok := seenPosts[post.ID]; !ok {
+				posts = append(posts, post)
+				seenPosts[post.ID] = true
+			}
 		}
 
 		if finished {
 			break
+		}
+	}
+
+	// Load hot posts
+	{
+		i := rand.Intn(len(watchers))
+		watcher := watchers[i]
+
+		acc, _ := sc.accountRepo.GetByID(ctx, watcher.AccountID)
+		rac := sc.reddit.NewAuthenticatedClient(acc.RefreshToken, acc.AccessToken)
+		sps, err := rac.SubredditHot(
+			subreddit.Name,
+			reddit.WithQuery("limit", "100"),
+		)
+
+		if err != nil {
+			for _, post := range sps.Children {
+				if post.CreatedAt < threshold {
+					break
+				}
+				if _, ok := seenPosts[post.ID]; !ok {
+					posts = append(posts, post)
+					seenPosts[post.ID] = true
+				}
+			}
 		}
 	}
 

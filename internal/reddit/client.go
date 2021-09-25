@@ -197,8 +197,8 @@ func (rac *AuthenticatedClient) SubredditAbout(subreddit string, opts ...Request
 	return sr.(*SubredditResponse), nil
 }
 
-func (rac *AuthenticatedClient) SubredditNew(subreddit string, opts ...RequestOption) (*ListingResponse, error) {
-	url := fmt.Sprintf("https://oauth.reddit.com/r/%s/new.json", subreddit)
+func (rac *AuthenticatedClient) subredditPosts(subreddit string, sort string, opts ...RequestOption) (*ListingResponse, error) {
+	url := fmt.Sprintf("https://oauth.reddit.com/r/%s/%s.json", subreddit, sort)
 	opts = append([]RequestOption{
 		WithMethod("GET"),
 		WithToken(rac.accessToken),
@@ -212,6 +212,14 @@ func (rac *AuthenticatedClient) SubredditNew(subreddit string, opts ...RequestOp
 	}
 
 	return lr.(*ListingResponse), nil
+}
+
+func (rac *AuthenticatedClient) SubredditHot(subreddit string, opts ...RequestOption) (*ListingResponse, error) {
+	return rac.subredditPosts(subreddit, "hot", opts...)
+}
+
+func (rac *AuthenticatedClient) SubredditNew(subreddit string, opts ...RequestOption) (*ListingResponse, error) {
+	return rac.subredditPosts(subreddit, "new", opts...)
 }
 
 func (rac *AuthenticatedClient) MessageInbox(opts ...RequestOption) (*ListingResponse, error) {
