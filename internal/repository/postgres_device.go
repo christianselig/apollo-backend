@@ -40,6 +40,23 @@ func (p *postgresDeviceRepository) fetch(ctx context.Context, query string, args
 	return devs, nil
 }
 
+func (p *postgresDeviceRepository) GetByID(ctx context.Context, id int64) (domain.Device, error) {
+	query := `
+		SELECT id, apns_token, sandbox, active_until
+		FROM devices
+		WHERE id = $1`
+
+	devs, err := p.fetch(ctx, query, id)
+
+	if err != nil {
+		return domain.Device{}, err
+	}
+	if len(devs) == 0 {
+		return domain.Device{}, domain.ErrNotFound
+	}
+	return devs[0], nil
+}
+
 func (p *postgresDeviceRepository) GetByAPNSToken(ctx context.Context, token string) (domain.Device, error) {
 	query := `
 		SELECT id, apns_token, sandbox, active_until
