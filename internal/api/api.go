@@ -24,8 +24,10 @@ type api struct {
 	reddit *reddit.Client
 	apns   *token.Token
 
-	accountRepo domain.AccountRepository
-	deviceRepo  domain.DeviceRepository
+	accountRepo   domain.AccountRepository
+	deviceRepo    domain.DeviceRepository
+	subredditRepo domain.SubredditRepository
+	watcherRepo   domain.WatcherRepository
 }
 
 func NewAPI(ctx context.Context, logger *logrus.Logger, statsd *statsd.Client, pool *pgxpool.Pool) *api {
@@ -52,14 +54,19 @@ func NewAPI(ctx context.Context, logger *logrus.Logger, statsd *statsd.Client, p
 
 	accountRepo := repository.NewPostgresAccount(pool)
 	deviceRepo := repository.NewPostgresDevice(pool)
+	subredditRepo := repository.NewPostgresSubreddit(pool)
+	watcherRepo := repository.NewPostgresWatcher(pool)
 
 	return &api{
-		logger:      logger,
-		statsd:      statsd,
-		reddit:      reddit,
-		apns:        apns,
-		accountRepo: accountRepo,
-		deviceRepo:  deviceRepo,
+		logger: logger,
+		statsd: statsd,
+		reddit: reddit,
+		apns:   apns,
+
+		accountRepo:   accountRepo,
+		deviceRepo:    deviceRepo,
+		subredditRepo: subredditRepo,
+		watcherRepo:   watcherRepo,
 	}
 }
 
@@ -82,6 +89,10 @@ func (a *api) Routes() *mux.Router {
 	r.HandleFunc("/v1/device/{apns}/account", a.upsertAccountHandler).Methods("POST")
 	r.HandleFunc("/v1/device/{apns}/accounts", a.upsertAccountsHandler).Methods("POST")
 	r.HandleFunc("/v1/device/{apns}/account/{redditID}", a.disassociateAccountHandler).Methods("DELETE")
+
+	r.HandleFunc("/v1/device/{apns}/account/{redditID}/watcher", a.createWatcherHandler).Methods("POST")
+	r.HandleFunc("/v1/device/{apns}/account/{redditID}/watchers", a.listWatchersHandler).Methods("GET")
+	r.HandleFunc("/v1/device/{apns}/account/{redditID}/watcher/{watcherID}", a.deleteWatcherHandler).Methods("DELETE")
 
 	r.HandleFunc("/v1/receipt", a.checkReceiptHandler).Methods("POST")
 	r.HandleFunc("/v1/receipt/{apns}", a.checkReceiptHandler).Methods("POST")

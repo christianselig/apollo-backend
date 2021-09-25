@@ -43,6 +43,7 @@ func TestRefreshTokenResponseParsing(t *testing.T) {
 }
 
 func TestListingResponseParsing(t *testing.T) {
+	// Message list
 	bb, err := ioutil.ReadFile("testdata/message_inbox.json")
 	assert.NoError(t, err)
 
@@ -74,4 +75,39 @@ func TestListingResponseParsing(t *testing.T) {
 	assert.Equal(t, "t1_h46tec3", thing.ParentID)
 	assert.Equal(t, "hello i am a cat", thing.LinkTitle)
 	assert.Equal(t, "calicosummer", thing.Subreddit)
+
+	// Post list
+	bb, err = ioutil.ReadFile("testdata/subreddit_new.json")
+	assert.NoError(t, err)
+
+	val, err = parser.ParseBytes(bb)
+	assert.NoError(t, err)
+
+	ret = NewListingResponse(val)
+	l = ret.(*ListingResponse)
+	assert.NotNil(t, l)
+
+	assert.Equal(t, 100, l.Count)
+
+	thing = l.Children[1]
+	assert.Equal(t, "Riven boss", thing.Title)
+	assert.Equal(t, "Question", thing.Flair)
+	assert.Contains(t, thing.SelfText, "never done riven")
+	assert.Equal(t, int64(1), thing.Score)
+}
+
+func TestSubredditResponseParsing(t *testing.T) {
+	bb, err := ioutil.ReadFile("testdata/subreddit_about.json")
+	assert.NoError(t, err)
+
+	val, err := parser.ParseBytes(bb)
+	assert.NoError(t, err)
+
+	ret := NewSubredditResponse(val)
+	s := ret.(*SubredditResponse)
+	assert.NotNil(t, s)
+
+	assert.Equal(t, "t5", s.Kind)
+	assert.Equal(t, "2vq0w", s.ID)
+	assert.Equal(t, "DestinyTheGame", s.Name)
 }

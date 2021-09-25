@@ -1,6 +1,7 @@
 package reddit
 
 import (
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptrace"
@@ -177,6 +178,48 @@ func (rac *AuthenticatedClient) RefreshTokens() (*RefreshTokenResponse, error) {
 	}
 
 	return ret, nil
+}
+
+func (rac *AuthenticatedClient) SubredditAbout(subreddit string, opts ...RequestOption) (*SubredditResponse, error) {
+	url := fmt.Sprintf("https://oauth.reddit.com/r/%s/about.json", subreddit)
+	opts = append([]RequestOption{
+		WithMethod("GET"),
+		WithToken(rac.accessToken),
+		WithURL(url),
+	}, opts...)
+	req := NewRequest(opts...)
+	sr, err := rac.request(req, NewSubredditResponse, nil)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return sr.(*SubredditResponse), nil
+}
+
+func (rac *AuthenticatedClient) subredditPosts(subreddit string, sort string, opts ...RequestOption) (*ListingResponse, error) {
+	url := fmt.Sprintf("https://oauth.reddit.com/r/%s/%s.json", subreddit, sort)
+	opts = append([]RequestOption{
+		WithMethod("GET"),
+		WithToken(rac.accessToken),
+		WithURL(url),
+	}, opts...)
+	req := NewRequest(opts...)
+
+	lr, err := rac.request(req, NewListingResponse, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return lr.(*ListingResponse), nil
+}
+
+func (rac *AuthenticatedClient) SubredditHot(subreddit string, opts ...RequestOption) (*ListingResponse, error) {
+	return rac.subredditPosts(subreddit, "hot", opts...)
+}
+
+func (rac *AuthenticatedClient) SubredditNew(subreddit string, opts ...RequestOption) (*ListingResponse, error) {
+	return rac.subredditPosts(subreddit, "new", opts...)
 }
 
 func (rac *AuthenticatedClient) MessageInbox(opts ...RequestOption) (*ListingResponse, error) {
