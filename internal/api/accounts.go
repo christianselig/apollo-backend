@@ -87,6 +87,11 @@ func (a *api) upsertAccountsHandler(w http.ResponseWriter, r *http.Request) {
 		ac = a.reddit.NewAuthenticatedClient(acc.RefreshToken, acc.AccessToken)
 		me, err := ac.Me()
 
+		if err != nil {
+			a.errorResponse(w, r, 422, err.Error())
+			return
+		}
+
 		if me.NormalizedUsername() != acc.NormalizedUsername() {
 			a.errorResponse(w, r, 422, "nice try")
 			return
@@ -100,12 +105,12 @@ func (a *api) upsertAccountsHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		a.accountRepo.Associate(ctx, &acc, &dev)
+		_ = a.accountRepo.Associate(ctx, &acc, &dev)
 	}
 
 	for _, acc := range accsMap {
 		fmt.Println(acc.NormalizedUsername())
-		a.accountRepo.Disassociate(ctx, &acc, &dev)
+		_ = a.accountRepo.Disassociate(ctx, &acc, &dev)
 	}
 
 	w.WriteHeader(http.StatusOK)

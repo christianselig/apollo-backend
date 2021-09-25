@@ -107,10 +107,10 @@ func (a *api) deleteDeviceHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for _, acc := range accs {
-		a.accountRepo.Disassociate(ctx, &acc, &dev)
+		_ = a.accountRepo.Disassociate(ctx, &acc, &dev)
 	}
 
-	a.deviceRepo.Delete(ctx, vars["apns"])
+	_ = a.deviceRepo.Delete(ctx, vars["apns"])
 
 	w.WriteHeader(http.StatusOK)
 }

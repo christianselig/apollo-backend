@@ -64,7 +64,9 @@ func WorkerCmd(ctx context.Context) *cobra.Command {
 			}
 
 			worker := workerFn(logger, statsd, db, redis, queue, consumers)
-			worker.Start()
+			if err := worker.Start(); err != nil {
+				return err
+			}
 
 			<-ctx.Done()
 

@@ -47,7 +47,7 @@ func APICmd(ctx context.Context) *cobra.Command {
 			api := api.NewAPI(ctx, logger, statsd, db)
 			srv := api.Server(port)
 
-			go srv.ListenAndServe()
+			go func() { _ = srv.ListenAndServe() }()
 
 			logger.WithFields(logrus.Fields{
 				"port": port,
@@ -55,7 +55,7 @@ func APICmd(ctx context.Context) *cobra.Command {
 
 			<-ctx.Done()
 
-			srv.Shutdown(ctx)
+			_ = srv.Shutdown(ctx)
 
 			return nil
 		},

@@ -218,7 +218,7 @@ func NewIAPResponse(receipt string, production bool) (*IAPResponse, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		fmt.Println(fmt.Sprintf("Weird HTTP status code from Apple: %d", resp.StatusCode))
+		fmt.Printf("Weird HTTP status code from Apple: %d\n", resp.StatusCode)
 	}
 
 	decoder := json.NewDecoder(resp.Body)
@@ -336,7 +336,6 @@ func (iapr *IAPResponse) handleAppleResponse() {
 				if transaction.ExpiresDateMS > mostRecentTransactionTime {
 					mostRecentTransactionIndex = index
 					mostRecentTransactionTime = transaction.ExpiresDateMS
-					choseOne = true
 				}
 			}
 		}

@@ -154,11 +154,11 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 			"err":        err,
 		}).Error("failed to parse account ID")
 
-		delivery.Reject()
+		_ = delivery.Reject()
 		return
 	}
 
-	defer delivery.Ack()
+	defer func() { _ = delivery.Ack() }()
 
 	now := float64(time.Now().UnixNano()/int64(time.Millisecond)) / 1000
 
@@ -230,7 +230,7 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 	// the numbers too much.
 	if !newAccount {
 		latency := now - previousLastCheckedAt - float64(backoff)
-		nc.statsd.Histogram("apollo.queue.delay", latency, []string{}, rate)
+		_ = nc.statsd.Histogram("apollo.queue.delay", latency, []string{}, rate)
 	}
 
 	nc.logger.WithFields(logrus.Fields{
@@ -259,7 +259,6 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 			nc.logger.WithFields(logrus.Fields{
 				"account#username": account.NormalizedUsername(),
 			}).Info("removed revoked account")
-			break
 		default:
 			nc.logger.WithFields(logrus.Fields{
 				"account#username": account.NormalizedUsername(),
@@ -325,7 +324,7 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 
 			res, err := client.Push(notification)
 			if err != nil {
-				nc.statsd.Incr("apns.notification.errors", []string{}, 1)
+				_ = nc.statsd.Incr("apns.notification.errors", []string{}, 1)
 				nc.logger.WithFields(logrus.Fields{
 					"account#username": account.NormalizedUsername(),
 					"err":              err,
@@ -333,7 +332,7 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 					"reason":           res.Reason,
 				}).Error("failed to send notification")
 			} else {
-				nc.statsd.Incr("apns.notification.sent", []string{}, 1)
+				_ = nc.statsd.Incr("apns.notification.sent", []string{}, 1)
 				nc.logger.WithFields(logrus.Fields{
 					"account#username": account.NormalizedUsername(),
 					"token":            device.APNSToken,
@@ -343,7 +342,7 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 	}
 
 	ev := fmt.Sprintf("Sent notification to /u/%s (x%d)", account.Username, msgs.Count)
-	nc.statsd.SimpleEvent(ev, "")
+	_ = nc.statsd.SimpleEvent(ev, "")
 
 	nc.logger.WithFields(logrus.Fields{
 		"account#username": account.NormalizedUsername(),
@@ -407,7 +406,6 @@ func payloadFromMessage(acct domain.Account, msg *reddit.Thing, badgeCount int) 
 		}
 
 		payload = payload.Custom("subject", "comment").ThreadID("comment")
-		break
 	case (msg.Kind == "t1" && msg.Type == "post_reply"):
 		title := fmt.Sprintf(`%s to “%s”`, msg.Author, postTitle)
 		payload = payload.
@@ -417,7 +415,6 @@ func payloadFromMessage(acct domain.Account, msg *reddit.Thing, badgeCount int) 
 			Custom("subject", "comment").
 			Custom("type", "post").
 			ThreadID("comment")
-		break
 	case (msg.Kind == "t1" && msg.Type == "comment_reply"):
 		title := fmt.Sprintf(`%s in “%s”`, msg.Author, postTitle)
 		postID := reddit.PostIDFromContext(msg.Context)
@@ -429,7 +426,6 @@ func payloadFromMessage(acct domain.Account, msg *reddit.Thing, badgeCount int) 
 			Custom("subject", "comment").
 			Custom("type", "comment").
 			ThreadID("comment")
-		break
 	case (msg.Kind == "t4"):
 		title := fmt.Sprintf(`Message from %s`, msg.Author)
 		payload = payload.
@@ -437,7 +433,6 @@ func payloadFromMessage(acct domain.Account, msg *reddit.Thing, badgeCount int) 
 			AlertSubtitle(postTitle).
 			Category("inbox-private-message").
 			Custom("type", "private-message")
-		break
 	}
 
 	return payload
