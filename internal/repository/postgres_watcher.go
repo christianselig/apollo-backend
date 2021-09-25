@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v4/pgxpool"
 
@@ -29,6 +30,7 @@ func (p *postgresWatcherRepository) fetch(ctx context.Context, query string, arg
 		var watcher domain.Watcher
 		if err := rows.Scan(
 			&watcher.ID,
+			&watcher.CreatedAt,
 			&watcher.DeviceID,
 			&watcher.AccountID,
 			&watcher.SubredditID,
@@ -46,7 +48,7 @@ func (p *postgresWatcherRepository) fetch(ctx context.Context, query string, arg
 
 func (p *postgresWatcherRepository) GetByID(ctx context.Context, id int64) (domain.Watcher, error) {
 	query := `
-		SELECT id, device_id, account_id, subreddit_id, upvotes, keyword, flair, domain
+		SELECT id, created_at, device_id, account_id, subreddit_id, upvotes, keyword, flair, domain
 		FROM watchers
 		WHERE id = $1`
 
@@ -63,7 +65,7 @@ func (p *postgresWatcherRepository) GetByID(ctx context.Context, id int64) (doma
 
 func (p *postgresWatcherRepository) GetBySubredditID(ctx context.Context, id int64) ([]domain.Watcher, error) {
 	query := `
-		SELECT id, device_id, account_id, subreddit_id, upvotes, keyword, flair, domain
+		SELECT id, created_at, device_id, account_id, subreddit_id, upvotes, keyword, flair, domain
 		FROM watchers
 		WHERE subreddit_id = $1`
 
@@ -71,22 +73,25 @@ func (p *postgresWatcherRepository) GetBySubredditID(ctx context.Context, id int
 }
 
 func (p *postgresWatcherRepository) Create(ctx context.Context, watcher *domain.Watcher) error {
+	now := float64(time.Now().UTC().Unix())
+
 	query := `
 		INSERT INTO watchers
-			(device_id, account_id, subreddit_id, upvotes, keyword, flair, domain)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
+			(created_at, device_id, account_id, subreddit_id, upvotes, keyword, flair, domain)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		RETURNING id`
 
 	return p.pool.QueryRow(
 		ctx,
 		query,
-		&watcher.DeviceID,
-		&watcher.AccountID,
-		&watcher.SubredditID,
-		&watcher.Upvotes,
-		&watcher.Keyword,
-		&watcher.Flair,
-		&watcher.Domain,
+		now,
+		watcher.DeviceID,
+		watcher.AccountID,
+		watcher.SubredditID,
+		watcher.Upvotes,
+		watcher.Keyword,
+		watcher.Flair,
+		watcher.Domain,
 	).Scan(&watcher.ID)
 }
 

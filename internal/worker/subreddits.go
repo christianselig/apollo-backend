@@ -182,7 +182,18 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 	seenPosts := map[string]bool{}
 
 	// Load 500 newest posts
-	for pages := 0; pages < 5; pages++ {
+	sc.logger.WithFields(logrus.Fields{
+		"subreddit#id":   subreddit.ID,
+		"subreddit#name": subreddit.Name,
+	}).Debug("loading up to 500 new posts")
+
+	for page := 0; page < 5; page++ {
+		sc.logger.WithFields(logrus.Fields{
+			"subreddit#id":   subreddit.ID,
+			"subreddit#name": subreddit.Name,
+			"page":           page,
+		}).Debug("loading new posts")
+
 		i := rand.Intn(len(watchers))
 		watcher := watchers[i]
 
@@ -198,11 +209,17 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 		if err != nil {
 			sc.logger.WithFields(logrus.Fields{
 				"subreddit#id": subreddit.ID,
-				"watcher#id":   watcher.ID,
 				"err":          err,
-			}).Error("failed to fetch posts")
+			}).Error("failed to fetch new posts")
 			continue
 		}
+
+		sc.logger.WithFields(logrus.Fields{
+			"subreddit#id":   subreddit.ID,
+			"subreddit#name": subreddit.Name,
+			"count":          sps.Count,
+			"page":           page,
+		}).Debug("loaded new posts for page")
 
 		// If it's empty, we're done
 		if sps.Count == 0 {
@@ -227,11 +244,20 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 		}
 
 		if finished {
+			sc.logger.WithFields(logrus.Fields{
+				"subreddit#id":   subreddit.ID,
+				"subreddit#name": subreddit.Name,
+				"page":           page,
+			}).Debug("reached date threshold")
 			break
 		}
 	}
 
 	// Load hot posts
+	sc.logger.WithFields(logrus.Fields{
+		"subreddit#id":   subreddit.ID,
+		"subreddit#name": subreddit.Name,
+	}).Debug("loading hot posts")
 	{
 		i := rand.Intn(len(watchers))
 		watcher := watchers[i]
@@ -244,6 +270,17 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 		)
 
 		if err != nil {
+			sc.logger.WithFields(logrus.Fields{
+				"subreddit#id": subreddit.ID,
+				"err":          err,
+			}).Error("failed to fetch hot posts")
+		} else {
+			sc.logger.WithFields(logrus.Fields{
+				"subreddit#id":   subreddit.ID,
+				"subreddit#name": subreddit.Name,
+				"count":          sps.Count,
+			}).Debug("loaded hot posts")
+
 			for _, post := range sps.Children {
 				if post.CreatedAt < threshold {
 					break
@@ -256,25 +293,62 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 		}
 	}
 
+	sc.logger.WithFields(logrus.Fields{
+		"subreddit#id":   subreddit.ID,
+		"subreddit#name": subreddit.Name,
+		"count":          len(posts),
+	}).Debug("checking posts for hits")
 	for _, post := range posts {
 		ids := []int64{}
 
 		for _, watcher := range watchers {
-			matched := (watcher.Upvotes == 0 || (watcher.Upvotes > 0 && post.Score > watcher.Upvotes)) &&
-				(watcher.Keyword == "" || strings.Contains(post.SelfText, watcher.Keyword)) &&
-				(watcher.Flair == "" || strings.Contains(post.Flair, watcher.Flair)) &&
-				(watcher.Domain == "" || strings.Contains(post.URL, watcher.Domain))
+			// Make sure we only alert on posts created after the search
+			if watcher.CreatedAt > post.CreatedAt {
+				continue
+			}
+
+			matched := true
+
+			if watcher.Upvotes > 0 && post.Score < watcher.Upvotes {
+				matched = false
+			}
+
+			if watcher.Keyword != "" && !strings.Contains(post.Title, watcher.Keyword) {
+				matched = false
+			}
+
+			if watcher.Flair != "" && !strings.Contains(post.Flair, watcher.Flair) {
+				matched = false
+			}
+
+			if watcher.Domain != "" && !strings.Contains(post.URL, watcher.Domain) {
+				matched = false
+			}
 
 			if !matched {
 				continue
 			}
 
-			lockKey := fmt.Sprintf("watcher:%d:%s", watcher.ID, post.ID)
+			lockKey := fmt.Sprintf("watcher:%d:%s", watcher.DeviceID, post.ID)
 			notified, _ := sc.redis.Get(ctx, lockKey).Bool()
 
 			if notified {
+				sc.logger.WithFields(logrus.Fields{
+					"subreddit#id":   subreddit.ID,
+					"subreddit#name": subreddit.Name,
+					"watcher#id":     watcher.ID,
+					"post#id":        post.ID,
+				}).Debug("already notified, skipping")
+
 				continue
 			}
+
+			sc.logger.WithFields(logrus.Fields{
+				"subreddit#id":   subreddit.ID,
+				"subreddit#name": subreddit.Name,
+				"watcher#id":     watcher.ID,
+				"post#id":        post.ID,
+			}).Debug("got a hit")
 
 			sc.redis.SetEX(ctx, lockKey, true, 24*time.Hour)
 			ids = append(ids, watcher.DeviceID)
@@ -283,6 +357,13 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 		if len(ids) == 0 {
 			continue
 		}
+
+		sc.logger.WithFields(logrus.Fields{
+			"subreddit#id":   subreddit.ID,
+			"subreddit#name": subreddit.Name,
+			"post#id":        post.ID,
+			"count":          len(ids),
+		}).Debug("got hits for post")
 
 		notification := &apns2.Notification{}
 		notification.Topic = "com.christianselig.Apollo"
@@ -317,12 +398,17 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 			}
 		}
 	}
+
+	sc.logger.WithFields(logrus.Fields{
+		"subreddit#id":   subreddit.ID,
+		"subreddit#name": subreddit.Name,
+	}).Debug("finishing job")
 }
 
 func payloadFromPost(post *reddit.Thing) *payload.Payload {
 	payload := payload.
 		NewPayload().
-		AlertTitle("DING DONG").
+		AlertTitle(post.Title).
 		AlertBody("I got you something").
 		AlertSummaryArg(post.Subreddit).
 		Category("post-watch").

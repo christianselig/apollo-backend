@@ -29,7 +29,14 @@ func (a *api) createWatcherHandler(w http.ResponseWriter, r *http.Request) {
 	apns := vars["apns"]
 	redditID := vars["redditID"]
 
-	cwr := &createWatcherRequest{}
+	cwr := &createWatcherRequest{
+		Criteria: watcherCriteria{
+			Upvotes: 0,
+			Keyword: "",
+			Flair:   "",
+			Domain:  "",
+		},
+	}
 	if err := json.NewDecoder(r.Body).Decode(cwr); err != nil {
 		a.errorResponse(w, r, 500, err.Error())
 		return
@@ -69,15 +76,16 @@ func (a *api) createWatcherHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	sr, err := a.subredditRepo.GetByName(ctx, cwr.Subreddit)
-
-	switch err {
-	case domain.ErrNotFound:
-		// Might be that we don't know about that subreddit yet
-		sr = domain.Subreddit{SubredditID: srr.ID, Name: srr.Name}
-		_ = a.subredditRepo.CreateOrUpdate(ctx, &sr)
-	default:
-		a.errorResponse(w, r, 500, err.Error())
-		return
+	if err != nil {
+		switch err {
+		case domain.ErrNotFound:
+			// Might be that we don't know about that subreddit yet
+			sr = domain.Subreddit{SubredditID: srr.ID, Name: srr.Name}
+			_ = a.subredditRepo.CreateOrUpdate(ctx, &sr)
+		default:
+			a.errorResponse(w, r, 500, err.Error())
+			return
+		}
 	}
 
 	watcher := domain.Watcher{
