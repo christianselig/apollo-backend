@@ -123,16 +123,7 @@ func (rac *AuthenticatedClient) request(r *Request, rh ResponseHandler, empty in
 
 	if resp.StatusCode != 200 {
 		_ = rac.statsd.Incr("reddit.api.errors", r.tags, 0.1)
-
-		// Try to parse a json error. Otherwise we generate a generic one
-		parser := rac.pool.Get()
-		defer rac.pool.Put(parser)
-
-		val, jerr := parser.ParseBytes(bb)
-		if jerr != nil {
-			return nil, ServerError{resp.StatusCode}
-		}
-		return nil, NewError(val, resp.StatusCode)
+		return nil, ServerError{resp.StatusCode}
 	}
 
 	if r.emptyResponseBytes > 0 && len(bb) == r.emptyResponseBytes {
