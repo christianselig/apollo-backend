@@ -146,10 +146,10 @@ func pruneAccounts(ctx context.Context, logger *logrus.Logger, pool *pgxpool.Poo
 }
 
 func pruneDevices(ctx context.Context, logger *logrus.Logger, pool *pgxpool.Pool) {
-	before := time.Now().Unix() - staleDeviceThreshold
+	threshold := time.Now().Unix()
 	dr := repository.NewPostgresDevice(pool)
 
-	count, err := dr.PruneStale(ctx, before)
+	count, err := dr.PruneStale(ctx, threshold)
 	if err != nil {
 		logger.WithFields(logrus.Fields{
 			"err": err,
