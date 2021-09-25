@@ -206,7 +206,7 @@ func (rac *AuthenticatedClient) subredditPosts(subreddit string, sort string, op
 	}, opts...)
 	req := NewRequest(opts...)
 
-	lr, err := rac.request(req, NewListingResponse, EmptyListingResponse)
+	lr, err := rac.request(req, NewListingResponse, nil)
 	if err != nil {
 		return nil, err
 	}

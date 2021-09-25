@@ -3,7 +3,8 @@ package domain
 import "context"
 
 type Watcher struct {
-	ID int64
+	ID        int64
+	CreatedAt float64
 
 	DeviceID    int64
 	AccountID   int64
