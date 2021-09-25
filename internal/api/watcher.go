@@ -133,3 +133,41 @@ func (a *api) deleteWatcherHandler(w http.ResponseWriter, r *http.Request) {
 	_ = a.watcherRepo.Delete(ctx, id)
 	w.WriteHeader(http.StatusOK)
 }
+
+type watcherItem struct {
+	ID      int64
+	Upvotes int64
+	Keyword string
+	Flair   string
+	Domain  string
+}
+
+func (a *api) listWatchersHandler(w http.ResponseWriter, r *http.Request) {
+	ctx := context.Background()
+
+	vars := mux.Vars(r)
+	apns := vars["apns"]
+	redditID := vars["redditID"]
+
+	watchers, err := a.watcherRepo.GetByDeviceAPNSTokenAndAccountRedditID(ctx, apns, redditID)
+	if err != nil {
+		a.errorResponse(w, r, 400, err.Error())
+		return
+	}
+
+	wis := make([]watcherItem, len(watchers))
+	for i, watcher := range watchers {
+		wi := watcherItem{
+			ID:      watcher.ID,
+			Upvotes: watcher.Upvotes,
+			Keyword: watcher.Keyword,
+			Flair:   watcher.Flair,
+			Domain:  watcher.Domain,
+		}
+
+		wis[i] = wi
+	}
+	w.WriteHeader(http.StatusOK)
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(wis)
+}

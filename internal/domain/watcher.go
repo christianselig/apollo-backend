@@ -19,6 +19,7 @@ type Watcher struct {
 type WatcherRepository interface {
 	GetByID(ctx context.Context, id int64) (Watcher, error)
 	GetBySubredditID(ctx context.Context, id int64) ([]Watcher, error)
+	GetByDeviceAPNSTokenAndAccountRedditID(ctx context.Context, apns string, rid string) ([]Watcher, error)
 
 	Create(ctx context.Context, watcher *Watcher) error
 	Update(ctx context.Context, watcher *Watcher) error

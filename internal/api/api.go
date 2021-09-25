@@ -90,8 +90,9 @@ func (a *api) Routes() *mux.Router {
 	r.HandleFunc("/v1/device/{apns}/accounts", a.upsertAccountsHandler).Methods("POST")
 	r.HandleFunc("/v1/device/{apns}/account/{redditID}", a.disassociateAccountHandler).Methods("DELETE")
 
-	r.HandleFunc("/v1/device/{apns}/accounts/{redditID}/watcher", a.createWatcherHandler).Methods("POST")
-	r.HandleFunc("/v1/device/{apns}/accounts/{redditID}/watcher/{watcherID}", a.deleteWatcherHandler).Methods("DELETE")
+	r.HandleFunc("/v1/device/{apns}/account/{redditID}/watcher", a.createWatcherHandler).Methods("POST")
+	r.HandleFunc("/v1/device/{apns}/account/{redditID}/watchers", a.listWatchersHandler).Methods("GET")
+	r.HandleFunc("/v1/device/{apns}/account/{redditID}/watcher/{watcherID}", a.deleteWatcherHandler).Methods("DELETE")
 
 	r.HandleFunc("/v1/receipt", a.checkReceiptHandler).Methods("POST")
 	r.HandleFunc("/v1/receipt/{apns}", a.checkReceiptHandler).Methods("POST")

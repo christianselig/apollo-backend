@@ -72,6 +72,28 @@ func (p *postgresWatcherRepository) GetBySubredditID(ctx context.Context, id int
 	return p.fetch(ctx, query, id)
 }
 
+func (p *postgresWatcherRepository) GetByDeviceAPNSTokenAndAccountRedditID(ctx context.Context, apns string, rid string) ([]domain.Watcher, error) {
+	query := `
+		SELECT
+			watchers.id,
+			watchers.created_at,
+			watchers.device_id,
+			watchers.account_id,
+			watchers.subreddit_id,
+			watchers.upvotes,
+			watchers.keyword,
+			watchers.flair,
+			watchers.domain
+		FROM watchers
+		INNER JOIN accounts ON watchers.account_id = accounts.id
+		INNER JOIN devices ON watchers.device_id = devices.id
+		WHERE
+			devices.apns_token = $1 AND
+			accounts.account_id = $2`
+
+	return p.fetch(ctx, query, apns, rid)
+}
+
 func (p *postgresWatcherRepository) Create(ctx context.Context, watcher *domain.Watcher) error {
 	now := float64(time.Now().UTC().Unix())
 
