@@ -14,6 +14,7 @@ type Watcher struct {
 	Keyword string
 	Flair   string
 	Domain  string
+	Hits    int64
 }
 
 type WatcherRepository interface {
@@ -23,5 +24,6 @@ type WatcherRepository interface {
 
 	Create(ctx context.Context, watcher *Watcher) error
 	Update(ctx context.Context, watcher *Watcher) error
+	IncrementHits(ctx context.Context, id int64) error
 	Delete(ctx context.Context, id int64) error
 }
