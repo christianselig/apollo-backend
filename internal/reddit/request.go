@@ -87,6 +87,10 @@ func WithBody(key, val string) RequestOption {
 }
 
 func WithQuery(key, val string) RequestOption {
+	if val == "" {
+		return func(req *Request) {}
+	}
+
 	return func(req *Request) {
 		req.query.Set(key, val)
 	}

@@ -276,7 +276,7 @@ func (iapr *IAPResponse) handleAppleResponse() {
 	// For sandbox environment, be more lenient (just ensure bundle ID is accurate) because otherwise you'll break
 	// things for TestFlight users (see: https://twitter.com/ChristianSelig/status/1414990459861098496)
 	// TODO(andremedeiros): let this through for now
-	if iapr.Environment == Sandbox && false {
+	if iapr.Environment == Sandbox && true {
 		ultraProduct := VerificationProduct{Name: "ultra", Status: "SANDBOX", SubscriptionType: "SANDBOX"}
 		proProduct := VerificationProduct{Name: "pro", Status: "SANDBOX"}
 		communityIconsProduct := VerificationProduct{Name: "community_icons", Status: "SANDBOX"}
