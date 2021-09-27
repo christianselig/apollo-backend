@@ -408,10 +408,12 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 }
 
 func payloadFromPost(post *reddit.Thing) *payload.Payload {
+	title := fmt.Sprintf("📣 Subreddit Watch (r/%s)", post.Subreddit)
+
 	payload := payload.
 		NewPayload().
-		AlertTitle(post.Title).
-		AlertSubtitle(fmt.Sprintf("in r/%s", post.Subreddit)).
+		AlertTitle(title).
+		AlertBody(post.Title).
 		AlertSummaryArg(post.Subreddit).
 		Category("post-watch").
 		Custom("post_title", post.Title).
