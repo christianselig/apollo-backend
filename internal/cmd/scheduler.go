@@ -26,8 +26,7 @@ const (
 	accountEnqueueTimeout   = 5      // how frequently we want to check (seconds)
 	subredditEnqueueTimeout = 5 * 60 // how frequently we want to check (seconds)
 
-	staleAccountThreshold = 7200   // 2 hours
-	staleDeviceThreshold  = 604800 // 1 week
+	staleAccountThreshold = 7200 // 2 hours
 )
 
 func SchedulerCmd(ctx context.Context) *cobra.Command {
