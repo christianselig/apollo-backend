@@ -220,6 +220,10 @@ func (uc *usersConsumer) Consume(delivery rmq.Delivery) {
 	}
 
 	for _, post := range posts.Children {
+		if post.SubredditType == "private" {
+			continue
+		}
+
 		notification := &apns2.Notification{}
 		notification.Topic = "com.christianselig.Apollo"
 		notification.Payload = payloadFromUserPost(post)

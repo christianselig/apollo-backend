@@ -61,23 +61,24 @@ func NewMeResponse(val *fastjson.Value) interface{} {
 }
 
 type Thing struct {
-	Kind        string  `json:"kind"`
-	ID          string  `json:"id"`
-	Type        string  `json:"type"`
-	Author      string  `json:"author"`
-	Subject     string  `json:"subject"`
-	Body        string  `json:"body"`
-	CreatedAt   float64 `json:"created_utc"`
-	Context     string  `json:"context"`
-	ParentID    string  `json:"parent_id"`
-	LinkTitle   string  `json:"link_title"`
-	Destination string  `json:"dest"`
-	Subreddit   string  `json:"subreddit"`
-	Score       int64   `json:"score"`
-	SelfText    string  `json:"selftext"`
-	Title       string  `json:"title"`
-	URL         string  `json:"url"`
-	Flair       string  `json:"flair"`
+	Kind          string  `json:"kind"`
+	ID            string  `json:"id"`
+	Type          string  `json:"type"`
+	Author        string  `json:"author"`
+	Subject       string  `json:"subject"`
+	Body          string  `json:"body"`
+	CreatedAt     float64 `json:"created_utc"`
+	Context       string  `json:"context"`
+	ParentID      string  `json:"parent_id"`
+	LinkTitle     string  `json:"link_title"`
+	Destination   string  `json:"dest"`
+	Subreddit     string  `json:"subreddit"`
+	SubredditType string  `json:"subreddit_type"`
+	Score         int64   `json:"score"`
+	SelfText      string  `json:"selftext"`
+	Title         string  `json:"title"`
+	URL           string  `json:"url"`
+	Flair         string  `json:"flair"`
 }
 
 func (t *Thing) FullName() string {
@@ -102,6 +103,7 @@ func NewThing(val *fastjson.Value) *Thing {
 	t.LinkTitle = string(data.GetStringBytes("link_title"))
 	t.Destination = string(data.GetStringBytes("dest"))
 	t.Subreddit = string(data.GetStringBytes("subreddit"))
+	t.SubredditType = string(data.GetStringBytes("subreddit_type"))
 
 	t.Score = data.GetInt64("score")
 	t.Title = string(data.GetStringBytes("title"))
