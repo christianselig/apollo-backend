@@ -170,7 +170,6 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 	if len(watchers) == 0 {
 		sc.logger.WithFields(logrus.Fields{
 			"subreddit#id": subreddit.ID,
-			"err":          err,
 		}).Info("no watchers for subreddit, skipping")
 		return
 	}
@@ -299,6 +298,10 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 		"count":          len(posts),
 	}).Debug("checking posts for hits")
 	for _, post := range posts {
+		lowcaseTitle := strings.ToLower(post.Title)
+		lowcaseFlair := strings.ToLower(post.Flair)
+		lowcaseDomain := strings.ToLower(post.URL)
+
 		ids := []int64{}
 
 		for _, watcher := range watchers {
@@ -313,23 +316,21 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 				matched = false
 			}
 
-			if watcher.Keyword != "" && !strings.Contains(post.Title, watcher.Keyword) {
+			if watcher.Keyword != "" && !strings.Contains(lowcaseTitle, watcher.Keyword) {
 				matched = false
 			}
 
-			if watcher.Flair != "" && !strings.Contains(post.Flair, watcher.Flair) {
+			if watcher.Flair != "" && !strings.Contains(lowcaseFlair, watcher.Flair) {
 				matched = false
 			}
 
-			if watcher.Domain != "" && !strings.Contains(post.URL, watcher.Domain) {
+			if watcher.Domain != "" && !strings.Contains(lowcaseDomain, watcher.Domain) {
 				matched = false
 			}
 
 			if !matched {
 				continue
 			}
-
-			_ = sc.watcherRepo.IncrementHits(ctx, watcher.ID)
 
 			lockKey := fmt.Sprintf("watcher:%d:%s", watcher.DeviceID, post.ID)
 			notified, _ := sc.redis.Get(ctx, lockKey).Bool()
@@ -343,6 +344,15 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 				}).Debug("already notified, skipping")
 
 				continue
+			}
+
+			if err := sc.watcherRepo.IncrementHits(ctx, watcher.ID); err != nil {
+				sc.logger.WithFields(logrus.Fields{
+					"subreddit#id": subreddit.ID,
+					"watcher#id":   watcher.ID,
+					"err":          err,
+				}).Error("could not increment hits")
+				return
 			}
 
 			sc.logger.WithFields(logrus.Fields{
