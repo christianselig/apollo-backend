@@ -128,3 +128,19 @@ func TestUserResponseParsing(t *testing.T) {
 	assert.Equal(t, "changelog", u.Name)
 	assert.Equal(t, true, u.AcceptFollowers)
 }
+
+func TestUserPostsParsing(t *testing.T) {
+	bb, err := ioutil.ReadFile("testdata/user_posts.json")
+	assert.NoError(t, err)
+
+	val, err := parser.ParseBytes(bb)
+	assert.NoError(t, err)
+
+	ret := NewListingResponse(val)
+	ps := ret.(*ListingResponse)
+	assert.NotNil(t, ps)
+
+	post := ps.Children[0]
+
+	assert.Equal(t, "public", post.SubredditType)
+}
