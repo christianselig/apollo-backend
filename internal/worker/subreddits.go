@@ -332,8 +332,6 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 				continue
 			}
 
-			_ = sc.watcherRepo.IncrementHits(ctx, watcher.ID)
-
 			lockKey := fmt.Sprintf("watcher:%d:%s", watcher.DeviceID, post.ID)
 			notified, _ := sc.redis.Get(ctx, lockKey).Bool()
 
@@ -346,6 +344,15 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 				}).Debug("already notified, skipping")
 
 				continue
+			}
+
+			if err := sc.watcherRepo.IncrementHits(ctx, watcher.ID); err != nil {
+				sc.logger.WithFields(logrus.Fields{
+					"subreddit#id": subreddit.ID,
+					"watcher#id":   watcher.ID,
+					"err":          err,
+				}).Error("could not increment hits")
+				return
 			}
 
 			sc.logger.WithFields(logrus.Fields{

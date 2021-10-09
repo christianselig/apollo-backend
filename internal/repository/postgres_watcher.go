@@ -31,6 +31,7 @@ func (p *postgresWatcherRepository) fetch(ctx context.Context, query string, arg
 		if err := rows.Scan(
 			&watcher.ID,
 			&watcher.CreatedAt,
+			&watcher.LastNotifiedAt,
 			&watcher.DeviceID,
 			&watcher.AccountID,
 			&watcher.Type,
@@ -50,7 +51,7 @@ func (p *postgresWatcherRepository) fetch(ctx context.Context, query string, arg
 
 func (p *postgresWatcherRepository) GetByID(ctx context.Context, id int64) (domain.Watcher, error) {
 	query := `
-		SELECT id, created_at, device_id, account_id, type, watchee_id, upvotes, keyword, flair, domain, hits
+		SELECT id, created_at, last_notified_at, device_id, account_id, type, watchee_id, upvotes, keyword, flair, domain, hits
 		FROM watchers
 		WHERE id = $1`
 
@@ -67,7 +68,7 @@ func (p *postgresWatcherRepository) GetByID(ctx context.Context, id int64) (doma
 
 func (p *postgresWatcherRepository) GetByTypeAndWatcheeID(ctx context.Context, typ domain.WatcherType, id int64) ([]domain.Watcher, error) {
 	query := `
-		SELECT id, created_at, device_id, account_id, type, watchee_id, upvotes, keyword, flair, domain, hits
+		SELECT id, created_at, last_notified_at, device_id, account_id, type, watchee_id, upvotes, keyword, flair, domain, hits
 		FROM watchers
 		WHERE type = $1 AND watchee_id = $2`
 
@@ -87,6 +88,7 @@ func (p *postgresWatcherRepository) GetByDeviceAPNSTokenAndAccountRedditID(ctx c
 		SELECT
 			watchers.id,
 			watchers.created_at,
+			watchers.last_notified_at
 			watchers.device_id,
 			watchers.account_id,
 			watchers.type,
@@ -111,8 +113,8 @@ func (p *postgresWatcherRepository) Create(ctx context.Context, watcher *domain.
 
 	query := `
 		INSERT INTO watchers
-			(created_at, device_id, account_id, type, watchee_id, upvotes, keyword, flair, domain)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+			(created_at, last_notified_at, device_id, account_id, type, watchee_id, upvotes, keyword, flair, domain)
+		VALUES ($1, 0, $2, $3, $4, $5, $6, $7, $8, $9)
 		RETURNING id`
 
 	return p.pool.QueryRow(
@@ -156,8 +158,9 @@ func (p *postgresWatcherRepository) Update(ctx context.Context, watcher *domain.
 }
 
 func (p *postgresWatcherRepository) IncrementHits(ctx context.Context, id int64) error {
-	query := `UPDATE watchers SET hits = hits + 1 WHERE id = $1`
-	res, err := p.pool.Exec(ctx, query, id)
+	now := time.Now().Unix()
+	query := `UPDATE watchers SET hits = hits + 1, last_notified_at = $2 WHERE id = $1`
+	res, err := p.pool.Exec(ctx, query, id, now)
 
 	if res.RowsAffected() != 1 {
 		return fmt.Errorf("weird behaviour, total rows affected: %d", res.RowsAffected())
@@ -170,6 +173,16 @@ func (p *postgresWatcherRepository) Delete(ctx context.Context, id int64) error 
 	res, err := p.pool.Exec(ctx, query, id)
 
 	if res.RowsAffected() != 1 {
+		return fmt.Errorf("weird behaviour, total rows affected: %d", res.RowsAffected())
+	}
+	return err
+}
+
+func (p *postgresWatcherRepository) DeleteByTypeAndWatcheeID(ctx context.Context, typ domain.WatcherType, id int64) error {
+	query := `DELETE FROM watchers WHERE type = $1 AND watchee_id = $2`
+	res, err := p.pool.Exec(ctx, query, typ, id)
+
+	if res.RowsAffected() == 0 {
 		return fmt.Errorf("weird behaviour, total rows affected: %d", res.RowsAffected())
 	}
 	return err
