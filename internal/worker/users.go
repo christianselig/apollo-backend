@@ -168,7 +168,6 @@ func (uc *usersConsumer) Consume(delivery rmq.Delivery) {
 	if len(watchers) == 0 {
 		uc.logger.WithFields(logrus.Fields{
 			"user#id": user.ID,
-			"err":     err,
 		}).Info("no watchers for user, skipping")
 		return
 	}
@@ -180,6 +179,37 @@ func (uc *usersConsumer) Consume(delivery rmq.Delivery) {
 	acc, _ := uc.accountRepo.GetByID(ctx, watcher.AccountID)
 	rac := uc.reddit.NewAuthenticatedClient(acc.RefreshToken, acc.AccessToken)
 
+	ru, err := rac.UserAbout(user.Name)
+	if err != nil {
+		uc.logger.WithFields(logrus.Fields{
+			"user#id": user.ID,
+			"err":     err,
+		}).Error("failed to fetch user details")
+		return
+	}
+
+	if !ru.AcceptFollowers {
+		uc.logger.WithFields(logrus.Fields{
+			"user#id": user.ID,
+		}).Info("user disabled followers, removing")
+
+		if err := uc.watcherRepo.DeleteByTypeAndWatcheeID(ctx, domain.UserWatcher, user.ID); err != nil {
+			uc.logger.WithFields(logrus.Fields{
+				"user#id": user.ID,
+				"err":     err,
+			}).Error("failed to delete watchers for user who does not allow followers")
+			return
+		}
+
+		if err := uc.userRepo.Delete(ctx, user.ID); err != nil {
+			uc.logger.WithFields(logrus.Fields{
+				"user#id": user.ID,
+				"err":     err,
+			}).Error("failed to delete user")
+			return
+		}
+	}
+
 	posts, err := rac.UserPosts(user.Name)
 	if err != nil {
 		uc.logger.WithFields(logrus.Fields{
@@ -190,10 +220,6 @@ func (uc *usersConsumer) Consume(delivery rmq.Delivery) {
 	}
 
 	for _, post := range posts.Children {
-		if post.CreatedAt < user.LastCheckedAt {
-			break
-		}
-
 		notification := &apns2.Notification{}
 		notification.Topic = "com.christianselig.Apollo"
 		notification.Payload = payloadFromUserPost(post)
@@ -203,6 +229,20 @@ func (uc *usersConsumer) Consume(delivery rmq.Delivery) {
 			if watcher.CreatedAt > post.CreatedAt {
 				continue
 			}
+
+			if watcher.LastNotifiedAt > post.CreatedAt {
+				continue
+			}
+
+			if err := uc.watcherRepo.IncrementHits(ctx, watcher.ID); err != nil {
+				uc.logger.WithFields(logrus.Fields{
+					"user#id":    user.ID,
+					"watcher#id": watcher.ID,
+					"err":        err,
+				}).Error("could not increment hits")
+				return
+			}
+
 			device, _ := uc.deviceRepo.GetByID(ctx, watcher.DeviceID)
 			notification.DeviceToken = device.APNSToken
 

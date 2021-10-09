@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/christianselig/apollo-backend/internal/domain"
@@ -90,4 +91,14 @@ func (p *postgresUserRepository) CreateOrUpdate(ctx context.Context, u *domain.U
 		u.NormalizedName(),
 		u.LastCheckedAt,
 	).Scan(&u.ID)
+}
+
+func (p *postgresUserRepository) Delete(ctx context.Context, id int64) error {
+	query := `DELETE FROM users WHERE id = $1`
+	res, err := p.pool.Exec(ctx, query, id)
+
+	if res.RowsAffected() != 1 {
+		return fmt.Errorf("weird behaviour, total rows affected: %d", res.RowsAffected())
+	}
+	return err
 }

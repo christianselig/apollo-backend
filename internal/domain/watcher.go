@@ -10,8 +10,9 @@ const (
 )
 
 type Watcher struct {
-	ID        int64
-	CreatedAt float64
+	ID             int64
+	CreatedAt      float64
+	LastNotifiedAt float64
 
 	DeviceID  int64
 	AccountID int64
@@ -35,4 +36,5 @@ type WatcherRepository interface {
 	Update(ctx context.Context, watcher *Watcher) error
 	IncrementHits(ctx context.Context, id int64) error
 	Delete(ctx context.Context, id int64) error
+	DeleteByTypeAndWatcheeID(context.Context, WatcherType, int64) error
 }

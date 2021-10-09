@@ -23,4 +23,5 @@ type UserRepository interface {
 	GetByName(context.Context, string) (User, error)
 
 	CreateOrUpdate(context.Context, *User) error
+	Delete(context.Context, int64) error
 }
