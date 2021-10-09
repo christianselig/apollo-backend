@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/christianselig/apollo-backend/internal/domain"
 	"github.com/gorilla/mux"
@@ -18,6 +19,8 @@ type watcherCriteria struct {
 }
 
 type createWatcherRequest struct {
+	Type      string
+	User      string
 	Subreddit string
 	Criteria  watcherCriteria
 }
@@ -69,33 +72,63 @@ func (a *api) createWatcherHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ac := a.reddit.NewAuthenticatedClient(account.RefreshToken, account.AccessToken)
-	srr, err := ac.SubredditAbout(cwr.Subreddit)
-	if err != nil {
-		a.errorResponse(w, r, 422, err.Error())
-		return
+
+	watcher := domain.Watcher{
+		DeviceID:  dev.ID,
+		AccountID: account.ID,
+		Upvotes:   cwr.Criteria.Upvotes,
+		Keyword:   strings.ToLower(cwr.Criteria.Keyword),
+		Flair:     strings.ToLower(cwr.Criteria.Flair),
+		Domain:    strings.ToLower(cwr.Criteria.Domain),
 	}
 
-	sr, err := a.subredditRepo.GetByName(ctx, cwr.Subreddit)
-	if err != nil {
-		switch err {
-		case domain.ErrNotFound:
-			// Might be that we don't know about that subreddit yet
-			sr = domain.Subreddit{SubredditID: srr.ID, Name: srr.Name}
-			_ = a.subredditRepo.CreateOrUpdate(ctx, &sr)
-		default:
+	if cwr.Type == "subreddit" {
+		srr, err := ac.SubredditAbout(cwr.Subreddit)
+		if err != nil {
+			a.errorResponse(w, r, 422, err.Error())
+			return
+		}
+
+		sr, err := a.subredditRepo.GetByName(ctx, cwr.Subreddit)
+		if err != nil {
+			switch err {
+			case domain.ErrNotFound:
+				// Might be that we don't know about that subreddit yet
+				sr = domain.Subreddit{SubredditID: srr.ID, Name: srr.Name}
+				_ = a.subredditRepo.CreateOrUpdate(ctx, &sr)
+			default:
+				a.errorResponse(w, r, 500, err.Error())
+				return
+			}
+		}
+
+		watcher.Type = domain.SubredditWatcher
+		watcher.WatcheeID = sr.ID
+	} else if cwr.Type == "user" {
+		urr, err := ac.UserAbout(cwr.User)
+		if err != nil {
 			a.errorResponse(w, r, 500, err.Error())
 			return
 		}
-	}
 
-	watcher := domain.Watcher{
-		SubredditID: sr.ID,
-		DeviceID:    dev.ID,
-		AccountID:   account.ID,
-		Upvotes:     cwr.Criteria.Upvotes,
-		Keyword:     cwr.Criteria.Keyword,
-		Flair:       cwr.Criteria.Flair,
-		Domain:      cwr.Criteria.Domain,
+		if !urr.AcceptFollowers {
+			a.errorResponse(w, r, 422, "no followers accepted")
+			return
+		}
+
+		u := domain.User{UserID: urr.ID, Name: urr.Name}
+		err = a.userRepo.CreateOrUpdate(ctx, &u)
+
+		if err != nil {
+			a.errorResponse(w, r, 500, err.Error())
+			return
+		}
+
+		watcher.Type = domain.UserWatcher
+		watcher.WatcheeID = u.ID
+	} else {
+		a.errorResponse(w, r, 422, "unknown watcher type")
+		return
 	}
 
 	if err := a.watcherRepo.Create(ctx, &watcher); err != nil {

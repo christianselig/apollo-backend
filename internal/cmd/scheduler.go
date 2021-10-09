@@ -24,7 +24,8 @@ const (
 	checkTimeout = 60 // how long until we force a check
 
 	accountEnqueueTimeout   = 5      // how frequently we want to check (seconds)
-	subredditEnqueueTimeout = 5 * 60 // how frequently we want to check (seconds)
+	subredditEnqueueTimeout = 2 * 60 // how frequently we want to check (seconds)
+	userEnqueueTimeout      = 2 * 60 // how frequently we want to check (seconds)
 
 	staleAccountThreshold = 7200 // 2 hours
 )
@@ -76,9 +77,15 @@ func SchedulerCmd(ctx context.Context) *cobra.Command {
 				return err
 			}
 
+			userQueue, err := queue.OpenQueue("users")
+			if err != nil {
+				return err
+			}
+
 			s := gocron.NewScheduler(time.UTC)
 			_, _ = s.Every(200).Milliseconds().SingletonMode().Do(func() { enqueueAccounts(ctx, logger, statsd, db, redis, luaSha, notifQueue) })
 			_, _ = s.Every(200).Milliseconds().SingletonMode().Do(func() { enqueueSubreddits(ctx, logger, statsd, db, subredditQueue) })
+			_, _ = s.Every(200).Milliseconds().SingletonMode().Do(func() { enqueueUsers(ctx, logger, statsd, db, userQueue) })
 			_, _ = s.Every(1).Second().Do(func() { cleanQueues(ctx, logger, queue) })
 			_, _ = s.Every(1).Minute().Do(func() { reportStats(ctx, logger, statsd, db, redis) })
 			_, _ = s.Every(1).Minute().Do(func() { pruneAccounts(ctx, logger, db) })
@@ -200,6 +207,70 @@ func reportStats(ctx context.Context, logger *logrus.Logger, statsd *statsd.Clie
 			"metric": metric.name,
 		}).Debug("fetched metrics")
 	}
+}
+
+func enqueueUsers(ctx context.Context, logger *logrus.Logger, statsd *statsd.Client, pool *pgxpool.Pool, queue rmq.Queue) {
+	now := time.Now()
+	ready := now.Unix() - userEnqueueTimeout
+
+	ids := []int64{}
+
+	err := pool.BeginFunc(ctx, func(tx pgx.Tx) error {
+		stmt := `
+			WITH userb AS (
+			  SELECT id
+				FROM users
+				WHERE last_checked_at < $1
+				ORDER BY last_checked_at
+				LIMIT 100
+			)
+			UPDATE users
+			SET last_checked_at = $2
+			WHERE users.id IN(SELECT id FROM userb)
+			RETURNING users.id`
+		rows, err := tx.Query(ctx, stmt, ready, now.Unix())
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var id int64
+			_ = rows.Scan(&id)
+			ids = append(ids, id)
+		}
+		return nil
+	})
+
+	if err != nil {
+		logger.WithFields(logrus.Fields{
+			"err": err,
+		}).Error("failed to fetch batch of users")
+		return
+	}
+
+	if len(ids) == 0 {
+		return
+	}
+
+	logger.WithFields(logrus.Fields{
+		"count": len(ids),
+		"start": ready,
+	}).Debug("enqueueing user batch")
+
+	batchIds := make([]string, len(ids))
+	for i, id := range ids {
+		batchIds[i] = strconv.FormatInt(id, 10)
+	}
+
+	if err = queue.Publish(batchIds...); err != nil {
+		logger.WithFields(logrus.Fields{
+			"err": err,
+		}).Error("failed to enqueue user")
+	}
+
+	_ = statsd.Histogram("apollo.queue.users.enqueued", float64(len(ids)), []string{}, 1)
+	_ = statsd.Histogram("apollo.queue.users.runtime", float64(time.Since(now).Milliseconds()), []string{}, 1)
+
 }
 
 func enqueueSubreddits(ctx context.Context, logger *logrus.Logger, statsd *statsd.Client, pool *pgxpool.Pool, queue rmq.Queue) {

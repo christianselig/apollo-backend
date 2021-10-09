@@ -28,6 +28,7 @@ type api struct {
 	deviceRepo    domain.DeviceRepository
 	subredditRepo domain.SubredditRepository
 	watcherRepo   domain.WatcherRepository
+	userRepo      domain.UserRepository
 }
 
 func NewAPI(ctx context.Context, logger *logrus.Logger, statsd *statsd.Client, pool *pgxpool.Pool) *api {
@@ -56,6 +57,7 @@ func NewAPI(ctx context.Context, logger *logrus.Logger, statsd *statsd.Client, p
 	deviceRepo := repository.NewPostgresDevice(pool)
 	subredditRepo := repository.NewPostgresSubreddit(pool)
 	watcherRepo := repository.NewPostgresWatcher(pool)
+	userRepo := repository.NewPostgresUser(pool)
 
 	return &api{
 		logger: logger,
@@ -67,6 +69,7 @@ func NewAPI(ctx context.Context, logger *logrus.Logger, statsd *statsd.Client, p
 		deviceRepo:    deviceRepo,
 		subredditRepo: subredditRepo,
 		watcherRepo:   watcherRepo,
+		userRepo:      userRepo,
 	}
 }
 

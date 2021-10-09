@@ -171,6 +171,41 @@ func (rac *AuthenticatedClient) RefreshTokens() (*RefreshTokenResponse, error) {
 	return ret, nil
 }
 
+func (rac *AuthenticatedClient) UserPosts(user string, opts ...RequestOption) (*ListingResponse, error) {
+	url := fmt.Sprintf("https://oauth.reddit.com/u/%s/submitted.json", user)
+	opts = append([]RequestOption{
+		WithMethod("GET"),
+		WithToken(rac.accessToken),
+		WithURL(url),
+	}, opts...)
+	req := NewRequest(opts...)
+
+	lr, err := rac.request(req, NewListingResponse, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return lr.(*ListingResponse), nil
+}
+
+func (rac *AuthenticatedClient) UserAbout(user string, opts ...RequestOption) (*UserResponse, error) {
+	url := fmt.Sprintf("https://oauth.reddit.com/u/%s/about.json", user)
+	opts = append([]RequestOption{
+		WithMethod("GET"),
+		WithToken(rac.accessToken),
+		WithURL(url),
+	}, opts...)
+	req := NewRequest(opts...)
+	ur, err := rac.request(req, NewUserResponse, nil)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return ur.(*UserResponse), nil
+
+}
+
 func (rac *AuthenticatedClient) SubredditAbout(subreddit string, opts ...RequestOption) (*SubredditResponse, error) {
 	url := fmt.Sprintf("https://oauth.reddit.com/r/%s/about.json", subreddit)
 	opts = append([]RequestOption{
