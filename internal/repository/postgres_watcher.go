@@ -33,7 +33,8 @@ func (p *postgresWatcherRepository) fetch(ctx context.Context, query string, arg
 			&watcher.CreatedAt,
 			&watcher.DeviceID,
 			&watcher.AccountID,
-			&watcher.SubredditID,
+			&watcher.Type,
+			&watcher.WatcheeID,
 			&watcher.Upvotes,
 			&watcher.Keyword,
 			&watcher.Flair,
@@ -49,7 +50,7 @@ func (p *postgresWatcherRepository) fetch(ctx context.Context, query string, arg
 
 func (p *postgresWatcherRepository) GetByID(ctx context.Context, id int64) (domain.Watcher, error) {
 	query := `
-		SELECT id, created_at, device_id, account_id, subreddit_id, upvotes, keyword, flair, domain, hits
+		SELECT id, created_at, device_id, account_id, type, watchee_id, upvotes, keyword, flair, domain, hits
 		FROM watchers
 		WHERE id = $1`
 
@@ -64,13 +65,21 @@ func (p *postgresWatcherRepository) GetByID(ctx context.Context, id int64) (doma
 	return watchers[0], nil
 }
 
-func (p *postgresWatcherRepository) GetBySubredditID(ctx context.Context, id int64) ([]domain.Watcher, error) {
+func (p *postgresWatcherRepository) GetByTypeAndWatcheeID(ctx context.Context, typ domain.WatcherType, id int64) ([]domain.Watcher, error) {
 	query := `
-		SELECT id, created_at, device_id, account_id, subreddit_id, upvotes, keyword, flair, domain, hits
+		SELECT id, created_at, device_id, account_id, type, watchee_id, upvotes, keyword, flair, domain, hits
 		FROM watchers
-		WHERE subreddit_id = $1`
+		WHERE type = $1 AND watchee_id = $2`
 
-	return p.fetch(ctx, query, id)
+	return p.fetch(ctx, query, typ, id)
+}
+
+func (p *postgresWatcherRepository) GetBySubredditID(ctx context.Context, id int64) ([]domain.Watcher, error) {
+	return p.GetByTypeAndWatcheeID(ctx, domain.SubredditWatcher, id)
+}
+
+func (p *postgresWatcherRepository) GetByUserID(ctx context.Context, id int64) ([]domain.Watcher, error) {
+	return p.GetByTypeAndWatcheeID(ctx, domain.UserWatcher, id)
 }
 
 func (p *postgresWatcherRepository) GetByDeviceAPNSTokenAndAccountRedditID(ctx context.Context, apns string, rid string) ([]domain.Watcher, error) {
@@ -80,7 +89,8 @@ func (p *postgresWatcherRepository) GetByDeviceAPNSTokenAndAccountRedditID(ctx c
 			watchers.created_at,
 			watchers.device_id,
 			watchers.account_id,
-			watchers.subreddit_id,
+			watchers.type,
+			watchers.watchee_id,
 			watchers.upvotes,
 			watchers.keyword,
 			watchers.flair,
@@ -101,7 +111,7 @@ func (p *postgresWatcherRepository) Create(ctx context.Context, watcher *domain.
 
 	query := `
 		INSERT INTO watchers
-			(created_at, device_id, account_id, subreddit_id, upvotes, keyword, flair, domain)
+			(created_at, device_id, account_id, type, watchee_id, upvotes, keyword, flair, domain)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		RETURNING id`
 
@@ -111,7 +121,8 @@ func (p *postgresWatcherRepository) Create(ctx context.Context, watcher *domain.
 		now,
 		watcher.DeviceID,
 		watcher.AccountID,
-		watcher.SubredditID,
+		watcher.Type,
+		watcher.WatcheeID,
 		watcher.Upvotes,
 		watcher.Keyword,
 		watcher.Flair,
