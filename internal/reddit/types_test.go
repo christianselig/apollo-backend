@@ -111,3 +111,20 @@ func TestSubredditResponseParsing(t *testing.T) {
 	assert.Equal(t, "2vq0w", s.ID)
 	assert.Equal(t, "DestinyTheGame", s.Name)
 }
+
+func TestUserResponseParsing(t *testing.T) {
+	bb, err := ioutil.ReadFile("testdata/user_about.json")
+	assert.NoError(t, err)
+
+	val, err := parser.ParseBytes(bb)
+	assert.NoError(t, err)
+
+	ret := NewUserResponse(val)
+	u := ret.(*UserResponse)
+	assert.NotNil(t, u)
+
+	assert.Equal(t, "t2", u.Kind)
+	assert.Equal(t, "1ia22", u.ID)
+	assert.Equal(t, "changelog", u.Name)
+	assert.Equal(t, true, u.AcceptFollowers)
+}

@@ -160,4 +160,23 @@ func NewSubredditResponse(val *fastjson.Value) interface{} {
 	return sr
 }
 
+type UserResponse struct {
+	Thing
+
+	AcceptFollowers bool
+	Name            string
+}
+
+func NewUserResponse(val *fastjson.Value) interface{} {
+	ur := &UserResponse{}
+	ur.Kind = string(val.GetStringBytes("kind"))
+
+	data := val.Get("data")
+	ur.ID = string(data.GetStringBytes("id"))
+	ur.Name = string(data.GetStringBytes("name"))
+	ur.AcceptFollowers = data.GetBool("accept_followers")
+
+	return ur
+}
+
 var EmptyListingResponse = &ListingResponse{}

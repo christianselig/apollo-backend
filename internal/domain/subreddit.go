@@ -6,7 +6,8 @@ import (
 )
 
 type Subreddit struct {
-	ID int64
+	ID            int64
+	LastCheckedAt float64
 
 	// Reddit information
 	SubredditID string
