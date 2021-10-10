@@ -79,8 +79,7 @@ func (p *postgresSubredditRepository) CreateOrUpdate(ctx context.Context, sr *do
 	query := `
 		INSERT INTO subreddits (subreddit_id, name)
 		VALUES ($1, $2)
-		ON CONFLICT(subreddit_id) DO
-			UPDATE SET last_checked_at = $3
+		ON CONFLICT(subreddit_id) DO NOTHING
 		RETURNING id`
 
 	return p.pool.QueryRow(
@@ -88,6 +87,5 @@ func (p *postgresSubredditRepository) CreateOrUpdate(ctx context.Context, sr *do
 		query,
 		sr.SubredditID,
 		sr.NormalizedName(),
-		sr.LastCheckedAt,
 	).Scan(&sr.ID)
 }

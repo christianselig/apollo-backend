@@ -330,6 +330,9 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 					"status":           res.StatusCode,
 					"reason":           res.Reason,
 				}).Error("failed to send notification")
+
+				// Delete device as notifications might have been disabled here
+				_ = nc.deviceRepo.Delete(ctx, device.APNSToken)
 			} else {
 				_ = nc.statsd.Incr("apns.notification.sent", []string{}, 1)
 				nc.logger.WithFields(logrus.Fields{

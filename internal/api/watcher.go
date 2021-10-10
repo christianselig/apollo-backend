@@ -12,6 +12,7 @@ import (
 )
 
 type watcherCriteria struct {
+	Author  string
 	Upvotes int64
 	Keyword string
 	Flair   string
@@ -22,6 +23,7 @@ type createWatcherRequest struct {
 	Type      string
 	User      string
 	Subreddit string
+	Label     string
 	Criteria  watcherCriteria
 }
 
@@ -74,15 +76,17 @@ func (a *api) createWatcherHandler(w http.ResponseWriter, r *http.Request) {
 	ac := a.reddit.NewAuthenticatedClient(account.RefreshToken, account.AccessToken)
 
 	watcher := domain.Watcher{
+		Label:     cwr.Label,
 		DeviceID:  dev.ID,
 		AccountID: account.ID,
+		Author:    strings.ToLower(cwr.Criteria.Author),
 		Upvotes:   cwr.Criteria.Upvotes,
 		Keyword:   strings.ToLower(cwr.Criteria.Keyword),
 		Flair:     strings.ToLower(cwr.Criteria.Flair),
 		Domain:    strings.ToLower(cwr.Criteria.Domain),
 	}
 
-	if cwr.Type == "subreddit" {
+	if cwr.Type == "subreddit" || cwr.Type == "trending" {
 		srr, err := ac.SubredditAbout(cwr.Subreddit)
 		if err != nil {
 			a.errorResponse(w, r, 422, err.Error())
@@ -102,7 +106,13 @@ func (a *api) createWatcherHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		watcher.Type = domain.SubredditWatcher
+		switch cwr.Type {
+		case "subreddit":
+			watcher.Type = domain.SubredditWatcher
+		case "trending":
+			watcher.Type = domain.TrendingWatcher
+		}
+
 		watcher.WatcheeID = sr.ID
 	} else if cwr.Type == "user" {
 		urr, err := ac.UserAbout(cwr.User)
@@ -139,6 +149,50 @@ func (a *api) createWatcherHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+func (a *api) editWatcherHandler(w http.ResponseWriter, r *http.Request) {
+	ctx := context.Background()
+
+	vars := mux.Vars(r)
+	id, err := strconv.ParseInt(vars["watcherID"], 10, 64)
+	if err != nil {
+		a.errorResponse(w, r, 422, err.Error())
+		return
+	}
+
+	watcher, err := a.watcherRepo.GetByID(ctx, id)
+	if err != nil || watcher.Device.APNSToken != vars["apns"] {
+		a.errorResponse(w, r, 422, "nice try")
+		return
+	}
+
+	ewr := &createWatcherRequest{
+		Criteria: watcherCriteria{
+			Upvotes: 0,
+			Keyword: "",
+			Flair:   "",
+			Domain:  "",
+		},
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(ewr); err != nil {
+		a.errorResponse(w, r, 500, err.Error())
+		return
+	}
+
+	watcher.Label = ewr.Label
+	watcher.Upvotes = ewr.Criteria.Upvotes
+	watcher.Keyword = ewr.Criteria.Keyword
+	watcher.Flair = ewr.Criteria.Flair
+	watcher.Domain = ewr.Criteria.Domain
+
+	if err := a.watcherRepo.Update(ctx, &watcher); err != nil {
+		a.errorResponse(w, r, 500, err.Error())
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+}
+
 func (a *api) deleteWatcherHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := context.Background()
 
@@ -149,16 +203,8 @@ func (a *api) deleteWatcherHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	apns := vars["apns"]
-
-	dev, err := a.deviceRepo.GetByAPNSToken(ctx, apns)
-	if err != nil {
-		a.errorResponse(w, r, 422, err.Error())
-		return
-	}
-
 	watcher, err := a.watcherRepo.GetByID(ctx, id)
-	if err != nil || watcher.DeviceID != dev.ID {
+	if err != nil || watcher.Device.APNSToken != vars["apns"] {
 		a.errorResponse(w, r, 422, "nice try")
 		return
 	}
@@ -168,12 +214,15 @@ func (a *api) deleteWatcherHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 type watcherItem struct {
-	ID      int64
-	Upvotes int64
-	Keyword string
-	Flair   string
-	Domain  string
-	Hits    int64
+	ID        int64
+	CreatedAt float64
+	Type      string
+	Label     string
+	Upvotes   int64
+	Keyword   string
+	Flair     string
+	Domain    string
+	Hits      int64
 }
 
 func (a *api) listWatchersHandler(w http.ResponseWriter, r *http.Request) {
@@ -192,12 +241,15 @@ func (a *api) listWatchersHandler(w http.ResponseWriter, r *http.Request) {
 	wis := make([]watcherItem, len(watchers))
 	for i, watcher := range watchers {
 		wi := watcherItem{
-			ID:      watcher.ID,
-			Upvotes: watcher.Upvotes,
-			Keyword: watcher.Keyword,
-			Flair:   watcher.Flair,
-			Domain:  watcher.Domain,
-			Hits:    watcher.Hits,
+			ID:        watcher.ID,
+			CreatedAt: watcher.CreatedAt,
+			Type:      watcher.Type.String(),
+			Label:     watcher.Label,
+			Upvotes:   watcher.Upvotes,
+			Keyword:   watcher.Keyword,
+			Flair:     watcher.Flair,
+			Domain:    watcher.Domain,
+			Hits:      watcher.Hits,
 		}
 
 		wis[i] = wi
