@@ -38,6 +38,8 @@ type usersWorker struct {
 	watcherRepo domain.WatcherRepository
 }
 
+const userNotificationTitleFormat = "👨\u200d🚀 %s"
+
 func NewUsersWorker(logger *logrus.Logger, statsd *statsd.Client, db *pgxpool.Pool, redis *redis.Client, queue rmq.Connection, consumers int) Worker {
 	reddit := reddit.NewClient(
 		os.Getenv("REDDIT_CLIENT_ID"),
@@ -224,9 +226,7 @@ func (uc *usersConsumer) Consume(delivery rmq.Delivery) {
 			continue
 		}
 
-		notification := &apns2.Notification{}
-		notification.Topic = "com.christianselig.Apollo"
-		notification.Payload = payloadFromUserPost(post)
+		payload := payloadFromUserPost(post)
 
 		for _, watcher := range watchers {
 			// Make sure we only alert on activities created after the search
@@ -248,6 +248,13 @@ func (uc *usersConsumer) Consume(delivery rmq.Delivery) {
 			}
 
 			device, _ := uc.deviceRepo.GetByID(ctx, watcher.DeviceID)
+
+			title := fmt.Sprintf(userNotificationTitleFormat, watcher.Label)
+			payload.AlertTitle(title)
+
+			notification := &apns2.Notification{}
+			notification.Topic = "com.christianselig.Apollo"
+			notification.Payload = payload
 			notification.DeviceToken = device.APNSToken
 
 			client := uc.apnsProduction
@@ -283,12 +290,10 @@ func (uc *usersConsumer) Consume(delivery rmq.Delivery) {
 }
 
 func payloadFromUserPost(post *reddit.Thing) *payload.Payload {
-	title := fmt.Sprintf("👨\u200d🚀 User post! (u/%s)", post.Author)
-
 	payload := payload.
 		NewPayload().
-		AlertTitle(title).
 		AlertBody(post.Title).
+		AlertSubtitle(post.Author).
 		AlertSummaryArg(post.Author).
 		Category("user-watch").
 		Custom("post_title", post.Title).

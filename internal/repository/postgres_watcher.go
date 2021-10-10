@@ -32,15 +32,23 @@ func (p *postgresWatcherRepository) fetch(ctx context.Context, query string, arg
 			&watcher.ID,
 			&watcher.CreatedAt,
 			&watcher.LastNotifiedAt,
+			&watcher.Label,
 			&watcher.DeviceID,
 			&watcher.AccountID,
 			&watcher.Type,
 			&watcher.WatcheeID,
+			&watcher.Author,
 			&watcher.Upvotes,
 			&watcher.Keyword,
 			&watcher.Flair,
 			&watcher.Domain,
 			&watcher.Hits,
+			&watcher.Device.ID,
+			&watcher.Device.APNSToken,
+			&watcher.Device.Sandbox,
+			&watcher.Account.ID,
+			&watcher.Account.AccessToken,
+			&watcher.Account.RefreshToken,
 		); err != nil {
 			return nil, err
 		}
@@ -51,9 +59,31 @@ func (p *postgresWatcherRepository) fetch(ctx context.Context, query string, arg
 
 func (p *postgresWatcherRepository) GetByID(ctx context.Context, id int64) (domain.Watcher, error) {
 	query := `
-		SELECT id, created_at, last_notified_at, device_id, account_id, type, watchee_id, upvotes, keyword, flair, domain, hits
+		SELECT
+			watchers.id,
+			watchers.created_at,
+			watchers.last_notified_at,
+			watchers.label,
+			watchers.device_id,
+			watchers.account_id,
+			watchers.type,
+			watchers.watchee_id,
+			watchers.author,
+			watchers.upvotes,
+			watchers.keyword,
+			watchers.flair,
+			watchers.domain,
+			watchers.hits,
+			devices.id,
+			devices.apns_token,
+			devices.sandbox,
+			accounts.id,
+			accounts.access_token,
+			accounts.refresh_token
 		FROM watchers
-		WHERE id = $1`
+		INNER JOIN devices ON watchers.device_id = devices.id
+		INNER JOIN accounts ON watchers.account_id = accounts.id
+		WHERE watchers.id = $1`
 
 	watchers, err := p.fetch(ctx, query, id)
 
@@ -68,11 +98,37 @@ func (p *postgresWatcherRepository) GetByID(ctx context.Context, id int64) (doma
 
 func (p *postgresWatcherRepository) GetByTypeAndWatcheeID(ctx context.Context, typ domain.WatcherType, id int64) ([]domain.Watcher, error) {
 	query := `
-		SELECT id, created_at, last_notified_at, device_id, account_id, type, watchee_id, upvotes, keyword, flair, domain, hits
+		SELECT
+			watchers.id,
+			watchers.created_at,
+			watchers.last_notified_at,
+			watchers.label,
+			watchers.device_id,
+			watchers.account_id,
+			watchers.type,
+			watchers.watchee_id,
+			watchers.author,
+			watchers.upvotes,
+			watchers.keyword,
+			watchers.flair,
+			watchers.domain,
+			watchers.hits,
+			devices.id,
+			devices.apns_token,
+			devices.sandbox,
+			accounts.id,
+			accounts.access_token,
+			accounts.refresh_token
 		FROM watchers
-		WHERE type = $1 AND watchee_id = $2`
+		INNER JOIN devices ON watchers.device_id = devices.id
+		INNER JOIN accounts ON watchers.account_id = accounts.id
+		WHERE watchers.type = $1 AND watchers.watchee_id = $2`
 
 	return p.fetch(ctx, query, typ, id)
+}
+
+func (p *postgresWatcherRepository) GetByTrendingSubredditID(ctx context.Context, id int64) ([]domain.Watcher, error) {
+	return p.GetByTypeAndWatcheeID(ctx, domain.TrendingWatcher, id)
 }
 
 func (p *postgresWatcherRepository) GetBySubredditID(ctx context.Context, id int64) ([]domain.Watcher, error) {
@@ -88,16 +144,24 @@ func (p *postgresWatcherRepository) GetByDeviceAPNSTokenAndAccountRedditID(ctx c
 		SELECT
 			watchers.id,
 			watchers.created_at,
-			watchers.last_notified_at
+			watchers.last_notified_at,
+			watchers.label,
 			watchers.device_id,
 			watchers.account_id,
 			watchers.type,
 			watchers.watchee_id,
+			watchers.author,
 			watchers.upvotes,
 			watchers.keyword,
 			watchers.flair,
 			watchers.domain,
-			watchers.hits
+			watchers.hits,
+			devices.id,
+			devices.apns_token,
+			devices.sandbox,
+			accounts.id,
+			accounts.access_token,
+			accounts.refresh_token
 		FROM watchers
 		INNER JOIN accounts ON watchers.account_id = accounts.id
 		INNER JOIN devices ON watchers.device_id = devices.id
@@ -113,18 +177,20 @@ func (p *postgresWatcherRepository) Create(ctx context.Context, watcher *domain.
 
 	query := `
 		INSERT INTO watchers
-			(created_at, last_notified_at, device_id, account_id, type, watchee_id, upvotes, keyword, flair, domain)
-		VALUES ($1, 0, $2, $3, $4, $5, $6, $7, $8, $9)
+			(created_at, last_notified_at, label, device_id, account_id, type, watchee_id, author, upvotes, keyword, flair, domain)
+		VALUES ($1, 0, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 		RETURNING id`
 
 	return p.pool.QueryRow(
 		ctx,
 		query,
 		now,
+		watcher.Label,
 		watcher.DeviceID,
 		watcher.AccountID,
 		watcher.Type,
 		watcher.WatcheeID,
+		watcher.Author,
 		watcher.Upvotes,
 		watcher.Keyword,
 		watcher.Flair,
@@ -135,20 +201,24 @@ func (p *postgresWatcherRepository) Create(ctx context.Context, watcher *domain.
 func (p *postgresWatcherRepository) Update(ctx context.Context, watcher *domain.Watcher) error {
 	query := `
 		UPDATE watchers
-		SET upvotes = $2,
-			keyword = $3,
-			flair = $4,
-			domain = $5,
+		SET author = $2,
+			upvotes = $3,
+			keyword = $4,
+			flair = $5,
+			domain = $6,
+			label = $7
 		WHERE id = $1`
 
 	res, err := p.pool.Exec(
 		ctx,
 		query,
 		watcher.ID,
+		watcher.Author,
 		watcher.Upvotes,
 		watcher.Keyword,
 		watcher.Flair,
 		watcher.Domain,
+		watcher.Label,
 	)
 
 	if res.RowsAffected() != 1 {

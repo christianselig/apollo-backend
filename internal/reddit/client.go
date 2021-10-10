@@ -244,6 +244,10 @@ func (rac *AuthenticatedClient) SubredditHot(subreddit string, opts ...RequestOp
 	return rac.subredditPosts(subreddit, "hot", opts...)
 }
 
+func (rac *AuthenticatedClient) SubredditTop(subreddit string, opts ...RequestOption) (*ListingResponse, error) {
+	return rac.subredditPosts(subreddit, "top", opts...)
+}
+
 func (rac *AuthenticatedClient) SubredditNew(subreddit string, opts ...RequestOption) (*ListingResponse, error) {
 	return rac.subredditPosts(subreddit, "new", opts...)
 }

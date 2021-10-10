@@ -77,6 +77,11 @@ func SchedulerCmd(ctx context.Context) *cobra.Command {
 				return err
 			}
 
+			trendingQueue, err := queue.OpenQueue("trending")
+			if err != nil {
+				return err
+			}
+
 			userQueue, err := queue.OpenQueue("users")
 			if err != nil {
 				return err
@@ -84,7 +89,7 @@ func SchedulerCmd(ctx context.Context) *cobra.Command {
 
 			s := gocron.NewScheduler(time.UTC)
 			_, _ = s.Every(200).Milliseconds().SingletonMode().Do(func() { enqueueAccounts(ctx, logger, statsd, db, redis, luaSha, notifQueue) })
-			_, _ = s.Every(200).Milliseconds().SingletonMode().Do(func() { enqueueSubreddits(ctx, logger, statsd, db, subredditQueue) })
+			_, _ = s.Every(200).Milliseconds().SingletonMode().Do(func() { enqueueSubreddits(ctx, logger, statsd, db, []rmq.Queue{subredditQueue, trendingQueue}) })
 			_, _ = s.Every(200).Milliseconds().SingletonMode().Do(func() { enqueueUsers(ctx, logger, statsd, db, userQueue) })
 			_, _ = s.Every(1).Second().Do(func() { cleanQueues(ctx, logger, queue) })
 			_, _ = s.Every(1).Minute().Do(func() { reportStats(ctx, logger, statsd, db, redis) })
@@ -273,7 +278,7 @@ func enqueueUsers(ctx context.Context, logger *logrus.Logger, statsd *statsd.Cli
 
 }
 
-func enqueueSubreddits(ctx context.Context, logger *logrus.Logger, statsd *statsd.Client, pool *pgxpool.Pool, queue rmq.Queue) {
+func enqueueSubreddits(ctx context.Context, logger *logrus.Logger, statsd *statsd.Client, pool *pgxpool.Pool, queues []rmq.Queue) {
 	now := time.Now()
 	ready := now.Unix() - subredditEnqueueTimeout
 
@@ -326,15 +331,17 @@ func enqueueSubreddits(ctx context.Context, logger *logrus.Logger, statsd *stats
 		batchIds[i] = strconv.FormatInt(id, 10)
 	}
 
-	if err = queue.Publish(batchIds...); err != nil {
-		logger.WithFields(logrus.Fields{
-			"err": err,
-		}).Error("failed to enqueue subreddit")
+	for _, queue := range queues {
+		if err = queue.Publish(batchIds...); err != nil {
+			logger.WithFields(logrus.Fields{
+				"queue": queue,
+				"err":   err,
+			}).Error("failed to enqueue subreddit")
+		}
 	}
 
 	_ = statsd.Histogram("apollo.queue.subreddits.enqueued", float64(len(ids)), []string{}, 1)
 	_ = statsd.Histogram("apollo.queue.subreddits.runtime", float64(time.Since(now).Milliseconds()), []string{}, 1)
-
 }
 
 func enqueueAccounts(ctx context.Context, logger *logrus.Logger, statsd *statsd.Client, pool *pgxpool.Pool, redisConn *redis.Client, luaSha string, queue rmq.Queue) {

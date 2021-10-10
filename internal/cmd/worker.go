@@ -15,6 +15,7 @@ var (
 	queues = map[string]worker.NewWorkerFn{
 		"notifications": worker.NewNotificationsWorker,
 		"subreddits":    worker.NewSubredditsWorker,
+		"trending":      worker.NewTrendingWorker,
 		"users":         worker.NewUsersWorker,
 	}
 )

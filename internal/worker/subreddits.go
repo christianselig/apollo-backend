@@ -40,6 +40,8 @@ type subredditsWorker struct {
 	watcherRepo   domain.WatcherRepository
 }
 
+const subredditNotificationTitleFormat = "📣 %s"
+
 func NewSubredditsWorker(logger *logrus.Logger, statsd *statsd.Client, db *pgxpool.Pool, redis *redis.Client, queue rmq.Connection, consumers int) Worker {
 	reddit := reddit.NewClient(
 		os.Getenv("REDDIT_CLIENT_ID"),
@@ -170,7 +172,7 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 	if len(watchers) == 0 {
 		sc.logger.WithFields(logrus.Fields{
 			"subreddit#id": subreddit.ID,
-		}).Info("no watchers for subreddit, skipping")
+		}).Debug("no watchers for subreddit, finishing job")
 		return
 	}
 
@@ -298,11 +300,12 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 		"count":          len(posts),
 	}).Debug("checking posts for hits")
 	for _, post := range posts {
+		lowcaseAuthor := strings.ToLower(post.Author)
 		lowcaseTitle := strings.ToLower(post.Title)
 		lowcaseFlair := strings.ToLower(post.Flair)
 		lowcaseDomain := strings.ToLower(post.URL)
 
-		ids := []int64{}
+		notifs := []domain.Watcher{}
 
 		for _, watcher := range watchers {
 			// Make sure we only alert on posts created after the search
@@ -311,6 +314,10 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 			}
 
 			matched := true
+
+			if watcher.Author != "" && lowcaseAuthor != watcher.Author {
+				matched = false
+			}
 
 			if watcher.Upvotes > 0 && post.Score < watcher.Upvotes {
 				matched = false
@@ -363,10 +370,10 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 			}).Debug("got a hit")
 
 			sc.redis.SetEX(ctx, lockKey, true, 24*time.Hour)
-			ids = append(ids, watcher.DeviceID)
+			notifs = append(notifs, watcher)
 		}
 
-		if len(ids) == 0 {
+		if len(notifs) == 0 {
 			continue
 		}
 
@@ -374,19 +381,22 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 			"subreddit#id":   subreddit.ID,
 			"subreddit#name": subreddit.Name,
 			"post#id":        post.ID,
-			"count":          len(ids),
+			"count":          len(notifs),
 		}).Debug("got hits for post")
 
-		notification := &apns2.Notification{}
-		notification.Topic = "com.christianselig.Apollo"
-		notification.Payload = payloadFromPost(post)
+		payload := payloadFromPost(post)
 
-		for _, id := range ids {
-			device, _ := sc.deviceRepo.GetByID(ctx, id)
-			notification.DeviceToken = device.APNSToken
+		for _, watcher := range notifs {
+			title := fmt.Sprintf(subredditNotificationTitleFormat, watcher.Label)
+			payload.AlertTitle(title)
+
+			notification := &apns2.Notification{}
+			notification.Topic = "com.christianselig.Apollo"
+			notification.DeviceToken = watcher.Device.APNSToken
+			notification.Payload = payload
 
 			client := sc.apnsProduction
-			if device.Sandbox {
+			if watcher.Device.Sandbox {
 				client = sc.apnsSandbox
 			}
 
@@ -395,7 +405,7 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 				_ = sc.statsd.Incr("apns.notification.errors", []string{}, 1)
 				sc.logger.WithFields(logrus.Fields{
 					"subreddit#id": subreddit.ID,
-					"device#id":    device.ID,
+					"device#id":    watcher.Device.ID,
 					"err":          err,
 					"status":       res.StatusCode,
 					"reason":       res.Reason,
@@ -404,8 +414,8 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 				_ = sc.statsd.Incr("apns.notification.sent", []string{}, 1)
 				sc.logger.WithFields(logrus.Fields{
 					"subreddit#id": subreddit.ID,
-					"device#id":    device.ID,
-					"device#token": device.APNSToken,
+					"device#id":    watcher.Device.ID,
+					"device#token": watcher.Device.APNSToken,
 				}).Info("sent notification")
 			}
 		}
@@ -418,11 +428,11 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 }
 
 func payloadFromPost(post *reddit.Thing) *payload.Payload {
-	title := fmt.Sprintf("📣 Subreddit Watch (r/%s)", post.Subreddit)
+	subtitle := fmt.Sprintf("r/%s", post.Subreddit)
 
 	payload := payload.
 		NewPayload().
-		AlertTitle(title).
+		AlertSubtitle(subtitle).
 		AlertBody(post.Title).
 		AlertSummaryArg(post.Subreddit).
 		Category("post-watch").
