@@ -231,6 +231,8 @@ github.com/hashicorp/serf v0.8.2/go.mod h1:6hOLApaqBFA1NXqRQAsxw9QxuDEvNxSQRwA/J
 github.com/heroku/rollrus v0.2.0/go.mod h1:B3MwEcr9nmf4xj0Sr5l9eSht7wLKMa1C+9ajgAU79ek=
 github.com/heroku/x v0.0.32 h1:auVYcsu4K6QdBETVd/9vIbyjE7p0gnsHwpWy/iDKq0Y=
 github.com/heroku/x v0.0.32/go.mod h1:mGdn6iVaZME1jdRCYVNwxjwJ8OAuRW9zwPhiey2m5k4=
+github.com/heroku/x v0.0.33 h1:bD0RutS0aBInsJZV67madDan1LNh+0W1yacSbdXQE2U=
+github.com/heroku/x v0.0.33/go.mod h1:oLOsU4LNlsOkIsXAl8xih3ty/ks7GiuMcOp/yPEPm/E=
 github.com/hpcloud/tail v1.0.0/go.mod h1:ab1qPbhIpdTxEkNHXyeSf5vhxWSCs/tWer42PpOxQnU=
 github.com/hydrogen18/memlistener v0.0.0-20141126152155-54553eb933fb/go.mod h1:qEIFzExnS6016fRpRfxrExeVn2gbClQA99gQhnIcdhE=
 github.com/ianlancetaylor/demangle v0.0.0-20181102032728-5e5cf60278f6/go.mod h1:aSSvb/t6k1mPoxDqO4vJh6VOCGPwU4O0C2/Eqndh1Sc=
