@@ -102,6 +102,10 @@ func (p *postgresDeviceRepository) CreateOrUpdate(ctx context.Context, dev *doma
 }
 
 func (p *postgresDeviceRepository) Create(ctx context.Context, dev *domain.Device) error {
+	if err := dev.Validate(); err != nil {
+		return err
+	}
+
 	query := `
 		INSERT INTO devices
 			(apns_token, sandbox, active_until)
@@ -118,6 +122,10 @@ func (p *postgresDeviceRepository) Create(ctx context.Context, dev *domain.Devic
 }
 
 func (p *postgresDeviceRepository) Update(ctx context.Context, dev *domain.Device) error {
+	if err := dev.Validate(); err != nil {
+		return err
+	}
+
 	query := `
 		UPDATE devices
 		SET active_until = $2

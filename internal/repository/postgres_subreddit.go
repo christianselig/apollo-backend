@@ -76,6 +76,10 @@ func (p *postgresSubredditRepository) GetByName(ctx context.Context, name string
 }
 
 func (p *postgresSubredditRepository) CreateOrUpdate(ctx context.Context, sr *domain.Subreddit) error {
+	if err := sr.Validate(); err != nil {
+		return err
+	}
+
 	query := `
 		INSERT INTO subreddits (subreddit_id, name)
 		VALUES ($1, $2)
