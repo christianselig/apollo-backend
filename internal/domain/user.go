@@ -3,6 +3,8 @@ package domain
 import (
 	"context"
 	"strings"
+
+	validation "github.com/go-ozzo/ozzo-validation/v4"
 )
 
 type User struct {
@@ -16,6 +18,13 @@ type User struct {
 
 func (u *User) NormalizedName() string {
 	return strings.ToLower(u.Name)
+}
+
+func (u *User) Validate() error {
+	return validation.ValidateStruct(u,
+		validation.Field(&u.Name, validation.Required, validation.Length(3, 32)),
+		validation.Field(&u.UserID, validation.Required, validation.Length(5, 7)),
+	)
 }
 
 type UserRepository interface {

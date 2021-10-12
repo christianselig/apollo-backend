@@ -3,6 +3,8 @@ package domain
 import (
 	"context"
 	"strings"
+
+	validation "github.com/go-ozzo/ozzo-validation/v4"
 )
 
 type Subreddit struct {
@@ -16,6 +18,13 @@ type Subreddit struct {
 
 func (sr *Subreddit) NormalizedName() string {
 	return strings.ToLower(sr.Name)
+}
+
+func (sr *Subreddit) Validate() error {
+	return validation.ValidateStruct(sr,
+		validation.Field(&sr.Name, validation.Required, validation.Length(3, 32)),
+		validation.Field(&sr.SubredditID, validation.Required, validation.Length(5, 7)),
+	)
 }
 
 type SubredditRepository interface {
