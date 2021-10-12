@@ -35,7 +35,8 @@ func WorkerCmd(ctx context.Context) *cobra.Command {
 
 			logger := cmdutil.NewLogrusLogger(false)
 
-			statsd, err := cmdutil.NewStatsdClient()
+			tag := fmt.Sprintf("worker:%s", queueID)
+			statsd, err := cmdutil.NewStatsdClient(tag)
 			if err != nil {
 				return err
 			}

@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/christianselig/apollo-backend/internal/domain"
 	"github.com/jackc/pgx/v4/pgxpool"
+
+	"github.com/christianselig/apollo-backend/internal/domain"
 )
 
 type postgresUserRepository struct {
@@ -77,6 +78,10 @@ func (p *postgresUserRepository) GetByName(ctx context.Context, name string) (do
 }
 
 func (p *postgresUserRepository) CreateOrUpdate(ctx context.Context, u *domain.User) error {
+	if err := u.Validate(); err != nil {
+		return err
+	}
+
 	query := `
 		INSERT INTO users (user_id, name)
 		VALUES ($1, $2)
