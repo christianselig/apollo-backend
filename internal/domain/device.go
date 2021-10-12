@@ -1,6 +1,10 @@
 package domain
 
-import "context"
+import (
+	"context"
+
+	validation "github.com/go-ozzo/ozzo-validation/v4"
+)
 
 const (
 	DeviceGracePeriodDuration            = 3600          // 1 hour
@@ -12,6 +16,12 @@ type Device struct {
 	APNSToken   string
 	Sandbox     bool
 	ActiveUntil int64
+}
+
+func (dev *Device) Validate() error {
+	return validation.ValidateStruct(dev,
+		validation.Field(&dev.APNSToken, validation.Required, validation.Length(64, 200)),
+	)
 }
 
 type DeviceRepository interface {

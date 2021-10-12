@@ -3,6 +3,8 @@ package domain
 import (
 	"context"
 	"strings"
+
+	validation "github.com/go-ozzo/ozzo-validation/v4"
 )
 
 // Account represents an account we need to periodically check in the notifications worker.
@@ -23,6 +25,13 @@ type Account struct {
 
 func (acct *Account) NormalizedUsername() string {
 	return strings.ToLower(acct.Username)
+}
+
+func (acct *Account) Validate() error {
+	return validation.ValidateStruct(acct,
+		validation.Field(&acct.Username, validation.Required, validation.Length(3, 32)),
+		validation.Field(&acct.AccountID, validation.Required, validation.Length(5, 7)),
+	)
 }
 
 // AccountRepository represents the account's repository contract
