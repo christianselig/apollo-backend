@@ -163,12 +163,7 @@ func (a *api) editWatcherHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ewr := &createWatcherRequest{
-		Criteria: watcherCriteria{
-			Upvotes: 0,
-			Keyword: "",
-			Flair:   "",
-			Domain:  "",
-		},
+		Criteria: watcherCriteria{},
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(ewr); err != nil {
@@ -177,10 +172,12 @@ func (a *api) editWatcherHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	watcher.Label = ewr.Label
+	watcher.Author = strings.ToLower(ewr.Criteria.Author)
+	watcher.Subreddit = strings.ToLower(ewr.Criteria.Subreddit)
 	watcher.Upvotes = ewr.Criteria.Upvotes
-	watcher.Keyword = ewr.Criteria.Keyword
-	watcher.Flair = ewr.Criteria.Flair
-	watcher.Domain = ewr.Criteria.Domain
+	watcher.Keyword = strings.ToLower(ewr.Criteria.Keyword)
+	watcher.Flair = strings.ToLower(ewr.Criteria.Flair)
+	watcher.Domain = strings.ToLower(ewr.Criteria.Domain)
 
 	if err := a.watcherRepo.Update(ctx, &watcher); err != nil {
 		a.errorResponse(w, r, 500, err.Error())
