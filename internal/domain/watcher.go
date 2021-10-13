@@ -34,12 +34,13 @@ type Watcher struct {
 	Type      WatcherType
 	WatcheeID int64
 
-	Author  string
-	Upvotes int64
-	Keyword string
-	Flair   string
-	Domain  string
-	Hits    int64
+	Author    string
+	Subreddit string
+	Upvotes   int64
+	Keyword   string
+	Flair     string
+	Domain    string
+	Hits      int64
 
 	// Related models
 	Device  Device

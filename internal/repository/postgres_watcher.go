@@ -38,6 +38,7 @@ func (p *postgresWatcherRepository) fetch(ctx context.Context, query string, arg
 			&watcher.Type,
 			&watcher.WatcheeID,
 			&watcher.Author,
+			&watcher.Subreddit,
 			&watcher.Upvotes,
 			&watcher.Keyword,
 			&watcher.Flair,
@@ -69,6 +70,7 @@ func (p *postgresWatcherRepository) GetByID(ctx context.Context, id int64) (doma
 			watchers.type,
 			watchers.watchee_id,
 			watchers.author,
+			watchers.subreddit,
 			watchers.upvotes,
 			watchers.keyword,
 			watchers.flair,
@@ -108,6 +110,7 @@ func (p *postgresWatcherRepository) GetByTypeAndWatcheeID(ctx context.Context, t
 			watchers.type,
 			watchers.watchee_id,
 			watchers.author,
+			watchers.subreddit,
 			watchers.upvotes,
 			watchers.keyword,
 			watchers.flair,
@@ -151,6 +154,7 @@ func (p *postgresWatcherRepository) GetByDeviceAPNSTokenAndAccountRedditID(ctx c
 			watchers.type,
 			watchers.watchee_id,
 			watchers.author,
+			watchers.subreddit,
 			watchers.upvotes,
 			watchers.keyword,
 			watchers.flair,
@@ -177,8 +181,8 @@ func (p *postgresWatcherRepository) Create(ctx context.Context, watcher *domain.
 
 	query := `
 		INSERT INTO watchers
-			(created_at, last_notified_at, label, device_id, account_id, type, watchee_id, author, upvotes, keyword, flair, domain)
-		VALUES ($1, 0, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+			(created_at, last_notified_at, label, device_id, account_id, type, watchee_id, author, subreddit, upvotes, keyword, flair, domain)
+		VALUES ($1, 0, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 		RETURNING id`
 
 	return p.pool.QueryRow(
@@ -191,6 +195,7 @@ func (p *postgresWatcherRepository) Create(ctx context.Context, watcher *domain.
 		watcher.Type,
 		watcher.WatcheeID,
 		watcher.Author,
+		watcher.Subreddit,
 		watcher.Upvotes,
 		watcher.Keyword,
 		watcher.Flair,
@@ -202,11 +207,12 @@ func (p *postgresWatcherRepository) Update(ctx context.Context, watcher *domain.
 	query := `
 		UPDATE watchers
 		SET author = $2,
-			upvotes = $3,
-			keyword = $4,
-			flair = $5,
-			domain = $6,
-			label = $7
+			subreddit = $3,
+			upvotes = $4,
+			keyword = $5,
+			flair = $6,
+			domain = $7,
+			label = $8
 		WHERE id = $1`
 
 	res, err := p.pool.Exec(
@@ -214,6 +220,7 @@ func (p *postgresWatcherRepository) Update(ctx context.Context, watcher *domain.
 		query,
 		watcher.ID,
 		watcher.Author,
+		watcher.Subreddit,
 		watcher.Upvotes,
 		watcher.Keyword,
 		watcher.Flair,

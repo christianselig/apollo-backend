@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/DataDog/datadog-go/statsd"
 	"github.com/adjust/rmq/v4"
@@ -222,11 +223,13 @@ func (uc *usersConsumer) Consume(delivery rmq.Delivery) {
 	}
 
 	for _, post := range posts.Children {
+		lowcaseSubreddit := strings.ToLower(post.Subreddit)
+
 		if post.SubredditType == "private" {
 			continue
 		}
 
-		payload := payloadFromUserPost(post)
+		notifs := []domain.Watcher{}
 
 		for _, watcher := range watchers {
 			// Make sure we only alert on activities created after the search
@@ -238,6 +241,23 @@ func (uc *usersConsumer) Consume(delivery rmq.Delivery) {
 				continue
 			}
 
+			if watcher.Subreddit != "" && lowcaseSubreddit != watcher.Subreddit {
+				continue
+			}
+
+			notifs = append(notifs, watcher)
+		}
+
+		if len(notifs) == 0 {
+			continue
+		}
+
+		payload := payloadFromUserPost(post)
+
+		notification := &apns2.Notification{}
+		notification.Topic = "com.christianselig.Apollo"
+
+		for _, watcher := range notifs {
 			if err := uc.watcherRepo.IncrementHits(ctx, watcher.ID); err != nil {
 				uc.logger.WithFields(logrus.Fields{
 					"user#id":    user.ID,
@@ -252,8 +272,6 @@ func (uc *usersConsumer) Consume(delivery rmq.Delivery) {
 			title := fmt.Sprintf(userNotificationTitleFormat, watcher.Label)
 			payload.AlertTitle(title)
 
-			notification := &apns2.Notification{}
-			notification.Topic = "com.christianselig.Apollo"
 			notification.Payload = payload
 			notification.DeviceToken = device.APNSToken
 
