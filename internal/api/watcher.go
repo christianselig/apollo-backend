@@ -12,11 +12,12 @@ import (
 )
 
 type watcherCriteria struct {
-	Author  string
-	Upvotes int64
-	Keyword string
-	Flair   string
-	Domain  string
+	Author    string
+	Subreddit string
+	Upvotes   int64
+	Keyword   string
+	Flair     string
+	Domain    string
 }
 
 type createWatcherRequest struct {
@@ -35,12 +36,7 @@ func (a *api) createWatcherHandler(w http.ResponseWriter, r *http.Request) {
 	redditID := vars["redditID"]
 
 	cwr := &createWatcherRequest{
-		Criteria: watcherCriteria{
-			Upvotes: 0,
-			Keyword: "",
-			Flair:   "",
-			Domain:  "",
-		},
+		Criteria: watcherCriteria{},
 	}
 	if err := json.NewDecoder(r.Body).Decode(cwr); err != nil {
 		a.errorResponse(w, r, 500, err.Error())
@@ -80,6 +76,7 @@ func (a *api) createWatcherHandler(w http.ResponseWriter, r *http.Request) {
 		DeviceID:  dev.ID,
 		AccountID: account.ID,
 		Author:    strings.ToLower(cwr.Criteria.Author),
+		Subreddit: strings.ToLower(cwr.Criteria.Subreddit),
 		Upvotes:   cwr.Criteria.Upvotes,
 		Keyword:   strings.ToLower(cwr.Criteria.Keyword),
 		Flair:     strings.ToLower(cwr.Criteria.Flair),
