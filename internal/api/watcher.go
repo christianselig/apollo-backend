@@ -28,6 +28,10 @@ type createWatcherRequest struct {
 	Criteria  watcherCriteria
 }
 
+type watcherCreatedResponse struct {
+	ID int64 `json:"id"`
+}
+
 func (a *api) createWatcherHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := context.Background()
 
@@ -144,6 +148,8 @@ func (a *api) createWatcherHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusOK)
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(watcherCreatedResponse{ID: watcher.ID})
 }
 
 func (a *api) editWatcherHandler(w http.ResponseWriter, r *http.Request) {
@@ -208,15 +214,15 @@ func (a *api) deleteWatcherHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 type watcherItem struct {
-	ID        int64
-	CreatedAt float64
-	Type      string
-	Label     string
-	Upvotes   int64
-	Keyword   string
-	Flair     string
-	Domain    string
-	Hits      int64
+	ID        int64   `json:"id"`
+	CreatedAt float64 `json:"created_at"`
+	Type      string  `json:"type"`
+	Label     string  `json:"label"`
+	Upvotes   int64   `json:"upvotes"`
+	Keyword   string  `json:"keyword"`
+	Flair     string  `json:"flair"`
+	Domain    string  `json:"domain"`
+	Hits      int64   `json:"hits"`
 }
 
 func (a *api) listWatchersHandler(w http.ResponseWriter, r *http.Request) {
