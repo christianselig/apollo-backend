@@ -30,7 +30,7 @@ func (acct *Account) NormalizedUsername() string {
 func (acct *Account) Validate() error {
 	return validation.ValidateStruct(acct,
 		validation.Field(&acct.Username, validation.Required, validation.Length(3, 32)),
-		validation.Field(&acct.AccountID, validation.Required, validation.Length(5, 9)),
+		validation.Field(&acct.AccountID, validation.Required, validation.Length(4, 9)),
 	)
 }
 
