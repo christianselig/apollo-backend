@@ -23,7 +23,7 @@ func (u *User) NormalizedName() string {
 func (u *User) Validate() error {
 	return validation.ValidateStruct(u,
 		validation.Field(&u.Name, validation.Required, validation.Length(3, 32)),
-		validation.Field(&u.UserID, validation.Required, validation.Length(5, 7)),
+		validation.Field(&u.UserID, validation.Required, validation.Length(5, 9)),
 	)
 }
 
