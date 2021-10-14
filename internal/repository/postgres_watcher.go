@@ -177,6 +177,10 @@ func (p *postgresWatcherRepository) GetByDeviceAPNSTokenAndAccountRedditID(ctx c
 }
 
 func (p *postgresWatcherRepository) Create(ctx context.Context, watcher *domain.Watcher) error {
+	if err := watcher.Validate(); err != nil {
+		return err
+	}
+
 	now := float64(time.Now().UTC().Unix())
 
 	query := `
@@ -204,6 +208,10 @@ func (p *postgresWatcherRepository) Create(ctx context.Context, watcher *domain.
 }
 
 func (p *postgresWatcherRepository) Update(ctx context.Context, watcher *domain.Watcher) error {
+	if err := watcher.Validate(); err != nil {
+		return err
+	}
+
 	query := `
 		UPDATE watchers
 		SET author = $2,
