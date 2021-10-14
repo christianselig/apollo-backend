@@ -1,6 +1,10 @@
 package domain
 
-import "context"
+import (
+	"context"
+
+	validation "github.com/go-ozzo/ozzo-validation/v4"
+)
 
 type WatcherType int64
 
@@ -45,6 +49,14 @@ type Watcher struct {
 	// Related models
 	Device  Device
 	Account Account
+}
+
+func (w *Watcher) Validate() error {
+	return validation.ValidateStruct(w,
+		validation.Field(&w.Label, validation.Required, validation.Length(1, 64)),
+		validation.Field(&w.Type, validation.Required, validation.In(SubredditWatcher, UserWatcher, TrendingWatcher)),
+		validation.Field(&w.WatcheeID, validation.Required, validation.Min(1)),
+	)
 }
 
 type WatcherRepository interface {
