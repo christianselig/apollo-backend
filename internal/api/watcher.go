@@ -111,6 +111,7 @@ func (a *api) createWatcherHandler(w http.ResponseWriter, r *http.Request) {
 		case "subreddit":
 			watcher.Type = domain.SubredditWatcher
 		case "trending":
+			watcher.Label = "trending"
 			watcher.Type = domain.TrendingWatcher
 		}
 
