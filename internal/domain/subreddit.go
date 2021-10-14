@@ -23,7 +23,7 @@ func (sr *Subreddit) NormalizedName() string {
 func (sr *Subreddit) Validate() error {
 	return validation.ValidateStruct(sr,
 		validation.Field(&sr.Name, validation.Required, validation.Length(3, 32)),
-		validation.Field(&sr.SubredditID, validation.Required, validation.Length(5, 7)),
+		validation.Field(&sr.SubredditID, validation.Required, validation.Length(5, 9)),
 	)
 }
 
