@@ -54,8 +54,8 @@ type Watcher struct {
 func (w *Watcher) Validate() error {
 	return validation.ValidateStruct(w,
 		validation.Field(&w.Label, validation.Required, validation.Length(1, 64)),
-		validation.Field(&w.Type, validation.Required, validation.In(SubredditWatcher, UserWatcher, TrendingWatcher)),
-		validation.Field(&w.WatcheeID, validation.Required, validation.Min(1)),
+		validation.Field(&w.Type, validation.In(SubredditWatcher, UserWatcher, TrendingWatcher)),
+		validation.Field(&w.WatcheeID, validation.Required),
 	)
 }
 
