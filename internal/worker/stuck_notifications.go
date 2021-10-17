@@ -165,15 +165,11 @@ func (snc *stuckNotificationsConsumer) Consume(delivery rmq.Delivery) {
 		}
 	}
 
-	lastAlertedAt := 0.0
-
 	if things.Count > 0 {
 		for _, thing := range things.Children {
 			if thing.FullName() != account.LastMessageID {
 				continue
 			}
-
-			lastAlertedAt = thing.CreatedAt
 
 			if !thing.IsDeleted() {
 				snc.logger.WithFields(logrus.Fields{
@@ -191,6 +187,10 @@ func (snc *stuckNotificationsConsumer) Consume(delivery rmq.Delivery) {
 	}).Info("thing got deleted, resetting")
 
 	if kind != "t4" {
+		snc.logger.WithFields(logrus.Fields{
+			"account#username": account.NormalizedUsername(),
+		}).Info("getting message inbox to determine last good thing")
+
 		things, err = rac.MessageInbox()
 		if err != nil {
 			snc.logger.WithFields(logrus.Fields{
@@ -202,19 +202,21 @@ func (snc *stuckNotificationsConsumer) Consume(delivery rmq.Delivery) {
 	}
 
 	account.LastMessageID = ""
+
+	snc.logger.WithFields(logrus.Fields{
+		"account#username": account.NormalizedUsername(),
+	}).Debug("calculating last good thing")
 	for _, thing := range things.Children {
 		if thing.IsDeleted() {
+			snc.logger.WithFields(logrus.Fields{
+				"account#username": account.NormalizedUsername(),
+				"thing#id":         thing.FullName(),
+			}).Debug("thing deleted, next")
 			continue
 		}
 
-		if lastAlertedAt == 0 {
-			account.LastMessageID = thing.FullName()
-			break
-		}
-
-		if lastAlertedAt > thing.CreatedAt {
-			account.LastMessageID = thing.FullName()
-		}
+		account.LastMessageID = thing.FullName()
+		break
 	}
 
 	snc.logger.WithFields(logrus.Fields{
