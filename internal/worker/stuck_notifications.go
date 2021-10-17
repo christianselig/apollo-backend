@@ -167,7 +167,7 @@ func (snc *stuckNotificationsConsumer) Consume(delivery rmq.Delivery) {
 
 	lastAlertedAt := 0.0
 
-	if things.Count > 1 {
+	if things.Count > 0 {
 		for _, thing := range things.Children {
 			if thing.FullName() != account.LastMessageID {
 				continue
