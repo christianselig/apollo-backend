@@ -26,7 +26,7 @@ const (
 	accountEnqueueInterval      = 5      // how frequently we want to check (seconds)
 	subredditEnqueueInterval    = 2 * 60 // how frequently we want to check (seconds)
 	userEnqueueInterval         = 2 * 60 // how frequently we want to check (seconds)
-	stuckAccountEnqueueInterval = 1 * 60 // how frequently we want to check (seconds)
+	stuckAccountEnqueueInterval = 2 * 60 // how frequently we want to check (seconds)
 
 	staleAccountThreshold = 7200 // 2 hours
 )
