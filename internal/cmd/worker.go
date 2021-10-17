@@ -13,10 +13,11 @@ import (
 
 var (
 	queues = map[string]worker.NewWorkerFn{
-		"notifications": worker.NewNotificationsWorker,
-		"subreddits":    worker.NewSubredditsWorker,
-		"trending":      worker.NewTrendingWorker,
-		"users":         worker.NewUsersWorker,
+		"notifications":       worker.NewNotificationsWorker,
+		"stuck-notifications": worker.NewStuckNotificationsWorker,
+		"subreddits":          worker.NewSubredditsWorker,
+		"trending":            worker.NewTrendingWorker,
+		"users":               worker.NewUsersWorker,
 	}
 )
 

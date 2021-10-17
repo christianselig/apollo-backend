@@ -36,6 +36,7 @@ func (p *postgresAccountRepository) fetch(ctx context.Context, query string, arg
 			&acc.ExpiresAt,
 			&acc.LastMessageID,
 			&acc.LastCheckedAt,
+			&acc.LastUnstuckAt,
 		); err != nil {
 			return nil, err
 		}
@@ -46,7 +47,7 @@ func (p *postgresAccountRepository) fetch(ctx context.Context, query string, arg
 
 func (p *postgresAccountRepository) GetByID(ctx context.Context, id int64) (domain.Account, error) {
 	query := `
-		SELECT id, username, account_id, access_token, refresh_token, expires_at, last_message_id, last_checked_at
+		SELECT id, username, account_id, access_token, refresh_token, expires_at, last_message_id, last_checked_at, last_unstuck_at
 		FROM accounts
 		WHERE id = $1`
 
@@ -80,8 +81,8 @@ func (p *postgresAccountRepository) GetByRedditID(ctx context.Context, id string
 }
 func (p *postgresAccountRepository) CreateOrUpdate(ctx context.Context, acc *domain.Account) error {
 	query := `
-		INSERT INTO accounts (username, account_id, access_token, refresh_token, expires_at, last_message_id, last_checked_at)
-		VALUES ($1, $2, $3, $4, $5, '', 0)
+		INSERT INTO accounts (username, account_id, access_token, refresh_token, expires_at, last_message_id, last_checked_at, last_unstuck_at)
+		VALUES ($1, $2, $3, $4, $5, '', 0, 0)
 		ON CONFLICT(username) DO
 			UPDATE SET access_token = $3,
 				refresh_token = $4,
@@ -102,8 +103,8 @@ func (p *postgresAccountRepository) CreateOrUpdate(ctx context.Context, acc *dom
 func (p *postgresAccountRepository) Create(ctx context.Context, acc *domain.Account) error {
 	query := `
 		INSERT INTO accounts
-			(username, account_id, access_token, refresh_token, expires_at, last_message_id, last_checked_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
+			(username, account_id, access_token, refresh_token, expires_at, last_message_id, last_checked_at, last_unstuck_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		RETURNING id`
 
 	return p.pool.QueryRow(
@@ -116,6 +117,7 @@ func (p *postgresAccountRepository) Create(ctx context.Context, acc *domain.Acco
 		acc.ExpiresAt,
 		acc.LastMessageID,
 		acc.LastCheckedAt,
+		acc.LastUnstuckAt,
 	).Scan(&acc.ID)
 }
 
@@ -128,7 +130,8 @@ func (p *postgresAccountRepository) Update(ctx context.Context, acc *domain.Acco
 			refresh_token = $5,
 			expires_at = $6,
 			last_message_id = $7,
-			last_checked_at = $8
+			last_checked_at = $8,
+			last_unstuck_at = $9
 		WHERE id = $1`
 
 	res, err := p.pool.Exec(
@@ -142,6 +145,7 @@ func (p *postgresAccountRepository) Update(ctx context.Context, acc *domain.Acco
 		acc.ExpiresAt,
 		acc.LastMessageID,
 		acc.LastCheckedAt,
+		acc.LastUnstuckAt,
 	)
 
 	if res.RowsAffected() != 1 {
