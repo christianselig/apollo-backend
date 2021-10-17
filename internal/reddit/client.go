@@ -171,6 +171,23 @@ func (rac *AuthenticatedClient) RefreshTokens() (*RefreshTokenResponse, error) {
 	return ret, nil
 }
 
+func (rac *AuthenticatedClient) AboutInfo(fullname string, opts ...RequestOption) (*ListingResponse, error) {
+	opts = append([]RequestOption{
+		WithMethod("GET"),
+		WithToken(rac.accessToken),
+		WithURL("https://oauth.reddit.com/api/info"),
+		WithQuery("id", fullname),
+	}, opts...)
+	req := NewRequest(opts...)
+
+	lr, err := rac.request(req, NewListingResponse, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return lr.(*ListingResponse), nil
+}
+
 func (rac *AuthenticatedClient) UserPosts(user string, opts ...RequestOption) (*ListingResponse, error) {
 	url := fmt.Sprintf("https://oauth.reddit.com/u/%s/submitted.json", user)
 	opts = append([]RequestOption{

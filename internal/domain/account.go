@@ -21,6 +21,7 @@ type Account struct {
 	// Tracking how far behind we are
 	LastMessageID string
 	LastCheckedAt float64
+	LastUnstuckAt float64
 }
 
 func (acct *Account) NormalizedUsername() string {

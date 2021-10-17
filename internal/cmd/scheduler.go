@@ -23,9 +23,10 @@ const (
 	batchSize    = 250
 	checkTimeout = 60 // how long until we force a check
 
-	accountEnqueueTimeout   = 5      // how frequently we want to check (seconds)
-	subredditEnqueueTimeout = 2 * 60 // how frequently we want to check (seconds)
-	userEnqueueTimeout      = 2 * 60 // how frequently we want to check (seconds)
+	accountEnqueueInterval      = 5      // how frequently we want to check (seconds)
+	subredditEnqueueInterval    = 2 * 60 // how frequently we want to check (seconds)
+	userEnqueueInterval         = 2 * 60 // how frequently we want to check (seconds)
+	stuckAccountEnqueueInterval = 1 * 60 // how frequently we want to check (seconds)
 
 	staleAccountThreshold = 7200 // 2 hours
 )
@@ -87,11 +88,17 @@ func SchedulerCmd(ctx context.Context) *cobra.Command {
 				return err
 			}
 
+			stuckNotificationsQueue, err := queue.OpenQueue("stuck-notifications")
+			if err != nil {
+				return err
+			}
+
 			s := gocron.NewScheduler(time.UTC)
 			_, _ = s.Every(200).Milliseconds().SingletonMode().Do(func() { enqueueAccounts(ctx, logger, statsd, db, redis, luaSha, notifQueue) })
 			_, _ = s.Every(200).Milliseconds().SingletonMode().Do(func() { enqueueSubreddits(ctx, logger, statsd, db, []rmq.Queue{subredditQueue, trendingQueue}) })
 			_, _ = s.Every(200).Milliseconds().SingletonMode().Do(func() { enqueueUsers(ctx, logger, statsd, db, userQueue) })
 			_, _ = s.Every(1).Second().Do(func() { cleanQueues(ctx, logger, queue) })
+			_, _ = s.Every(1).Second().Do(func() { enqueueStuckAccounts(ctx, logger, statsd, db, stuckNotificationsQueue) })
 			_, _ = s.Every(1).Minute().Do(func() { reportStats(ctx, logger, statsd, db, redis) })
 			_, _ = s.Every(1).Minute().Do(func() { pruneAccounts(ctx, logger, db) })
 			_, _ = s.Every(1).Minute().Do(func() { pruneDevices(ctx, logger, db) })
@@ -185,9 +192,11 @@ func cleanQueues(ctx context.Context, logger *logrus.Logger, jobsConn rmq.Connec
 		return
 	}
 
-	logger.WithFields(logrus.Fields{
-		"count": count,
-	}).Debug("returned jobs to queues")
+	if count > 0 {
+		logger.WithFields(logrus.Fields{
+			"count": count,
+		}).Info("returned jobs to queues")
+	}
 }
 
 func reportStats(ctx context.Context, logger *logrus.Logger, statsd *statsd.Client, pool *pgxpool.Pool, redisConn *redis.Client) {
@@ -200,6 +209,8 @@ func reportStats(ctx context.Context, logger *logrus.Logger, statsd *statsd.Clie
 		}{
 			{"SELECT COUNT(*) FROM accounts", "apollo.registrations.accounts"},
 			{"SELECT COUNT(*) FROM devices", "apollo.registrations.devices"},
+			{"SELECT COUNT(*) FROM subreddits", "apollo.registrations.subreddits"},
+			{"SELECT COUNT(*) FROM users", "apollo.registrations.users"},
 		}
 	)
 
@@ -216,7 +227,7 @@ func reportStats(ctx context.Context, logger *logrus.Logger, statsd *statsd.Clie
 
 func enqueueUsers(ctx context.Context, logger *logrus.Logger, statsd *statsd.Client, pool *pgxpool.Pool, queue rmq.Queue) {
 	now := time.Now()
-	ready := now.Unix() - userEnqueueTimeout
+	ready := now.Unix() - userEnqueueInterval
 
 	ids := []int64{}
 
@@ -273,14 +284,14 @@ func enqueueUsers(ctx context.Context, logger *logrus.Logger, statsd *statsd.Cli
 		}).Error("failed to enqueue user")
 	}
 
-	_ = statsd.Histogram("apollo.queue.users.enqueued", float64(len(ids)), []string{}, 1)
-	_ = statsd.Histogram("apollo.queue.users.runtime", float64(time.Since(now).Milliseconds()), []string{}, 1)
-
+	tags := []string{"queue:users"}
+	_ = statsd.Histogram("apollo.queue.enqueued", float64(len(ids)), tags, 1)
+	_ = statsd.Histogram("apollo.queue.runtime", float64(time.Since(now).Milliseconds()), tags, 1)
 }
 
 func enqueueSubreddits(ctx context.Context, logger *logrus.Logger, statsd *statsd.Client, pool *pgxpool.Pool, queues []rmq.Queue) {
 	now := time.Now()
-	ready := now.Unix() - subredditEnqueueTimeout
+	ready := now.Unix() - subredditEnqueueInterval
 
 	ids := []int64{}
 
@@ -340,20 +351,85 @@ func enqueueSubreddits(ctx context.Context, logger *logrus.Logger, statsd *stats
 		}
 	}
 
-	_ = statsd.Histogram("apollo.queue.subreddits.enqueued", float64(len(ids)), []string{}, 1)
-	_ = statsd.Histogram("apollo.queue.subreddits.runtime", float64(time.Since(now).Milliseconds()), []string{}, 1)
+	tags := []string{"queue:subreddits"}
+	_ = statsd.Histogram("apollo.queue.enqueued", float64(len(ids)), tags, 1)
+	_ = statsd.Histogram("apollo.queue.runtime", float64(time.Since(now).Milliseconds()), tags, 1)
+}
+
+func enqueueStuckAccounts(ctx context.Context, logger *logrus.Logger, statsd *statsd.Client, pool *pgxpool.Pool, queue rmq.Queue) {
+	now := time.Now()
+	ready := now.Unix() - stuckAccountEnqueueInterval
+
+	ids := []int64{}
+
+	err := pool.BeginFunc(ctx, func(tx pgx.Tx) error {
+		stmt := `
+			WITH account AS (
+			  SELECT id
+				FROM accounts
+				WHERE
+					last_unstuck_at < $1
+				ORDER BY last_unstuck_at
+				LIMIT 500
+			)
+			UPDATE accounts
+			SET last_unstuck_at = $2
+			WHERE accounts.id IN(SELECT id FROM account)
+			RETURNING accounts.id`
+		rows, err := tx.Query(ctx, stmt, ready, now.Unix())
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var id int64
+			_ = rows.Scan(&id)
+			ids = append(ids, id)
+		}
+		return nil
+	})
+
+	if err != nil {
+		logger.WithFields(logrus.Fields{
+			"err": err,
+		}).Error("failed to fetch possible stuck accounts")
+		return
+	}
+
+	if len(ids) == 0 {
+		return
+	}
+
+	logger.WithFields(logrus.Fields{
+		"count": len(ids),
+		"start": ready,
+	}).Debug("enqueueing stuck account batch")
+
+	batchIds := make([]string, len(ids))
+	for i, id := range ids {
+		batchIds[i] = strconv.FormatInt(id, 10)
+	}
+
+	if err = queue.Publish(batchIds...); err != nil {
+		logger.WithFields(logrus.Fields{
+			"queue": queue,
+			"err":   err,
+		}).Error("failed to enqueue stuck accounts")
+	}
+
+	tags := []string{"queue:stuck-accounts"}
+	_ = statsd.Histogram("apollo.queue.enqueued", float64(len(ids)), tags, 1)
+	_ = statsd.Histogram("apollo.queue.runtime", float64(time.Since(now).Milliseconds()), tags, 1)
 }
 
 func enqueueAccounts(ctx context.Context, logger *logrus.Logger, statsd *statsd.Client, pool *pgxpool.Pool, redisConn *redis.Client, luaSha string, queue rmq.Queue) {
-	start := time.Now()
-
-	now := float64(time.Now().UnixNano()/int64(time.Millisecond)) / 1000
+	now := time.Now()
 
 	// Start looking for accounts that were last checked at least 5 seconds ago
 	// and at most 6 seconds ago. Also look for accounts that haven't been checked
 	// in over a minute.
-	ts := start.Unix()
-	ready := ts - accountEnqueueTimeout
+	ts := now.Unix()
+	ready := ts - accountEnqueueInterval
 	expired := ts - checkTimeout
 
 	ids := []int64{}
@@ -373,7 +449,7 @@ func enqueueAccounts(ctx context.Context, logger *logrus.Logger, statsd *statsd.
 			SET last_enqueued_at = $3
 			WHERE accounts.id IN(SELECT id FROM account)
 			RETURNING accounts.id`
-		rows, err := tx.Query(ctx, stmt, ready, expired, now)
+		rows, err := tx.Query(ctx, stmt, ready, expired, ts)
 		if err != nil {
 			return err
 		}
@@ -390,6 +466,10 @@ func enqueueAccounts(ctx context.Context, logger *logrus.Logger, statsd *statsd.
 		logger.WithFields(logrus.Fields{
 			"err": err,
 		}).Error("failed to fetch batch of accounts")
+		return
+	}
+
+	if len(ids) == 0 {
 		return
 	}
 
@@ -441,9 +521,10 @@ func enqueueAccounts(ctx context.Context, logger *logrus.Logger, statsd *statsd.
 		}
 	}
 
-	_ = statsd.Histogram("apollo.queue.notifications.enqueued", float64(enqueued), []string{}, 1)
-	_ = statsd.Histogram("apollo.queue.notifications.skipped", float64(skipped), []string{}, 1)
-	_ = statsd.Histogram("apollo.queue.notifications.runtime", float64(time.Since(start).Milliseconds()), []string{}, 1)
+	tags := []string{"queue:notifications"}
+	_ = statsd.Histogram("apollo.queue.enqueued", float64(enqueued), tags, 1)
+	_ = statsd.Histogram("apollo.queue.skipped", float64(skipped), tags, 1)
+	_ = statsd.Histogram("apollo.queue.runtime", float64(time.Since(now).Milliseconds()), tags, 1)
 
 	logger.WithFields(logrus.Fields{
 		"count":   enqueued,
