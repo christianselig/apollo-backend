@@ -161,7 +161,7 @@ func (snc *stuckNotificationsConsumer) Consume(delivery rmq.Delivery) {
 	snc.logger.WithFields(logrus.Fields{
 		"account#username": account.NormalizedUsername(),
 		"thing#id":         account.LastMessageID,
-	}).Debug("thing got deleted, resetting")
+	}).Info("thing got deleted, resetting")
 
 	things, err = rac.MessageInbox()
 	if err != nil {
