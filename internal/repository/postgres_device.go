@@ -84,6 +84,16 @@ func (p *postgresDeviceRepository) GetByAccountID(ctx context.Context, id int64)
 	return p.fetch(ctx, query, id)
 }
 
+func (p *postgresDeviceRepository) GetNotifiableByAccountID(ctx context.Context, id int64) ([]domain.Device, error) {
+	query := `
+		SELECT devices.id, apns_token, sandbox, active_until
+		FROM devices
+		INNER JOIN devices_accounts ON devices.id = devices_accounts.device_id
+		WHERE devices_accounts.account_id = $1 AND devices_accounts.notifiable = TRUE`
+
+	return p.fetch(ctx, query, id)
+}
+
 func (p *postgresDeviceRepository) CreateOrUpdate(ctx context.Context, dev *domain.Device) error {
 	query := `
 		INSERT INTO devices (apns_token, sandbox, active_until)
@@ -148,6 +158,21 @@ func (p *postgresDeviceRepository) Delete(ctx context.Context, token string) err
 		return fmt.Errorf("weird behaviour, total rows affected: %d", res.RowsAffected())
 	}
 	return err
+}
+
+func (p *postgresDeviceRepository) SetNotifiable(ctx context.Context, dev *domain.Device, acct *domain.Account, notifiable bool) error {
+	query := `
+		UPDATE devices_accounts
+		SET notifiable = $1
+		WHERE device_id = $2 AND account_id = $3`
+
+	res, err := p.pool.Exec(ctx, query, notifiable, dev.ID, acct.ID)
+
+	if res.RowsAffected() != 1 {
+		return fmt.Errorf("weird behaviour, total rows affected: %d", res.RowsAffected())
+	}
+	return err
+
 }
 
 func (p *postgresDeviceRepository) PruneStale(ctx context.Context, before int64) (int64, error) {

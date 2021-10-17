@@ -27,12 +27,14 @@ func (dev *Device) Validate() error {
 type DeviceRepository interface {
 	GetByID(ctx context.Context, id int64) (Device, error)
 	GetByAPNSToken(ctx context.Context, token string) (Device, error)
+	GetNotifiableByAccountID(ctx context.Context, id int64) ([]Device, error)
 	GetByAccountID(ctx context.Context, id int64) ([]Device, error)
 
 	CreateOrUpdate(ctx context.Context, dev *Device) error
 	Update(ctx context.Context, dev *Device) error
 	Create(ctx context.Context, dev *Device) error
 	Delete(ctx context.Context, token string) error
+	SetNotifiable(ctx context.Context, dev *Device, acct *Account, notifiable bool) error
 
 	PruneStale(ctx context.Context, before int64) (int64, error)
 }
