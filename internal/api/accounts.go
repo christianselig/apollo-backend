@@ -13,6 +13,43 @@ import (
 	"github.com/christianselig/apollo-backend/internal/domain"
 )
 
+type accountNotificationsRequest struct {
+	Enabled bool
+}
+
+func (a *api) notificationsAccountHandler(w http.ResponseWriter, r *http.Request) {
+	anr := &accountNotificationsRequest{}
+	if err := json.NewDecoder(r.Body).Decode(anr); err != nil {
+		a.errorResponse(w, r, 500, err.Error())
+		return
+	}
+
+	vars := mux.Vars(r)
+	apns := vars["apns"]
+	rid := vars["redditID"]
+
+	ctx := context.Background()
+
+	dev, err := a.deviceRepo.GetByAPNSToken(ctx, apns)
+	if err != nil {
+		a.errorResponse(w, r, 500, err.Error())
+		return
+	}
+
+	acct, err := a.accountRepo.GetByRedditID(ctx, rid)
+	if err != nil {
+		a.errorResponse(w, r, 500, err.Error())
+		return
+	}
+
+	if err := a.deviceRepo.SetNotifiable(ctx, &dev, &acct, anr.Enabled); err != nil {
+		a.errorResponse(w, r, 500, err.Error())
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+}
+
 func (a *api) disassociateAccountHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	apns := vars["apns"]

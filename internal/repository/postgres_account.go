@@ -64,7 +64,7 @@ func (p *postgresAccountRepository) GetByID(ctx context.Context, id int64) (doma
 
 func (p *postgresAccountRepository) GetByRedditID(ctx context.Context, id string) (domain.Account, error) {
 	query := `
-		SELECT id, username, account_id, access_token, refresh_token, expires_at, last_message_id, last_checked_at
+		SELECT id, username, account_id, access_token, refresh_token, expires_at, last_message_id, last_checked_at, last_unstuck_at
 		FROM accounts
 		WHERE account_id = $1`
 

@@ -204,8 +204,9 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 					"account#username": account.NormalizedUsername(),
 					"err":              err,
 				}).Error("failed to remove revoked account")
-				return
 			}
+
+			return
 		}
 
 		// Update account
@@ -303,7 +304,7 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 		return
 	}
 
-	devices, err := nc.deviceRepo.GetByAccountID(ctx, account.ID)
+	devices, err := nc.deviceRepo.GetNotifiableByAccountID(ctx, account.ID)
 	if err != nil {
 		nc.logger.WithFields(logrus.Fields{
 			"account#username": account.NormalizedUsername(),
