@@ -173,6 +173,8 @@ func (snc *stuckNotificationsConsumer) Consume(delivery rmq.Delivery) {
 				continue
 			}
 
+			lastAlertedAt = thing.CreatedAt
+
 			if !thing.IsDeleted() {
 				snc.logger.WithFields(logrus.Fields{
 					"account#username": account.NormalizedUsername(),
@@ -180,8 +182,6 @@ func (snc *stuckNotificationsConsumer) Consume(delivery rmq.Delivery) {
 				}).Debug("thing exists, returning")
 				return
 			}
-
-			lastAlertedAt = thing.CreatedAt
 		}
 	}
 
@@ -203,12 +203,24 @@ func (snc *stuckNotificationsConsumer) Consume(delivery rmq.Delivery) {
 
 	account.LastMessageID = ""
 	for _, thing := range things.Children {
-		if lastAlertedAt > thing.CreatedAt && !thing.IsDeleted() {
+		if thing.IsDeleted() {
+			continue
+		}
+
+		if lastAlertedAt == 0 {
+			account.LastMessageID = thing.FullName()
 			break
 		}
 
-		account.LastMessageID = thing.FullName()
+		if lastAlertedAt > thing.CreatedAt {
+			account.LastMessageID = thing.FullName()
+		}
 	}
+
+	snc.logger.WithFields(logrus.Fields{
+		"account#username": account.NormalizedUsername(),
+		"thing#id":         account.LastMessageID,
+	}).Debug("updating last good thing")
 
 	if err := snc.accountRepo.Update(ctx, &account); err != nil {
 		snc.logger.WithFields(logrus.Fields{

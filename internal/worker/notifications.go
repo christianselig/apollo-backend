@@ -280,11 +280,9 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 		"count":            msgs.Count,
 	}).Debug("fetched messages")
 
-	for i := msgs.Count - 1; i >= 0; i-- {
-		msg := msgs.Children[i]
-
+	for _, msg := range msgs.Children {
 		if !msg.IsDeleted() {
-			account.LastMessageID = msgs.Children[0].FullName()
+			account.LastMessageID = msg.FullName()
 			break
 		}
 	}
