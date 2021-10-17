@@ -186,7 +186,7 @@ func (p *postgresAccountRepository) Disassociate(ctx context.Context, acc *domai
 
 func (p *postgresAccountRepository) GetByAPNSToken(ctx context.Context, token string) ([]domain.Account, error) {
 	query := `
-		SELECT accounts.id, username, accounts.account_id, access_token, refresh_token, expires_at, last_message_id, last_checked_at
+		SELECT accounts.id, username, accounts.account_id, access_token, refresh_token, expires_at, last_message_id, last_checked_at, last_unstuck_at
 		FROM accounts
 		INNER JOIN devices_accounts ON accounts.id = devices_accounts.account_id
 		INNER JOIN devices ON devices.id = devices_accounts.device_id

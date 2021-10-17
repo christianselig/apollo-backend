@@ -91,7 +91,6 @@ func (a *api) upsertAccountsHandler(w http.ResponseWriter, r *http.Request) {
 
 	laccs, err := a.accountRepo.GetByAPNSToken(ctx, apns)
 	if err != nil {
-		fmt.Println("accounts by apns")
 		a.errorResponse(w, r, 422, err.Error())
 		return
 	}
