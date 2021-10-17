@@ -189,7 +189,7 @@ func (snc *stuckNotificationsConsumer) Consume(delivery rmq.Delivery) {
 	if kind != "t4" {
 		snc.logger.WithFields(logrus.Fields{
 			"account#username": account.NormalizedUsername(),
-		}).Info("getting message inbox to determine last good thing")
+		}).Debug("getting message inbox to determine last good thing")
 
 		things, err = rac.MessageInbox()
 		if err != nil {
