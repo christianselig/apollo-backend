@@ -280,7 +280,14 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 		"count":            msgs.Count,
 	}).Debug("fetched messages")
 
-	account.LastMessageID = msgs.Children[0].FullName()
+	for i := msgs.Count - 1; i >= 0; i-- {
+		msg := msgs.Children[i]
+
+		if !msg.IsDeleted() {
+			account.LastMessageID = msgs.Children[0].FullName()
+			break
+		}
+	}
 
 	if err = nc.accountRepo.Update(ctx, &account); err != nil {
 		nc.logger.WithFields(logrus.Fields{
@@ -310,6 +317,11 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 	// Iterate backwards so we notify from older to newer
 	for i := msgs.Count - 1; i >= 0; i-- {
 		msg := msgs.Children[i]
+
+		if msg.IsDeleted() {
+			continue
+		}
+
 		notification := &apns2.Notification{}
 		notification.Topic = "com.christianselig.Apollo"
 		notification.Payload = payloadFromMessage(account, msg, msgs.Count)
