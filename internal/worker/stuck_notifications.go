@@ -139,22 +139,49 @@ func (snc *stuckNotificationsConsumer) Consume(delivery rmq.Delivery) {
 		"thing#id":         account.LastMessageID,
 	}).Debug("fetching last thing")
 
-	things, err := rac.AboutInfo(account.LastMessageID)
-	if err != nil {
+	kind := account.LastMessageID[:2]
+
+	var things *reddit.ListingResponse
+	if kind == "t4" {
 		snc.logger.WithFields(logrus.Fields{
-			"err": err,
-		}).Error("failed to fetch last thing")
-		return
+			"account#username": account.NormalizedUsername(),
+			"thing#id":         account.LastMessageID,
+		}).Debug("checking last thing via inbox")
+
+		things, err = rac.MessageInbox()
+		if err != nil {
+			snc.logger.WithFields(logrus.Fields{
+				"err": err,
+			}).Error("failed to fetch last thing via inbox")
+			return
+		}
+	} else {
+		things, err = rac.AboutInfo(account.LastMessageID)
+		if err != nil {
+			snc.logger.WithFields(logrus.Fields{
+				"err": err,
+			}).Error("failed to fetch last thing")
+			return
+		}
 	}
 
-	if things.Count == 1 {
-		thing := things.Children[0]
-		if thing.Author != "[deleted]" {
-			snc.logger.WithFields(logrus.Fields{
-				"account#username": account.NormalizedUsername(),
-				"thing#id":         account.LastMessageID,
-			}).Debug("thing exists, returning")
-			return
+	lastAlertedAt := 0.0
+
+	if things.Count > 1 {
+		for _, thing := range things.Children {
+			if thing.FullName() != account.LastMessageID {
+				continue
+			}
+
+			if thing.Author != "[deleted]" {
+				snc.logger.WithFields(logrus.Fields{
+					"account#username": account.NormalizedUsername(),
+					"thing#id":         account.LastMessageID,
+				}).Debug("thing exists, returning")
+				return
+			}
+
+			lastAlertedAt = thing.CreatedAt
 		}
 	}
 
@@ -163,18 +190,23 @@ func (snc *stuckNotificationsConsumer) Consume(delivery rmq.Delivery) {
 		"thing#id":         account.LastMessageID,
 	}).Info("thing got deleted, resetting")
 
-	things, err = rac.MessageInbox()
-	if err != nil {
-		snc.logger.WithFields(logrus.Fields{
-			"account#username": account.NormalizedUsername(),
-			"err":              err,
-		}).Error("failed to get message inbox")
-		return
+	if kind != "t4" {
+		things, err = rac.MessageInbox()
+		if err != nil {
+			snc.logger.WithFields(logrus.Fields{
+				"account#username": account.NormalizedUsername(),
+				"err":              err,
+			}).Error("failed to get message inbox")
+			return
+		}
 	}
 
 	account.LastMessageID = ""
-	if things.Count > 0 {
-		account.LastMessageID = things.Children[0].FullName()
+	for _, thing := range things.Children {
+		if lastAlertedAt > thing.CreatedAt {
+			break
+		}
+		account.LastMessageID = thing.FullName()
 	}
 
 	if err := snc.accountRepo.Update(ctx, &account); err != nil {
