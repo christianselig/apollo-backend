@@ -85,6 +85,10 @@ func (t *Thing) FullName() string {
 	return fmt.Sprintf("%s_%s", t.Kind, t.ID)
 }
 
+func (t *Thing) IsDeleted() bool {
+	return t.Author == "[deleted]"
+}
+
 func NewThing(val *fastjson.Value) *Thing {
 	t := &Thing{}
 

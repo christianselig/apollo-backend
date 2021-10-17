@@ -173,7 +173,7 @@ func (snc *stuckNotificationsConsumer) Consume(delivery rmq.Delivery) {
 				continue
 			}
 
-			if thing.Author != "[deleted]" {
+			if !thing.IsDeleted() {
 				snc.logger.WithFields(logrus.Fields{
 					"account#username": account.NormalizedUsername(),
 					"thing#id":         account.LastMessageID,
@@ -203,9 +203,10 @@ func (snc *stuckNotificationsConsumer) Consume(delivery rmq.Delivery) {
 
 	account.LastMessageID = ""
 	for _, thing := range things.Children {
-		if lastAlertedAt > thing.CreatedAt {
+		if lastAlertedAt > thing.CreatedAt && !thing.IsDeleted() {
 			break
 		}
+
 		account.LastMessageID = thing.FullName()
 	}
 
