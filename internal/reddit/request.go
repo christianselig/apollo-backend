@@ -19,12 +19,27 @@ type Request struct {
 	auth               string
 	tags               []string
 	emptyResponseBytes int
+	retry              bool
 }
 
 type RequestOption func(*Request)
 
 func NewRequest(opts ...RequestOption) *Request {
-	req := &Request{url.Values{}, url.Values{}, "GET", "", "", "", nil, 0}
+	req := &Request{
+		body:   url.Values{},
+		query:  url.Values{},
+		method: "GET",
+		url:    "",
+
+		token: "",
+		auth:  "",
+
+		tags: nil,
+
+		emptyResponseBytes: 0,
+		retry:              true,
+	}
+
 	for _, opt := range opts {
 		opt(req)
 	}
@@ -99,5 +114,11 @@ func WithQuery(key, val string) RequestOption {
 func WithEmptyResponseBytes(bytes int) RequestOption {
 	return func(req *Request) {
 		req.emptyResponseBytes = bytes
+	}
+}
+
+func WithRetry(retry bool) RequestOption {
+	return func(req *Request) {
+		req.retry = retry
 	}
 }
