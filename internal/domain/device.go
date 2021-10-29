@@ -7,8 +7,8 @@ import (
 )
 
 const (
-	DeviceGracePeriodDuration            = 3600          // 1 hour
-	DeviceActiveAfterReceitCheckDuration = 3600 * 24 * 7 // 1 week
+	DeviceGracePeriodDuration            = 3600           // 1 hour
+	DeviceActiveAfterReceitCheckDuration = 3600 * 24 * 30 // ~1 month
 )
 
 type Device struct {
