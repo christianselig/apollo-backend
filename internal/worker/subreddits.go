@@ -401,7 +401,7 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 			}
 
 			res, err := client.Push(notification)
-			if err != nil {
+			if err != nil || !res.Sent() {
 				_ = sc.statsd.Incr("apns.notification.errors", []string{}, 1)
 				sc.logger.WithFields(logrus.Fields{
 					"subreddit#id": subreddit.ID,

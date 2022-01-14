@@ -281,7 +281,7 @@ func (uc *usersConsumer) Consume(delivery rmq.Delivery) {
 			}
 
 			res, err := client.Push(notification)
-			if err != nil {
+			if err != nil || !res.Sent() {
 				_ = uc.statsd.Incr("apns.notification.errors", []string{}, 1)
 				uc.logger.WithFields(logrus.Fields{
 					"user#id":   user.ID,

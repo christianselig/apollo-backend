@@ -286,7 +286,7 @@ func (tc *trendingConsumer) Consume(delivery rmq.Delivery) {
 			}
 
 			res, err := client.Push(notification)
-			if err != nil {
+			if err != nil || !res.Sent() {
 				_ = tc.statsd.Incr("apns.notification.errors", []string{}, 1)
 				tc.logger.WithFields(logrus.Fields{
 					"subreddit#id": subreddit.ID,

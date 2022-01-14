@@ -333,7 +333,7 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 			}
 
 			res, err := client.Push(notification)
-			if err != nil {
+			if err != nil || !res.Sent() {
 				_ = nc.statsd.Incr("apns.notification.errors", []string{}, 1)
 				nc.logger.WithFields(logrus.Fields{
 					"account#username": account.NormalizedUsername(),
