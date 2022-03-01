@@ -33,10 +33,11 @@ type Watcher struct {
 	LastNotifiedAt float64
 	Label          string
 
-	DeviceID  int64
-	AccountID int64
-	Type      WatcherType
-	WatcheeID int64
+	DeviceID     int64
+	AccountID    int64
+	Type         WatcherType
+	WatcheeID    int64
+	WatcheeLabel string
 
 	Author    string
 	Subreddit string

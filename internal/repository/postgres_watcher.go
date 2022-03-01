@@ -28,6 +28,8 @@ func (p *postgresWatcherRepository) fetch(ctx context.Context, query string, arg
 	var watchers []domain.Watcher
 	for rows.Next() {
 		var watcher domain.Watcher
+		var subredditLabel, userLabel string
+
 		if err := rows.Scan(
 			&watcher.ID,
 			&watcher.CreatedAt,
@@ -50,9 +52,19 @@ func (p *postgresWatcherRepository) fetch(ctx context.Context, query string, arg
 			&watcher.Account.ID,
 			&watcher.Account.AccessToken,
 			&watcher.Account.RefreshToken,
+			&subredditLabel,
+			&userLabel,
 		); err != nil {
 			return nil, err
 		}
+
+		switch watcher.Type {
+		case domain.SubredditWatcher, domain.TrendingWatcher:
+			watcher.WatcheeLabel = subredditLabel
+		case domain.UserWatcher:
+			watcher.WatcheeLabel = userLabel
+		}
+
 		watchers = append(watchers, watcher)
 	}
 	return watchers, nil
@@ -81,10 +93,14 @@ func (p *postgresWatcherRepository) GetByID(ctx context.Context, id int64) (doma
 			devices.sandbox,
 			accounts.id,
 			accounts.access_token,
-			accounts.refresh_token
+			accounts.refresh_token,
+			subreddits.name AS subreddit_label,
+			users.name AS user_label
 		FROM watchers
 		INNER JOIN devices ON watchers.device_id = devices.id
 		INNER JOIN accounts ON watchers.account_id = accounts.id
+		LEFT JOIN subreddits ON watchers.type IN(0,2) AND watchers.watchee_id = subreddits.id
+		LEFT JOIN users ON watchers.type = 1 AND watchers.watchee_id = users.id
 		WHERE watchers.id = $1`
 
 	watchers, err := p.fetch(ctx, query, id)
@@ -125,6 +141,8 @@ func (p *postgresWatcherRepository) GetByTypeAndWatcheeID(ctx context.Context, t
 		FROM watchers
 		INNER JOIN devices ON watchers.device_id = devices.id
 		INNER JOIN accounts ON watchers.account_id = accounts.id
+		LEFT JOIN subreddits ON watchers.type IN(0,2) AND watchers.watchee_id = subreddits.id
+		LEFT JOIN users ON watchers.type = 1 AND watchers.watchee_id = users.id
 		WHERE watchers.type = $1 AND watchers.watchee_id = $2`
 
 	return p.fetch(ctx, query, typ, id)
@@ -169,6 +187,8 @@ func (p *postgresWatcherRepository) GetByDeviceAPNSTokenAndAccountRedditID(ctx c
 		FROM watchers
 		INNER JOIN accounts ON watchers.account_id = accounts.id
 		INNER JOIN devices ON watchers.device_id = devices.id
+		LEFT JOIN subreddits ON watchers.type IN(0,2) AND watchers.watchee_id = subreddits.id
+		LEFT JOIN users ON watchers.type = 1 AND watchers.watchee_id = users.id
 		WHERE
 			devices.apns_token = $1 AND
 			accounts.account_id = $2`
