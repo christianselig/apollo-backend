@@ -215,15 +215,16 @@ func (a *api) deleteWatcherHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 type watcherItem struct {
-	ID        int64   `json:"id"`
-	CreatedAt float64 `json:"created_at"`
-	Type      string  `json:"type"`
-	Label     string  `json:"label"`
-	Upvotes   int64   `json:"upvotes"`
-	Keyword   string  `json:"keyword"`
-	Flair     string  `json:"flair"`
-	Domain    string  `json:"domain"`
-	Hits      int64   `json:"hits"`
+	ID          int64   `json:"id"`
+	CreatedAt   float64 `json:"created_at"`
+	Type        string  `json:"type"`
+	Label       string  `json:"label"`
+	SourceLabel string  `json:"source_label"`
+	Upvotes     int64   `json:"upvotes"`
+	Keyword     string  `json:"keyword"`
+	Flair       string  `json:"flair"`
+	Domain      string  `json:"domain"`
+	Hits        int64   `json:"hits"`
 }
 
 func (a *api) listWatchersHandler(w http.ResponseWriter, r *http.Request) {
@@ -242,15 +243,16 @@ func (a *api) listWatchersHandler(w http.ResponseWriter, r *http.Request) {
 	wis := make([]watcherItem, len(watchers))
 	for i, watcher := range watchers {
 		wi := watcherItem{
-			ID:        watcher.ID,
-			CreatedAt: watcher.CreatedAt,
-			Type:      watcher.Type.String(),
-			Label:     watcher.Label,
-			Upvotes:   watcher.Upvotes,
-			Keyword:   watcher.Keyword,
-			Flair:     watcher.Flair,
-			Domain:    watcher.Domain,
-			Hits:      watcher.Hits,
+			ID:          watcher.ID,
+			CreatedAt:   watcher.CreatedAt,
+			Type:        watcher.Type.String(),
+			Label:       watcher.Label,
+			SourceLabel: watcher.WatcheeLabel,
+			Upvotes:     watcher.Upvotes,
+			Keyword:     watcher.Keyword,
+			Flair:       watcher.Flair,
+			Domain:      watcher.Domain,
+			Hits:        watcher.Hits,
 		}
 
 		wis[i] = wi
