@@ -239,7 +239,7 @@ func (rac *AuthenticatedClient) markRateLimited(rli *RateLimitingInfo) error {
 		return nil
 	}
 
-	_ = rac.statsd.Incr("reddit.api.ratelimit", nil, 0.1)
+	_ = rac.statsd.Incr("reddit.api.ratelimit", nil, 1.0)
 
 	key := fmt.Sprintf("reddit:%s:ratelimited", rac.redditId)
 	duration := time.Duration(rli.Reset) * time.Second
