@@ -20,8 +20,9 @@ const (
 	SkipRateLimiting       = "<SKIP_RATE_LIMITING>"
 	RequestRemainingBuffer = 50
 
-	RateLimitRemainingHeader = "X-Ratelimit-Remaining"
-	RateLimitResetHeader     = "X-Ratelimit-Reset"
+	RateLimitRemainingHeader = "x-ratelimit-remaining"
+	RateLimitUsedHeader      = "x-ratelimit-used"
+	RateLimitResetHeader     = "x-ratelimit-reset"
 )
 
 type Client struct {
@@ -36,6 +37,7 @@ type Client struct {
 
 type RateLimitingInfo struct {
 	Remaining float64
+	Used      int
 	Reset     int
 	Present   bool
 }
@@ -150,6 +152,7 @@ func (rc *Client) doRequest(r *Request) ([]byte, *RateLimitingInfo, error) {
 	if resp.Header.Get(RateLimitRemainingHeader) != "" {
 		rli.Present = true
 		rli.Remaining, _ = strconv.ParseFloat(resp.Header.Get(RateLimitRemainingHeader), 64)
+		rli.Used, _ = strconv.Atoi(resp.Header.Get(RateLimitUsedHeader))
 		rli.Reset, _ = strconv.Atoi(resp.Header.Get(RateLimitResetHeader))
 	}
 
@@ -243,7 +246,8 @@ func (rac *AuthenticatedClient) markRateLimited(rli *RateLimitingInfo) error {
 
 	key := fmt.Sprintf("reddit:%s:ratelimited", rac.redditId)
 	duration := time.Duration(rli.Reset) * time.Second
-	_, err := rac.redis.SetEX(context.Background(), key, rli.Remaining, duration).Result()
+	info := fmt.Sprintf("%+v", *rli)
+	_, err := rac.redis.SetEX(context.Background(), key, info, duration).Result()
 	return err
 }
 
