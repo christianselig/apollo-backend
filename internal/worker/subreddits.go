@@ -47,6 +47,7 @@ func NewSubredditsWorker(logger *logrus.Logger, statsd *statsd.Client, db *pgxpo
 		os.Getenv("REDDIT_CLIENT_ID"),
 		os.Getenv("REDDIT_CLIENT_SECRET"),
 		statsd,
+		redis,
 		consumers,
 	)
 
@@ -199,7 +200,7 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 		watcher := watchers[i]
 
 		acc, _ := sc.accountRepo.GetByID(ctx, watcher.AccountID)
-		rac := sc.reddit.NewAuthenticatedClient(acc.RefreshToken, acc.AccessToken)
+		rac := sc.reddit.NewAuthenticatedClient(acc.AccountID, acc.RefreshToken, acc.AccessToken)
 
 		sps, err := rac.SubredditNew(
 			subreddit.Name,
@@ -264,7 +265,7 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 		watcher := watchers[i]
 
 		acc, _ := sc.accountRepo.GetByID(ctx, watcher.AccountID)
-		rac := sc.reddit.NewAuthenticatedClient(acc.RefreshToken, acc.AccessToken)
+		rac := sc.reddit.NewAuthenticatedClient(acc.AccountID, acc.RefreshToken, acc.AccessToken)
 		sps, err := rac.SubredditHot(
 			subreddit.Name,
 			reddit.WithQuery("limit", "100"),

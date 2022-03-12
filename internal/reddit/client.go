@@ -1,16 +1,24 @@
 package reddit
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptrace"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-go/statsd"
+	"github.com/go-redis/redis/v8"
 	"github.com/valyala/fastjson"
+)
+
+const (
+	SkipRateLimiting       = "<SKIP_RATE_LIMITING>"
+	RequestRemainingBuffer = 50
 )
 
 type Client struct {
@@ -20,6 +28,7 @@ type Client struct {
 	tracer *httptrace.ClientTrace
 	pool   *fastjson.ParserPool
 	statsd statsd.ClientInterface
+	redis  *redis.Client
 }
 
 var backoffSchedule = []time.Duration{
@@ -51,7 +60,7 @@ func PostIDFromContext(context string) string {
 	return ""
 }
 
-func NewClient(id, secret string, statsd statsd.ClientInterface, connLimit int) *Client {
+func NewClient(id, secret string, statsd statsd.ClientInterface, redis *redis.Client, connLimit int) *Client {
 	tracer := &httptrace.ClientTrace{
 		GotConn: func(info httptrace.GotConnInfo) {
 			if info.Reused {
@@ -84,25 +93,30 @@ func NewClient(id, secret string, statsd statsd.ClientInterface, connLimit int) 
 		tracer,
 		pool,
 		statsd,
+		redis,
 	}
 }
 
 type AuthenticatedClient struct {
 	*Client
 
+	redditId     string
 	refreshToken string
 	accessToken  string
-	expiry       *time.Time
 }
 
-func (rc *Client) NewAuthenticatedClient(refreshToken, accessToken string) *AuthenticatedClient {
-	return &AuthenticatedClient{rc, refreshToken, accessToken, nil}
+func (rc *Client) NewAuthenticatedClient(redditId, refreshToken, accessToken string) *AuthenticatedClient {
+	if redditId == "" {
+		panic("requires a redditId")
+	}
+
+	return &AuthenticatedClient{rc, redditId, refreshToken, accessToken}
 }
 
-func (rc *Client) doRequest(r *Request) ([]byte, error) {
+func (rc *Client) doRequest(r *Request) ([]byte, int, int, error) {
 	req, err := r.HTTPRequest()
 	if err != nil {
-		return nil, err
+		return nil, 0, 0, err
 	}
 
 	req = req.WithContext(httptrace.WithClientTrace(req.Context(), rc.tracer))
@@ -117,34 +131,53 @@ func (rc *Client) doRequest(r *Request) ([]byte, error) {
 	if err != nil {
 		_ = rc.statsd.Incr("reddit.api.errors", r.tags, 0.1)
 		if strings.Contains(err.Error(), "http2: timeout awaiting response headers") {
-			return nil, ErrTimeout
+			return nil, 0, 0, ErrTimeout
 		}
-		return nil, err
+		return nil, 0, 0, err
 	}
 	defer resp.Body.Close()
 
+	remaining, err := strconv.Atoi(resp.Header.Get("x-ratelimit-remaining"))
+	if err != nil {
+		remaining = 0
+	}
+
+	reset, err := strconv.Atoi(resp.Header.Get("x-ratelimit-reset"))
+	if err != nil {
+		reset = 0
+	}
+
 	if resp.StatusCode != 200 {
 		_ = rc.statsd.Incr("reddit.api.errors", r.tags, 0.1)
-		return nil, ServerError{resp.StatusCode}
+		return nil, remaining, reset, ServerError{resp.StatusCode}
 	}
 
 	bb, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		_ = rc.statsd.Incr("reddit.api.errors", r.tags, 0.1)
-		return nil, err
+		return nil, remaining, reset, err
 	}
-	return bb, nil
+	return bb, remaining, reset, nil
 }
 
 func (rac *AuthenticatedClient) request(r *Request, rh ResponseHandler, empty interface{}) (interface{}, error) {
-	bb, err := rac.doRequest(r)
+	if rl, err := rac.isRateLimited(); rl || err != nil {
+		return nil, ErrRateLimited
+	}
+
+	bb, remaining, reset, err := rac.doRequest(r)
+
+	if remaining <= RequestRemainingBuffer {
+		rac.markRateLimited(time.Duration(reset) * time.Second)
+	}
+
 	if err != nil && r.retry {
 		for _, backoff := range backoffSchedule {
 			done := make(chan struct{})
 
 			time.AfterFunc(backoff, func() {
 				_ = rac.statsd.Incr("reddit.api.retries", r.tags, 0.1)
-				bb, err = rac.doRequest(r)
+				bb, remaining, reset, err = rac.doRequest(r)
 				done <- struct{}{}
 			})
 
@@ -177,6 +210,31 @@ func (rac *AuthenticatedClient) request(r *Request, rh ResponseHandler, empty in
 	}
 
 	return rh(val), nil
+}
+
+func (rac *AuthenticatedClient) isRateLimited() (bool, error) {
+	if rac.redditId == SkipRateLimiting {
+		return false, nil
+	}
+
+	key := fmt.Sprintf("reddit:%s:ratelimited", rac.redditId)
+	res, err := rac.redis.Exists(context.Background(), key).Result()
+
+	if err != nil {
+		return false, err
+	}
+
+	return res > 0, nil
+}
+
+func (rac *AuthenticatedClient) markRateLimited(duration time.Duration) error {
+	if rac.redditId == SkipRateLimiting {
+		return ErrRequiresRedditId
+	}
+
+	key := fmt.Sprintf("reddit:%s:ratelimited", rac.redditId)
+	_, err := rac.redis.SetEX(context.Background(), key, true, duration).Result()
+	return err
 }
 
 func (rac *AuthenticatedClient) RefreshTokens() (*RefreshTokenResponse, error) {

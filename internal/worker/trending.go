@@ -45,6 +45,7 @@ func NewTrendingWorker(logger *logrus.Logger, statsd *statsd.Client, db *pgxpool
 		os.Getenv("REDDIT_CLIENT_ID"),
 		os.Getenv("REDDIT_CLIENT_SECRET"),
 		statsd,
+		redis,
 		consumers,
 	)
 
@@ -176,7 +177,7 @@ func (tc *trendingConsumer) Consume(delivery rmq.Delivery) {
 	// Grab last month's top posts so we calculate a trending average
 	i := rand.Intn(len(watchers))
 	watcher := watchers[i]
-	rac := tc.reddit.NewAuthenticatedClient(watcher.Account.RefreshToken, watcher.Account.AccessToken)
+	rac := tc.reddit.NewAuthenticatedClient(watcher.Account.AccountID, watcher.Account.RefreshToken, watcher.Account.AccessToken)
 
 	tps, err := rac.SubredditTop(subreddit.Name, reddit.WithQuery("t", "week"))
 	if err != nil {
@@ -217,7 +218,7 @@ func (tc *trendingConsumer) Consume(delivery rmq.Delivery) {
 	// Grab hot posts and filter out anything that's > 2 days old
 	i = rand.Intn(len(watchers))
 	watcher = watchers[i]
-	rac = tc.reddit.NewAuthenticatedClient(watcher.Account.RefreshToken, watcher.Account.AccessToken)
+	rac = tc.reddit.NewAuthenticatedClient(watcher.Account.AccountID, watcher.Account.RefreshToken, watcher.Account.AccessToken)
 	hps, err := rac.SubredditHot(subreddit.Name)
 	if err != nil {
 		tc.logger.WithFields(logrus.Fields{

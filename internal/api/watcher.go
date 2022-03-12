@@ -7,8 +7,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/christianselig/apollo-backend/internal/domain"
+	validation "github.com/go-ozzo/ozzo-validation/v4"
 	"github.com/gorilla/mux"
+
+	"github.com/christianselig/apollo-backend/internal/domain"
 )
 
 type watcherCriteria struct {
@@ -28,6 +30,14 @@ type createWatcherRequest struct {
 	Criteria  watcherCriteria
 }
 
+func (cwr *createWatcherRequest) Validate() error {
+	return validation.ValidateStruct(cwr,
+		validation.Field(&cwr.Type, validation.Required),
+		validation.Field(&cwr.User, validation.Required.When(cwr.Type == "user")),
+		validation.Field(&cwr.Subreddit, validation.Required.When(cwr.Type == "subreddit" || cwr.Type == "trending")),
+	)
+}
+
 type watcherCreatedResponse struct {
 	ID int64 `json:"id"`
 }
@@ -44,6 +54,11 @@ func (a *api) createWatcherHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := json.NewDecoder(r.Body).Decode(cwr); err != nil {
 		a.errorResponse(w, r, 500, err.Error())
+		return
+	}
+
+	if err := cwr.Validate(); err != nil {
+		a.errorResponse(w, r, 422, err.Error())
 		return
 	}
 
@@ -73,7 +88,7 @@ func (a *api) createWatcherHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ac := a.reddit.NewAuthenticatedClient(account.RefreshToken, account.AccessToken)
+	ac := a.reddit.NewAuthenticatedClient(account.AccountID, account.RefreshToken, account.AccessToken)
 
 	watcher := domain.Watcher{
 		Label:     cwr.Label,
@@ -220,11 +235,12 @@ type watcherItem struct {
 	Type        string  `json:"type"`
 	Label       string  `json:"label"`
 	SourceLabel string  `json:"source_label"`
-	Upvotes     int64   `json:"upvotes"`
-	Keyword     string  `json:"keyword"`
-	Flair       string  `json:"flair"`
-	Domain      string  `json:"domain"`
+	Upvotes     *int64  `json:"upvotes,omitempty"`
+	Keyword     string  `json:"keyword,omitempty"`
+	Flair       string  `json:"flair,omitempty"`
+	Domain      string  `json:"domain,omitempty"`
 	Hits        int64   `json:"hits"`
+	Author      string  `json:"author,omitempty"`
 }
 
 func (a *api) listWatchersHandler(w http.ResponseWriter, r *http.Request) {
@@ -248,11 +264,15 @@ func (a *api) listWatchersHandler(w http.ResponseWriter, r *http.Request) {
 			Type:        watcher.Type.String(),
 			Label:       watcher.Label,
 			SourceLabel: watcher.WatcheeLabel,
-			Upvotes:     watcher.Upvotes,
 			Keyword:     watcher.Keyword,
 			Flair:       watcher.Flair,
 			Domain:      watcher.Domain,
 			Hits:        watcher.Hits,
+			Author:      watcher.Author,
+		}
+
+		if watcher.Upvotes != 0 {
+			wi.Upvotes = &watcher.Upvotes
 		}
 
 		wis[i] = wi

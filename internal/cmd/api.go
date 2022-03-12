@@ -44,7 +44,7 @@ func APICmd(ctx context.Context) *cobra.Command {
 			}
 			defer redis.Close()
 
-			api := api.NewAPI(ctx, logger, statsd, db)
+			api := api.NewAPI(ctx, logger, statsd, redis, db)
 			srv := api.Server(port)
 
 			go func() { _ = srv.ListenAndServe() }()

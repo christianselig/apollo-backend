@@ -11,10 +11,12 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/christianselig/apollo-backend/internal/domain"
+	"github.com/christianselig/apollo-backend/internal/reddit"
 )
 
 type accountNotificationsRequest struct {
-	Enabled bool
+	InboxNotifications   bool `json:"inbox_notifications"`
+	WatcherNotifications bool `json:"watcher_notifications"`
 }
 
 func (a *api) notificationsAccountHandler(w http.ResponseWriter, r *http.Request) {
@@ -42,12 +44,43 @@ func (a *api) notificationsAccountHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if err := a.deviceRepo.SetNotifiable(ctx, &dev, &acct, anr.Enabled); err != nil {
+	if err := a.deviceRepo.SetNotifiable(ctx, &dev, &acct, anr.InboxNotifications, anr.WatcherNotifications); err != nil {
 		a.errorResponse(w, r, 500, err.Error())
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
+}
+
+func (a *api) getNotificationsAccountHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	apns := vars["apns"]
+	rid := vars["redditID"]
+
+	ctx := context.Background()
+
+	dev, err := a.deviceRepo.GetByAPNSToken(ctx, apns)
+	if err != nil {
+		a.errorResponse(w, r, 500, err.Error())
+		return
+	}
+
+	acct, err := a.accountRepo.GetByRedditID(ctx, rid)
+	if err != nil {
+		a.errorResponse(w, r, 500, err.Error())
+		return
+	}
+
+	inbox, watchers, err := a.deviceRepo.GetNotifiable(ctx, &dev, &acct)
+	if err != nil {
+		a.errorResponse(w, r, 500, err.Error())
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+
+	an := &accountNotificationsRequest{InboxNotifications: inbox, WatcherNotifications: watchers}
+	_ = json.NewEncoder(w).Encode(an)
 }
 
 func (a *api) disassociateAccountHandler(w http.ResponseWriter, r *http.Request) {
@@ -108,7 +141,7 @@ func (a *api) upsertAccountsHandler(w http.ResponseWriter, r *http.Request) {
 	for _, acc := range raccs {
 		delete(accsMap, acc.NormalizedUsername())
 
-		ac := a.reddit.NewAuthenticatedClient(acc.RefreshToken, acc.AccessToken)
+		ac := a.reddit.NewAuthenticatedClient(reddit.SkipRateLimiting, acc.RefreshToken, acc.AccessToken)
 		tokens, err := ac.RefreshTokens()
 		if err != nil {
 			a.errorResponse(w, r, 422, err.Error())
@@ -120,7 +153,7 @@ func (a *api) upsertAccountsHandler(w http.ResponseWriter, r *http.Request) {
 		acc.RefreshToken = tokens.RefreshToken
 		acc.AccessToken = tokens.AccessToken
 
-		ac = a.reddit.NewAuthenticatedClient(acc.RefreshToken, acc.AccessToken)
+		ac = a.reddit.NewAuthenticatedClient(reddit.SkipRateLimiting, acc.RefreshToken, acc.AccessToken)
 		me, err := ac.Me()
 
 		if err != nil {
@@ -167,7 +200,7 @@ func (a *api) upsertAccountHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Here we check whether the account is supplied with a valid token.
-	ac := a.reddit.NewAuthenticatedClient(acct.RefreshToken, acct.AccessToken)
+	ac := a.reddit.NewAuthenticatedClient(reddit.SkipRateLimiting, acct.RefreshToken, acct.AccessToken)
 	tokens, err := ac.RefreshTokens()
 	if err != nil {
 		a.logger.WithFields(logrus.Fields{
@@ -182,7 +215,7 @@ func (a *api) upsertAccountHandler(w http.ResponseWriter, r *http.Request) {
 	acct.RefreshToken = tokens.RefreshToken
 	acct.AccessToken = tokens.AccessToken
 
-	ac = a.reddit.NewAuthenticatedClient(acct.RefreshToken, acct.AccessToken)
+	ac = a.reddit.NewAuthenticatedClient(reddit.SkipRateLimiting, acct.RefreshToken, acct.AccessToken)
 	me, err := ac.Me()
 
 	if err != nil {
