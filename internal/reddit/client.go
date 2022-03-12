@@ -40,6 +40,7 @@ type RateLimitingInfo struct {
 	Used      int
 	Reset     int
 	Present   bool
+	Timestamp string
 }
 
 var backoffSchedule = []time.Duration{
@@ -154,6 +155,7 @@ func (rc *Client) doRequest(r *Request) ([]byte, *RateLimitingInfo, error) {
 		rli.Remaining, _ = strconv.ParseFloat(resp.Header.Get(RateLimitRemainingHeader), 64)
 		rli.Used, _ = strconv.Atoi(resp.Header.Get(RateLimitUsedHeader))
 		rli.Reset, _ = strconv.Atoi(resp.Header.Get(RateLimitResetHeader))
+		rli.Timestamp = time.Now().String()
 	}
 
 	if resp.StatusCode != 200 {
@@ -257,6 +259,14 @@ func (rac *AuthenticatedClient) markRateLimited(rli *RateLimitingInfo) error {
 	key := fmt.Sprintf("reddit:%s:ratelimited", rac.redditId)
 	duration := time.Duration(rli.Reset) * time.Second
 	info := fmt.Sprintf("%+v", *rli)
+
+	if rli.Used > 2000 {
+		_, err := rac.redis.HSet(context.Background(), "reddit:ratelimited:crazy", rac.redditId, info).Result()
+		if err != nil {
+			return err
+		}
+	}
+
 	_, err := rac.redis.SetEX(context.Background(), key, info, duration).Result()
 	return err
 }
