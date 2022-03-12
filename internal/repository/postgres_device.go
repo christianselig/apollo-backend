@@ -84,12 +84,22 @@ func (p *postgresDeviceRepository) GetByAccountID(ctx context.Context, id int64)
 	return p.fetch(ctx, query, id)
 }
 
-func (p *postgresDeviceRepository) GetNotifiableByAccountID(ctx context.Context, id int64) ([]domain.Device, error) {
+func (p *postgresDeviceRepository) GetInboxNotifiableByAccountID(ctx context.Context, id int64) ([]domain.Device, error) {
 	query := `
 		SELECT devices.id, apns_token, sandbox, active_until
 		FROM devices
 		INNER JOIN devices_accounts ON devices.id = devices_accounts.device_id
-		WHERE devices_accounts.account_id = $1 AND devices_accounts.notifiable = TRUE`
+		WHERE devices_accounts.account_id = $1 AND devices_accounts.inbox_notifiable = TRUE`
+
+	return p.fetch(ctx, query, id)
+}
+
+func (p *postgresDeviceRepository) GetWatcherNotifiableByAccountID(ctx context.Context, id int64) ([]domain.Device, error) {
+	query := `
+		SELECT devices.id, apns_token, sandbox, active_until
+		FROM devices
+		INNER JOIN devices_accounts ON devices.id = devices_accounts.device_id
+		WHERE devices_accounts.account_id = $1 AND devices_accounts.watcher_notifiable = TRUE`
 
 	return p.fetch(ctx, query, id)
 }
@@ -160,19 +170,43 @@ func (p *postgresDeviceRepository) Delete(ctx context.Context, token string) err
 	return err
 }
 
-func (p *postgresDeviceRepository) SetNotifiable(ctx context.Context, dev *domain.Device, acct *domain.Account, notifiable bool) error {
+func (p *postgresDeviceRepository) SetNotifiable(ctx context.Context, dev *domain.Device, acct *domain.Account, inbox, watcher bool) error {
 	query := `
 		UPDATE devices_accounts
-		SET notifiable = $1
-		WHERE device_id = $2 AND account_id = $3`
+		SET
+			inbox_notifiable = $1,
+			watcher_notifiable = $2,
+		WHERE device_id = $3 AND account_id = $4`
 
-	res, err := p.pool.Exec(ctx, query, notifiable, dev.ID, acct.ID)
+	res, err := p.pool.Exec(ctx, query, inbox, watcher, dev.ID, acct.ID)
 
 	if res.RowsAffected() != 1 {
 		return fmt.Errorf("weird behaviour, total rows affected: %d", res.RowsAffected())
 	}
 	return err
 
+}
+
+func (p *postgresDeviceRepository) GetNotifiable(ctx context.Context, dev *domain.Device, acct *domain.Account) (bool, bool, error) {
+	query := `
+		SELECT inbox_notifiable, watcher_notifiable
+		FROM devices_accounts
+		WHERE device_id = $1 AND account_id = $2`
+
+	rows, err := p.pool.Query(ctx, query, dev.ID, acct.ID)
+	if err != nil {
+		return false, false, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var inbox, watcher bool
+		if err := rows.Scan(&inbox, &watcher); err != nil {
+			return false, false, err
+		}
+		return inbox, watcher, nil
+	}
+
+	return false, false, domain.ErrNotFound
 }
 
 func (p *postgresDeviceRepository) PruneStale(ctx context.Context, before int64) (int64, error) {

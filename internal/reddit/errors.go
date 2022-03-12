@@ -10,7 +10,7 @@ type ServerError struct {
 }
 
 func (se ServerError) Error() string {
-	return fmt.Sprintf("errror from reddit: %d", se.StatusCode)
+	return fmt.Sprintf("error from reddit: %d", se.StatusCode)
 }
 
 var (
@@ -18,4 +18,8 @@ var (
 	ErrOauthRevoked = errors.New("oauth revoked")
 	// ErrTimeout .
 	ErrTimeout = errors.New("timeout")
+	// ErrRateLimited .
+	ErrRateLimited = errors.New("rate limited")
+	// ErrRequiresRedditId .
+	ErrRequiresRedditId = errors.New("requires reddit id")
 )

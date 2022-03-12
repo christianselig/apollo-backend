@@ -3,11 +3,13 @@ package api
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"time"
 
 	"github.com/DataDog/datadog-go/statsd"
+	"github.com/go-redis/redis/v8"
 	"github.com/gorilla/mux"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/sideshow/apns2/token"
@@ -31,11 +33,12 @@ type api struct {
 	userRepo      domain.UserRepository
 }
 
-func NewAPI(ctx context.Context, logger *logrus.Logger, statsd *statsd.Client, pool *pgxpool.Pool) *api {
+func NewAPI(ctx context.Context, logger *logrus.Logger, statsd *statsd.Client, redis *redis.Client, pool *pgxpool.Pool) *api {
 	reddit := reddit.NewClient(
 		os.Getenv("REDDIT_CLIENT_ID"),
 		os.Getenv("REDDIT_CLIENT_SECRET"),
 		statsd,
+		redis,
 		16,
 	)
 
@@ -93,6 +96,7 @@ func (a *api) Routes() *mux.Router {
 	r.HandleFunc("/v1/device/{apns}/accounts", a.upsertAccountsHandler).Methods("POST")
 	r.HandleFunc("/v1/device/{apns}/account/{redditID}", a.disassociateAccountHandler).Methods("DELETE")
 	r.HandleFunc("/v1/device/{apns}/account/{redditID}/notifications", a.notificationsAccountHandler).Methods("PATCH")
+	r.HandleFunc("/v1/device/{apns}/account/{redditID}/notifications", a.getNotificationsAccountHandler).Methods("GET")
 
 	r.HandleFunc("/v1/device/{apns}/account/{redditID}/watcher", a.createWatcherHandler).Methods("POST")
 	r.HandleFunc("/v1/device/{apns}/account/{redditID}/watcher/{watcherID}", a.deleteWatcherHandler).Methods("DELETE")
@@ -142,10 +146,19 @@ func (a *api) loggingMiddleware(next http.Handler) http.Handler {
 		// Call the next handler, which can be another middleware in the chain, or the final handler.
 		next.ServeHTTP(lrw, r)
 
+		remoteAddr := r.Header.Get("X-Forwarded-For")
+		if remoteAddr == "" {
+			if ip, _, err := net.SplitHostPort(r.RemoteAddr); err != nil {
+				remoteAddr = "unknown"
+			} else {
+				remoteAddr = ip
+			}
+		}
+
 		logEntry := a.logger.WithFields(logrus.Fields{
 			"duration":       time.Since(start).Milliseconds(),
 			"method":         r.Method,
-			"remote#addr":    r.RemoteAddr,
+			"remote#addr":    remoteAddr,
 			"response#bytes": lrw.bytes,
 			"status":         lrw.statusCode,
 			"uri":            r.RequestURI,

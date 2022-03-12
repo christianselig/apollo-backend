@@ -47,6 +47,7 @@ func NewNotificationsWorker(logger *logrus.Logger, statsd *statsd.Client, db *pg
 		os.Getenv("REDDIT_CLIENT_ID"),
 		os.Getenv("REDDIT_CLIENT_SECRET"),
 		statsd,
+		redis,
 		consumers,
 	)
 
@@ -182,7 +183,7 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 		return
 	}
 
-	rac := nc.reddit.NewAuthenticatedClient(account.RefreshToken, account.AccessToken)
+	rac := nc.reddit.NewAuthenticatedClient(account.AccountID, account.RefreshToken, account.AccessToken)
 	if account.ExpiresAt < int64(now) {
 		nc.logger.WithFields(logrus.Fields{
 			"account#username": account.NormalizedUsername(),
@@ -215,7 +216,7 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 		account.ExpiresAt = int64(now + 3540)
 
 		// Refresh client
-		rac = nc.reddit.NewAuthenticatedClient(tokens.RefreshToken, tokens.AccessToken)
+		rac = nc.reddit.NewAuthenticatedClient(account.AccountID, tokens.RefreshToken, tokens.AccessToken)
 
 		if err = nc.accountRepo.Update(ctx, &account); err != nil {
 			nc.logger.WithFields(logrus.Fields{
@@ -304,7 +305,7 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 		return
 	}
 
-	devices, err := nc.deviceRepo.GetNotifiableByAccountID(ctx, account.ID)
+	devices, err := nc.deviceRepo.GetInboxNotifiableByAccountID(ctx, account.ID)
 	if err != nil {
 		nc.logger.WithFields(logrus.Fields{
 			"account#username": account.NormalizedUsername(),

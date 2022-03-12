@@ -46,6 +46,7 @@ func NewUsersWorker(logger *logrus.Logger, statsd *statsd.Client, db *pgxpool.Po
 		os.Getenv("REDDIT_CLIENT_ID"),
 		os.Getenv("REDDIT_CLIENT_SECRET"),
 		statsd,
+		redis,
 		consumers,
 	)
 
@@ -180,7 +181,7 @@ func (uc *usersConsumer) Consume(delivery rmq.Delivery) {
 	watcher := watchers[i]
 
 	acc, _ := uc.accountRepo.GetByID(ctx, watcher.AccountID)
-	rac := uc.reddit.NewAuthenticatedClient(acc.RefreshToken, acc.AccessToken)
+	rac := uc.reddit.NewAuthenticatedClient(acc.AccountID, acc.RefreshToken, acc.AccessToken)
 
 	ru, err := rac.UserAbout(user.Name)
 	if err != nil {

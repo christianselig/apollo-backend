@@ -35,6 +35,7 @@ func NewStuckNotificationsWorker(logger *logrus.Logger, statsd *statsd.Client, d
 		os.Getenv("REDDIT_CLIENT_ID"),
 		os.Getenv("REDDIT_CLIENT_SECRET"),
 		statsd,
+		redis,
 		consumers,
 	)
 
@@ -132,7 +133,7 @@ func (snc *stuckNotificationsConsumer) Consume(delivery rmq.Delivery) {
 		return
 	}
 
-	rac := snc.reddit.NewAuthenticatedClient(account.RefreshToken, account.AccessToken)
+	rac := snc.reddit.NewAuthenticatedClient(account.AccountID, account.RefreshToken, account.AccessToken)
 
 	snc.logger.WithFields(logrus.Fields{
 		"account#username": account.NormalizedUsername(),
