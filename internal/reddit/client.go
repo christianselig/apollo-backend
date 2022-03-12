@@ -174,6 +174,7 @@ func (rac *AuthenticatedClient) request(r *Request, rh ResponseHandler, empty in
 		return nil, ErrRateLimited
 	}
 
+	rac.logRequest()
 	bb, rli, err := rac.doRequest(r)
 
 	if err != nil && r.retry {
@@ -182,6 +183,7 @@ func (rac *AuthenticatedClient) request(r *Request, rh ResponseHandler, empty in
 
 			time.AfterFunc(backoff, func() {
 				_ = rac.statsd.Incr("reddit.api.retries", r.tags, 0.1)
+				rac.logRequest()
 				bb, rli, err = rac.doRequest(r)
 				done <- struct{}{}
 			})
@@ -217,6 +219,14 @@ func (rac *AuthenticatedClient) request(r *Request, rh ResponseHandler, empty in
 	}
 
 	return rh(val), nil
+}
+
+func (rac *AuthenticatedClient) logRequest() error {
+	if rac.redditId == SkipRateLimiting {
+		return nil
+	}
+
+	return rac.redis.HIncrBy(context.Background(), "reddit:requests", rac.redditId, 1).Err()
 }
 
 func (rac *AuthenticatedClient) isRateLimited() bool {
