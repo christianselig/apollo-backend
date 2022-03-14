@@ -51,6 +51,7 @@ func (r *Request) HTTPRequest() (*http.Request, error) {
 	req, err := http.NewRequest(r.method, r.url, strings.NewReader(r.body.Encode()))
 	req.URL.RawQuery = r.query.Encode()
 
+	req.Header.Add("Accept", "application/json")
 	req.Header.Add("User-Agent", userAgent)
 
 	if r.token != "" {
