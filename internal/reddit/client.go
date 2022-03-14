@@ -319,7 +319,7 @@ func (rac *AuthenticatedClient) AboutInfo(fullname string, opts ...RequestOption
 }
 
 func (rac *AuthenticatedClient) UserPosts(user string, opts ...RequestOption) (*ListingResponse, error) {
-	url := fmt.Sprintf("https://oauth.reddit.com/u/%s/submitted.json", user)
+	url := fmt.Sprintf("https://oauth.reddit.com/u/%s/submitted", user)
 	opts = append([]RequestOption{
 		WithMethod("GET"),
 		WithToken(rac.accessToken),
@@ -336,7 +336,7 @@ func (rac *AuthenticatedClient) UserPosts(user string, opts ...RequestOption) (*
 }
 
 func (rac *AuthenticatedClient) UserAbout(user string, opts ...RequestOption) (*UserResponse, error) {
-	url := fmt.Sprintf("https://oauth.reddit.com/u/%s/about.json", user)
+	url := fmt.Sprintf("https://oauth.reddit.com/u/%s/about", user)
 	opts = append([]RequestOption{
 		WithMethod("GET"),
 		WithToken(rac.accessToken),
@@ -354,7 +354,7 @@ func (rac *AuthenticatedClient) UserAbout(user string, opts ...RequestOption) (*
 }
 
 func (rac *AuthenticatedClient) SubredditAbout(subreddit string, opts ...RequestOption) (*SubredditResponse, error) {
-	url := fmt.Sprintf("https://oauth.reddit.com/r/%s/about.json", subreddit)
+	url := fmt.Sprintf("https://oauth.reddit.com/r/%s/about", subreddit)
 	opts = append([]RequestOption{
 		WithMethod("GET"),
 		WithToken(rac.accessToken),
@@ -371,7 +371,7 @@ func (rac *AuthenticatedClient) SubredditAbout(subreddit string, opts ...Request
 }
 
 func (rac *AuthenticatedClient) subredditPosts(subreddit string, sort string, opts ...RequestOption) (*ListingResponse, error) {
-	url := fmt.Sprintf("https://oauth.reddit.com/r/%s/%s.json", subreddit, sort)
+	url := fmt.Sprintf("https://oauth.reddit.com/r/%s/%s", subreddit, sort)
 	opts = append([]RequestOption{
 		WithMethod("GET"),
 		WithToken(rac.accessToken),
@@ -404,7 +404,7 @@ func (rac *AuthenticatedClient) MessageInbox(opts ...RequestOption) (*ListingRes
 		WithTags([]string{"url:/api/v1/message/inbox"}),
 		WithMethod("GET"),
 		WithToken(rac.accessToken),
-		WithURL("https://oauth.reddit.com/message/inbox.json"),
+		WithURL("https://oauth.reddit.com/message/inbox"),
 		WithEmptyResponseBytes(122),
 	}, opts...)
 	req := NewRequest(opts...)
@@ -428,7 +428,7 @@ func (rac *AuthenticatedClient) MessageUnread(opts ...RequestOption) (*ListingRe
 		WithTags([]string{"url:/api/v1/message/unread"}),
 		WithMethod("GET"),
 		WithToken(rac.accessToken),
-		WithURL("https://oauth.reddit.com/message/unread.json"),
+		WithURL("https://oauth.reddit.com/message/unread"),
 		WithEmptyResponseBytes(122),
 	}, opts...)
 
