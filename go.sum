@@ -48,8 +48,8 @@ github.com/Microsoft/go-winio v0.5.0/go.mod h1:JPGBdM1cNvN/6ISo+n8V5iA4v8pBzdOpz
 github.com/OneOfOne/xxhash v1.2.2/go.mod h1:HSdplMjZKSmBqAxg5vPj2TmRDmfkzw+cTzAElWljhcU=
 github.com/StackExchange/wmi v1.2.1/go.mod h1:rcmrprowKIVzvc+NUiLncP2uuArMWLCbu9SBzvHz7e8=
 github.com/VividCortex/gohistogram v1.0.0/go.mod h1:Pf5mBqqDxYaXu3hDrrU+w6nw50o/4+TcAqDqk/vUH7g=
-github.com/adjust/rmq/v4 v4.0.1 h1:UFGfZvph7qBl5x1XbZHnQfzUzzRPfWUMtP97AeRY6d0=
-github.com/adjust/rmq/v4 v4.0.1/go.mod h1:XSfjmFqSVBVA/tptvMEt/8BW/uGM1w88ZvUIt+HIRok=
+github.com/adjust/rmq/v4 v4.0.5 h1:VU3Xa9qbkIti7pTUiZE88qo3V4coMo3fmgO04l1aPro=
+github.com/adjust/rmq/v4 v4.0.5/go.mod h1:XSfjmFqSVBVA/tptvMEt/8BW/uGM1w88ZvUIt+HIRok=
 github.com/antihax/optional v1.0.0/go.mod h1:uupD/76wgC+ih3iEmQUL+0Ugr19nfwCT1kdvxnR2qWY=
 github.com/armon/circbuf v0.0.0-20150827004946-bbbad097214e/go.mod h1:3U/XgcO3hCbHZ8TKRvWD2dDTCfh9M9ya+I9JpbB7O8o=
 github.com/armon/go-metrics v0.0.0-20180917152333-f0300d1749da/go.mod h1:Q73ZrmVTwzkszR9V5SSuryQ31EELlFMUz1kKyl939pY=
