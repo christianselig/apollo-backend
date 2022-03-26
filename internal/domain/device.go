@@ -35,8 +35,8 @@ type DeviceRepository interface {
 	Update(ctx context.Context, dev *Device) error
 	Create(ctx context.Context, dev *Device) error
 	Delete(ctx context.Context, token string) error
-	SetNotifiable(ctx context.Context, dev *Device, acct *Account, inbox, watcher bool) error
-	GetNotifiable(ctx context.Context, dev *Device, acct *Account) (bool, bool, error)
+	SetNotifiable(ctx context.Context, dev *Device, acct *Account, inbox, watcher, global bool) error
+	GetNotifiable(ctx context.Context, dev *Device, acct *Account) (bool, bool, bool, error)
 
 	PruneStale(ctx context.Context, before int64) (int64, error)
 }
