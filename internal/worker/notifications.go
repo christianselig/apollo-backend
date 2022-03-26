@@ -314,6 +314,13 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 		return
 	}
 
+	if len(devices) == 0 {
+		nc.logger.WithFields(logrus.Fields{
+			"account#username": account.NormalizedUsername(),
+		}).Debug("no notifiable devices, finishing job")
+		return
+	}
+
 	// Iterate backwards so we notify from older to newer
 	for i := msgs.Count - 1; i >= 0; i-- {
 		msg := msgs.Children[i]

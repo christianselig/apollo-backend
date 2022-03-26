@@ -90,7 +90,9 @@ func (p *postgresDeviceRepository) GetInboxNotifiableByAccountID(ctx context.Con
 		SELECT devices.id, apns_token, sandbox, active_until, grace_period_until
 		FROM devices
 		INNER JOIN devices_accounts ON devices.id = devices_accounts.device_id
-		WHERE devices_accounts.account_id = $1 AND devices_accounts.inbox_notifiable = TRUE`
+		WHERE devices_accounts.account_id = $1 AND
+		devices_accounts.inbox_notifiable = TRUE AND
+		grace_period_until > NOW()`
 
 	return p.fetch(ctx, query, id)
 }
@@ -100,7 +102,9 @@ func (p *postgresDeviceRepository) GetWatcherNotifiableByAccountID(ctx context.C
 		SELECT devices.id, apns_token, sandbox, active_until, grace_period_until
 		FROM devices
 		INNER JOIN devices_accounts ON devices.id = devices_accounts.device_id
-		WHERE devices_accounts.account_id = $1 AND devices_accounts.watcher_notifiable = TRUE`
+		WHERE devices_accounts.account_id = $1 AND
+		devices_accounts.watcher_notifiable = TRUE AND
+		grace_period_until > NOW()`
 
 	return p.fetch(ctx, query, id)
 }
