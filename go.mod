@@ -4,7 +4,7 @@ module github.com/christianselig/apollo-backend
 go 1.16
 
 require (
-	github.com/DataDog/datadog-go v4.8.2+incompatible
+	github.com/DataDog/datadog-go v4.8.3+incompatible
 	github.com/Microsoft/go-winio v0.5.0 // indirect
 	github.com/adjust/rmq/v4 v4.0.1
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible // indirect
