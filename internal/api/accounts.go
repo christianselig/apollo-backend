@@ -17,6 +17,7 @@ import (
 type accountNotificationsRequest struct {
 	InboxNotifications   bool `json:"inbox_notifications"`
 	WatcherNotifications bool `json:"watcher_notifications"`
+	GlobalMute           bool `json:"global_mute"`
 }
 
 func (a *api) notificationsAccountHandler(w http.ResponseWriter, r *http.Request) {
@@ -44,7 +45,7 @@ func (a *api) notificationsAccountHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if err := a.deviceRepo.SetNotifiable(ctx, &dev, &acct, anr.InboxNotifications, anr.WatcherNotifications); err != nil {
+	if err := a.deviceRepo.SetNotifiable(ctx, &dev, &acct, anr.InboxNotifications, anr.WatcherNotifications, anr.GlobalMute); err != nil {
 		a.errorResponse(w, r, 500, err.Error())
 		return
 	}
@@ -71,7 +72,7 @@ func (a *api) getNotificationsAccountHandler(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	inbox, watchers, err := a.deviceRepo.GetNotifiable(ctx, &dev, &acct)
+	inbox, watchers, global, err := a.deviceRepo.GetNotifiable(ctx, &dev, &acct)
 	if err != nil {
 		a.errorResponse(w, r, 500, err.Error())
 		return
@@ -79,7 +80,7 @@ func (a *api) getNotificationsAccountHandler(w http.ResponseWriter, r *http.Requ
 
 	w.WriteHeader(http.StatusOK)
 
-	an := &accountNotificationsRequest{InboxNotifications: inbox, WatcherNotifications: watchers}
+	an := &accountNotificationsRequest{InboxNotifications: inbox, WatcherNotifications: watchers, GlobalMute: global}
 	_ = json.NewEncoder(w).Encode(an)
 }
 

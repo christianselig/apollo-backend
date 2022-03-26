@@ -170,15 +170,16 @@ func (p *postgresDeviceRepository) Delete(ctx context.Context, token string) err
 	return err
 }
 
-func (p *postgresDeviceRepository) SetNotifiable(ctx context.Context, dev *domain.Device, acct *domain.Account, inbox, watcher bool) error {
+func (p *postgresDeviceRepository) SetNotifiable(ctx context.Context, dev *domain.Device, acct *domain.Account, inbox, watcher, global bool) error {
 	query := `
 		UPDATE devices_accounts
 		SET
 			inbox_notifiable = $1,
-			watcher_notifiable = $2
-		WHERE device_id = $3 AND account_id = $4`
+			watcher_notifiable = $2,
+			global_mute = $3
+		WHERE device_id = $4 AND account_id = $5`
 
-	res, err := p.pool.Exec(ctx, query, inbox, watcher, dev.ID, acct.ID)
+	res, err := p.pool.Exec(ctx, query, inbox, watcher, global, dev.ID, acct.ID)
 
 	if res.RowsAffected() != 1 {
 		return fmt.Errorf("weird behaviour, total rows affected: %d", res.RowsAffected())
@@ -187,26 +188,26 @@ func (p *postgresDeviceRepository) SetNotifiable(ctx context.Context, dev *domai
 
 }
 
-func (p *postgresDeviceRepository) GetNotifiable(ctx context.Context, dev *domain.Device, acct *domain.Account) (bool, bool, error) {
+func (p *postgresDeviceRepository) GetNotifiable(ctx context.Context, dev *domain.Device, acct *domain.Account) (bool, bool, bool, error) {
 	query := `
-		SELECT inbox_notifiable, watcher_notifiable
+		SELECT inbox_notifiable, watcher_notifiable, global_mute
 		FROM devices_accounts
 		WHERE device_id = $1 AND account_id = $2`
 
 	rows, err := p.pool.Query(ctx, query, dev.ID, acct.ID)
 	if err != nil {
-		return false, false, err
+		return false, false, false, err
 	}
 	defer rows.Close()
 	for rows.Next() {
-		var inbox, watcher bool
-		if err := rows.Scan(&inbox, &watcher); err != nil {
-			return false, false, err
+		var inbox, watcher, global bool
+		if err := rows.Scan(&inbox, &watcher, &global); err != nil {
+			return false, false, false, err
 		}
-		return inbox, watcher, nil
+		return inbox, watcher, global, nil
 	}
 
-	return false, false, domain.ErrNotFound
+	return false, false, false, domain.ErrNotFound
 }
 
 func (p *postgresDeviceRepository) PruneStale(ctx context.Context, before int64) (int64, error) {

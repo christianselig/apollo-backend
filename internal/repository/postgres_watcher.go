@@ -149,7 +149,10 @@ func (p *postgresWatcherRepository) GetByTypeAndWatcheeID(ctx context.Context, t
 		INNER JOIN devices_accounts ON devices.id = devices_accounts.device_id AND accounts.id = devices_accounts.account_id
 		LEFT JOIN subreddits ON watchers.type IN(0,2) AND watchers.watchee_id = subreddits.id
 		LEFT JOIN users ON watchers.type = 1 AND watchers.watchee_id = users.id
-		WHERE watchers.type = $1 AND watchers.watchee_id = $2 AND devices_accounts.watcher_notifiable = TRUE`
+		WHERE watchers.type = $1 AND
+		watchers.watchee_id = $2 AND
+		devices_accounts.watcher_notifiable = TRUE AND
+		devices_accounts.global_mute = FALSE`
 
 	return p.fetch(ctx, query, typ, id)
 }
