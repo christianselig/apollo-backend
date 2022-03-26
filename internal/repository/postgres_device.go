@@ -201,20 +201,12 @@ func (p *postgresDeviceRepository) GetNotifiable(ctx context.Context, dev *domai
 		FROM devices_accounts
 		WHERE device_id = $1 AND account_id = $2`
 
-	rows, err := p.pool.Query(ctx, query, dev.ID, acct.ID)
-	if err != nil {
-		return false, false, false, err
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var inbox, watcher, global bool
-		if err := rows.Scan(&inbox, &watcher, &global); err != nil {
-			return false, false, false, err
-		}
-		return inbox, watcher, global, nil
+	var inbox, watcher, global bool
+	if err := p.pool.QueryRow(ctx, query, dev.ID, acct.ID).Scan(&inbox, &watcher, &global); err != nil {
+		return false, false, false, domain.ErrNotFound
 	}
 
-	return false, false, false, domain.ErrNotFound
+	return inbox, watcher, global, nil
 }
 
 func (p *postgresDeviceRepository) PruneStale(ctx context.Context, before int64) (int64, error) {
