@@ -175,7 +175,7 @@ func (p *postgresDeviceRepository) SetNotifiable(ctx context.Context, dev *domai
 		UPDATE devices_accounts
 		SET
 			inbox_notifiable = $1,
-			watcher_notifiable = $2,
+			watcher_notifiable = $2
 		WHERE device_id = $3 AND account_id = $4`
 
 	res, err := p.pool.Exec(ctx, query, inbox, watcher, dev.ID, acct.ID)
