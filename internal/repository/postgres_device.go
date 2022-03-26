@@ -92,7 +92,7 @@ func (p *postgresDeviceRepository) GetInboxNotifiableByAccountID(ctx context.Con
 		INNER JOIN devices_accounts ON devices.id = devices_accounts.device_id
 		WHERE devices_accounts.account_id = $1 AND
 		devices_accounts.inbox_notifiable = TRUE AND
-		grace_period_until > NOW()`
+		grace_period_until > EXTRACT(EPOCH FROM NOW())`
 
 	return p.fetch(ctx, query, id)
 }
@@ -104,7 +104,7 @@ func (p *postgresDeviceRepository) GetWatcherNotifiableByAccountID(ctx context.C
 		INNER JOIN devices_accounts ON devices.id = devices_accounts.device_id
 		WHERE devices_accounts.account_id = $1 AND
 		devices_accounts.watcher_notifiable = TRUE AND
-		grace_period_until > NOW()`
+		grace_period_until > EXTRACT(EPOCH FROM NOW())`
 
 	return p.fetch(ctx, query, id)
 }
