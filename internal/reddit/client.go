@@ -271,15 +271,16 @@ func (rac *AuthenticatedClient) markRateLimited(rli *RateLimitingInfo) error {
 	return err
 }
 
-func (rac *AuthenticatedClient) RefreshTokens() (*RefreshTokenResponse, error) {
-	req := NewRequest(
+func (rac *AuthenticatedClient) RefreshTokens(opts ...RequestOption) (*RefreshTokenResponse, error) {
+	opts = append([]RequestOption{
 		WithTags([]string{"url:/api/v1/access_token"}),
 		WithMethod("POST"),
 		WithURL("https://www.reddit.com/api/v1/access_token"),
 		WithBody("grant_type", "refresh_token"),
 		WithBody("refresh_token", rac.refreshToken),
 		WithBasicAuth(rac.id, rac.secret),
-	)
+	}, opts...)
+	req := NewRequest(opts...)
 
 	rtr, err := rac.request(req, NewRefreshTokenResponse, nil)
 	if err != nil {
@@ -448,14 +449,15 @@ func (rac *AuthenticatedClient) MessageUnread(opts ...RequestOption) (*ListingRe
 	return lr.(*ListingResponse), nil
 }
 
-func (rac *AuthenticatedClient) Me() (*MeResponse, error) {
-	req := NewRequest(
+func (rac *AuthenticatedClient) Me(opts ...RequestOption) (*MeResponse, error) {
+	opts = append([]RequestOption{
 		WithTags([]string{"url:/api/v1/me"}),
 		WithMethod("GET"),
 		WithToken(rac.accessToken),
 		WithURL("https://oauth.reddit.com/api/v1/me"),
-	)
+	}, opts...)
 
+	req := NewRequest(opts...)
 	mr, err := rac.request(req, NewMeResponse, nil)
 	if err != nil {
 		switch rerr := err.(type) {
