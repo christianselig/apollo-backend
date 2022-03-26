@@ -6,7 +6,7 @@ go 1.16
 require (
 	github.com/DataDog/datadog-go v4.8.3+incompatible
 	github.com/Microsoft/go-winio v0.5.0 // indirect
-	github.com/adjust/rmq/v4 v4.0.1
+	github.com/adjust/rmq/v4 v4.0.5
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible // indirect
 	github.com/dustin/go-humanize v1.0.0
 	github.com/go-co-op/gocron v1.13.0
