@@ -4,21 +4,19 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/jackc/pgx/v4/pgxpool"
-
 	"github.com/christianselig/apollo-backend/internal/domain"
 )
 
 type postgresAccountRepository struct {
-	pool *pgxpool.Pool
+	conn Connection
 }
 
-func NewPostgresAccount(pool *pgxpool.Pool) domain.AccountRepository {
-	return &postgresAccountRepository{pool: pool}
+func NewPostgresAccount(conn Connection) domain.AccountRepository {
+	return &postgresAccountRepository{conn: conn}
 }
 
 func (p *postgresAccountRepository) fetch(ctx context.Context, query string, args ...interface{}) ([]domain.Account, error) {
-	rows, err := p.pool.Query(ctx, query, args...)
+	rows, err := p.conn.Query(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -89,7 +87,7 @@ func (p *postgresAccountRepository) CreateOrUpdate(ctx context.Context, acc *dom
 				expires_at = $5
 		RETURNING id`
 
-	return p.pool.QueryRow(
+	return p.conn.QueryRow(
 		ctx,
 		query,
 		acc.Username,
@@ -107,7 +105,7 @@ func (p *postgresAccountRepository) Create(ctx context.Context, acc *domain.Acco
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		RETURNING id`
 
-	return p.pool.QueryRow(
+	return p.conn.QueryRow(
 		ctx,
 		query,
 		acc.Username,
@@ -134,7 +132,7 @@ func (p *postgresAccountRepository) Update(ctx context.Context, acc *domain.Acco
 			last_unstuck_at = $9
 		WHERE id = $1`
 
-	res, err := p.pool.Exec(
+	res, err := p.conn.Exec(
 		ctx,
 		query,
 		acc.ID,
@@ -156,7 +154,7 @@ func (p *postgresAccountRepository) Update(ctx context.Context, acc *domain.Acco
 
 func (p *postgresAccountRepository) Delete(ctx context.Context, id int64) error {
 	query := `DELETE FROM accounts WHERE id = $1`
-	res, err := p.pool.Exec(ctx, query, id)
+	res, err := p.conn.Exec(ctx, query, id)
 
 	if res.RowsAffected() != 1 {
 		return fmt.Errorf("weird behaviour, total rows affected: %d", res.RowsAffected())
@@ -170,13 +168,13 @@ func (p *postgresAccountRepository) Associate(ctx context.Context, acc *domain.A
 			(account_id, device_id)
 		VALUES ($1, $2)
 		ON CONFLICT(account_id, device_id) DO NOTHING`
-	_, err := p.pool.Exec(ctx, query, acc.ID, dev.ID)
+	_, err := p.conn.Exec(ctx, query, acc.ID, dev.ID)
 	return err
 }
 
 func (p *postgresAccountRepository) Disassociate(ctx context.Context, acc *domain.Account, dev *domain.Device) error {
 	query := `DELETE FROM devices_accounts WHERE account_id = $1 AND device_id = $2`
-	res, err := p.pool.Exec(ctx, query, acc.ID, dev.ID)
+	res, err := p.conn.Exec(ctx, query, acc.ID, dev.ID)
 
 	if res.RowsAffected() != 1 {
 		return fmt.Errorf("weird behaviour, total rows affected: %d", res.RowsAffected())
@@ -200,7 +198,7 @@ func (p *postgresAccountRepository) PruneStale(ctx context.Context, before int64
 		DELETE FROM accounts
 		WHERE expires_at < $1`
 
-	res, err := p.pool.Exec(ctx, query, before)
+	res, err := p.conn.Exec(ctx, query, before)
 
 	return res.RowsAffected(), err
 }
@@ -219,7 +217,7 @@ func (p *postgresAccountRepository) PruneOrphaned(ctx context.Context) (int64, e
 			WHERE device_count = 0
 		)`
 
-	res, err := p.pool.Exec(ctx, query)
+	res, err := p.conn.Exec(ctx, query)
 
 	return res.RowsAffected(), err
 }

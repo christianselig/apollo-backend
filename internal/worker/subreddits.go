@@ -24,6 +24,8 @@ import (
 )
 
 type subredditsWorker struct {
+	context.Context
+
 	logger *logrus.Logger
 	statsd *statsd.Client
 	db     *pgxpool.Pool
@@ -42,7 +44,7 @@ type subredditsWorker struct {
 
 const subredditNotificationTitleFormat = "📣 %s"
 
-func NewSubredditsWorker(logger *logrus.Logger, statsd *statsd.Client, db *pgxpool.Pool, redis *redis.Client, queue rmq.Connection, consumers int) Worker {
+func NewSubredditsWorker(ctx context.Context, logger *logrus.Logger, statsd *statsd.Client, db *pgxpool.Pool, redis *redis.Client, queue rmq.Connection, consumers int) Worker {
 	reddit := reddit.NewClient(
 		os.Getenv("REDDIT_CLIENT_ID"),
 		os.Getenv("REDDIT_CLIENT_SECRET"),
@@ -66,6 +68,7 @@ func NewSubredditsWorker(logger *logrus.Logger, statsd *statsd.Client, db *pgxpo
 	}
 
 	return &subredditsWorker{
+		ctx,
 		logger,
 		statsd,
 		db,
@@ -134,8 +137,6 @@ func NewSubredditsConsumer(sw *subredditsWorker, tag int) *subredditsConsumer {
 }
 
 func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
-	ctx := context.Background()
-
 	sc.logger.WithFields(logrus.Fields{
 		"subreddit#id": delivery.Payload(),
 	}).Debug("starting job")
@@ -153,7 +154,7 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 
 	defer func() { _ = delivery.Ack() }()
 
-	subreddit, err := sc.subredditRepo.GetByID(ctx, id)
+	subreddit, err := sc.subredditRepo.GetByID(sc, id)
 	if err != nil {
 		sc.logger.WithFields(logrus.Fields{
 			"err": err,
@@ -161,7 +162,7 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 		return
 	}
 
-	watchers, err := sc.watcherRepo.GetBySubredditID(ctx, subreddit.ID)
+	watchers, err := sc.watcherRepo.GetBySubredditID(sc, subreddit.ID)
 	if err != nil {
 		sc.logger.WithFields(logrus.Fields{
 			"subreddit#id": subreddit.ID,
@@ -199,10 +200,10 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 		i := rand.Intn(len(watchers))
 		watcher := watchers[i]
 
-		acc, _ := sc.accountRepo.GetByID(ctx, watcher.AccountID)
+		acc, _ := sc.accountRepo.GetByID(sc, watcher.AccountID)
 		rac := sc.reddit.NewAuthenticatedClient(acc.AccountID, acc.RefreshToken, acc.AccessToken)
 
-		sps, err := rac.SubredditNew(
+		sps, err := rac.SubredditNew(sc,
 			subreddit.Name,
 			reddit.WithQuery("before", before),
 			reddit.WithQuery("limit", "100"),
@@ -264,9 +265,9 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 		i := rand.Intn(len(watchers))
 		watcher := watchers[i]
 
-		acc, _ := sc.accountRepo.GetByID(ctx, watcher.AccountID)
+		acc, _ := sc.accountRepo.GetByID(sc, watcher.AccountID)
 		rac := sc.reddit.NewAuthenticatedClient(acc.AccountID, acc.RefreshToken, acc.AccessToken)
-		sps, err := rac.SubredditHot(
+		sps, err := rac.SubredditHot(sc,
 			subreddit.Name,
 			reddit.WithQuery("limit", "100"),
 		)
@@ -341,7 +342,7 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 			}
 
 			lockKey := fmt.Sprintf("watcher:%d:%s", watcher.DeviceID, post.ID)
-			notified, _ := sc.redis.Get(ctx, lockKey).Bool()
+			notified, _ := sc.redis.Get(sc, lockKey).Bool()
 
 			if notified {
 				sc.logger.WithFields(logrus.Fields{
@@ -354,7 +355,7 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 				continue
 			}
 
-			if err := sc.watcherRepo.IncrementHits(ctx, watcher.ID); err != nil {
+			if err := sc.watcherRepo.IncrementHits(sc, watcher.ID); err != nil {
 				sc.logger.WithFields(logrus.Fields{
 					"subreddit#id": subreddit.ID,
 					"watcher#id":   watcher.ID,
@@ -370,7 +371,7 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 				"post#id":        post.ID,
 			}).Debug("got a hit")
 
-			sc.redis.SetEX(ctx, lockKey, true, 24*time.Hour)
+			sc.redis.SetEX(sc, lockKey, true, 24*time.Hour)
 			notifs = append(notifs, watcher)
 		}
 

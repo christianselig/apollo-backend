@@ -4,21 +4,19 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/jackc/pgx/v4/pgxpool"
-
 	"github.com/christianselig/apollo-backend/internal/domain"
 )
 
 type postgresDeviceRepository struct {
-	pool *pgxpool.Pool
+	conn Connection
 }
 
-func NewPostgresDevice(pool *pgxpool.Pool) domain.DeviceRepository {
-	return &postgresDeviceRepository{pool: pool}
+func NewPostgresDevice(conn Connection) domain.DeviceRepository {
+	return &postgresDeviceRepository{conn: conn}
 }
 
 func (p *postgresDeviceRepository) fetch(ctx context.Context, query string, args ...interface{}) ([]domain.Device, error) {
-	rows, err := p.pool.Query(ctx, query, args...)
+	rows, err := p.conn.Query(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -117,7 +115,7 @@ func (p *postgresDeviceRepository) CreateOrUpdate(ctx context.Context, dev *doma
 			UPDATE SET active_until = $3, grace_period_until = $4
 		RETURNING id`
 
-	return p.pool.QueryRow(
+	return p.conn.QueryRow(
 		ctx,
 		query,
 		dev.APNSToken,
@@ -138,7 +136,7 @@ func (p *postgresDeviceRepository) Create(ctx context.Context, dev *domain.Devic
 		VALUES ($1, $2, $3, $4)
 		RETURNING id`
 
-	return p.pool.QueryRow(
+	return p.conn.QueryRow(
 		ctx,
 		query,
 		dev.APNSToken,
@@ -158,7 +156,7 @@ func (p *postgresDeviceRepository) Update(ctx context.Context, dev *domain.Devic
 		SET active_until = $2, grace_period_until = $3
 		WHERE id = $1`
 
-	res, err := p.pool.Exec(ctx, query, dev.ID, dev.ActiveUntil, dev.GracePeriodUntil)
+	res, err := p.conn.Exec(ctx, query, dev.ID, dev.ActiveUntil, dev.GracePeriodUntil)
 
 	if res.RowsAffected() != 1 {
 		return fmt.Errorf("weird behaviour, total rows affected: %d", res.RowsAffected())
@@ -169,7 +167,7 @@ func (p *postgresDeviceRepository) Update(ctx context.Context, dev *domain.Devic
 func (p *postgresDeviceRepository) Delete(ctx context.Context, token string) error {
 	query := `DELETE FROM devices WHERE apns_token = $1`
 
-	res, err := p.pool.Exec(ctx, query, token)
+	res, err := p.conn.Exec(ctx, query, token)
 
 	if res.RowsAffected() != 1 {
 		return fmt.Errorf("weird behaviour, total rows affected: %d", res.RowsAffected())
@@ -186,7 +184,7 @@ func (p *postgresDeviceRepository) SetNotifiable(ctx context.Context, dev *domai
 			global_mute = $3
 		WHERE device_id = $4 AND account_id = $5`
 
-	res, err := p.pool.Exec(ctx, query, inbox, watcher, global, dev.ID, acct.ID)
+	res, err := p.conn.Exec(ctx, query, inbox, watcher, global, dev.ID, acct.ID)
 
 	if res.RowsAffected() != 1 {
 		return fmt.Errorf("weird behaviour, total rows affected: %d", res.RowsAffected())
@@ -202,7 +200,7 @@ func (p *postgresDeviceRepository) GetNotifiable(ctx context.Context, dev *domai
 		WHERE device_id = $1 AND account_id = $2`
 
 	var inbox, watcher, global bool
-	if err := p.pool.QueryRow(ctx, query, dev.ID, acct.ID).Scan(&inbox, &watcher, &global); err != nil {
+	if err := p.conn.QueryRow(ctx, query, dev.ID, acct.ID).Scan(&inbox, &watcher, &global); err != nil {
 		return false, false, false, domain.ErrNotFound
 	}
 
@@ -212,7 +210,7 @@ func (p *postgresDeviceRepository) GetNotifiable(ctx context.Context, dev *domai
 func (p *postgresDeviceRepository) PruneStale(ctx context.Context, before int64) (int64, error) {
 	query := `DELETE FROM devices WHERE grace_period_until < $1`
 
-	res, err := p.pool.Exec(ctx, query, before)
+	res, err := p.conn.Exec(ctx, query, before)
 
 	return res.RowsAffected(), err
 }

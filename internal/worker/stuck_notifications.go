@@ -18,6 +18,8 @@ import (
 )
 
 type stuckNotificationsWorker struct {
+	context.Context
+
 	logger *logrus.Logger
 	statsd *statsd.Client
 	db     *pgxpool.Pool
@@ -30,7 +32,7 @@ type stuckNotificationsWorker struct {
 	accountRepo domain.AccountRepository
 }
 
-func NewStuckNotificationsWorker(logger *logrus.Logger, statsd *statsd.Client, db *pgxpool.Pool, redis *redis.Client, queue rmq.Connection, consumers int) Worker {
+func NewStuckNotificationsWorker(ctx context.Context, logger *logrus.Logger, statsd *statsd.Client, db *pgxpool.Pool, redis *redis.Client, queue rmq.Connection, consumers int) Worker {
 	reddit := reddit.NewClient(
 		os.Getenv("REDDIT_CLIENT_ID"),
 		os.Getenv("REDDIT_CLIENT_SECRET"),
@@ -40,6 +42,7 @@ func NewStuckNotificationsWorker(logger *logrus.Logger, statsd *statsd.Client, d
 	)
 
 	return &stuckNotificationsWorker{
+		ctx,
 		logger,
 		statsd,
 		db,
@@ -99,8 +102,6 @@ func NewStuckNotificationsConsumer(snw *stuckNotificationsWorker, tag int) *stuc
 }
 
 func (snc *stuckNotificationsConsumer) Consume(delivery rmq.Delivery) {
-	ctx := context.Background()
-
 	snc.logger.WithFields(logrus.Fields{
 		"account#id": delivery.Payload(),
 	}).Debug("starting job")
@@ -118,7 +119,7 @@ func (snc *stuckNotificationsConsumer) Consume(delivery rmq.Delivery) {
 
 	defer func() { _ = delivery.Ack() }()
 
-	account, err := snc.accountRepo.GetByID(ctx, id)
+	account, err := snc.accountRepo.GetByID(snc, id)
 	if err != nil {
 		snc.logger.WithFields(logrus.Fields{
 			"err": err,
@@ -149,7 +150,7 @@ func (snc *stuckNotificationsConsumer) Consume(delivery rmq.Delivery) {
 			"thing#id":         account.LastMessageID,
 		}).Debug("checking last thing via inbox")
 
-		things, err = rac.MessageInbox()
+		things, err = rac.MessageInbox(snc)
 		if err != nil {
 			snc.logger.WithFields(logrus.Fields{
 				"err": err,
@@ -157,7 +158,7 @@ func (snc *stuckNotificationsConsumer) Consume(delivery rmq.Delivery) {
 			return
 		}
 	} else {
-		things, err = rac.AboutInfo(account.LastMessageID)
+		things, err = rac.AboutInfo(snc, account.LastMessageID)
 		if err != nil {
 			snc.logger.WithFields(logrus.Fields{
 				"err": err,
@@ -192,7 +193,7 @@ func (snc *stuckNotificationsConsumer) Consume(delivery rmq.Delivery) {
 			"account#username": account.NormalizedUsername(),
 		}).Debug("getting message inbox to determine last good thing")
 
-		things, err = rac.MessageInbox()
+		things, err = rac.MessageInbox(snc)
 		if err != nil {
 			snc.logger.WithFields(logrus.Fields{
 				"account#username": account.NormalizedUsername(),
@@ -225,7 +226,7 @@ func (snc *stuckNotificationsConsumer) Consume(delivery rmq.Delivery) {
 		"thing#id":         account.LastMessageID,
 	}).Debug("updating last good thing")
 
-	if err := snc.accountRepo.Update(ctx, &account); err != nil {
+	if err := snc.accountRepo.Update(snc, &account); err != nil {
 		snc.logger.WithFields(logrus.Fields{
 			"account#username": account.NormalizedUsername(),
 			"err":              err,

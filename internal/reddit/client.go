@@ -127,17 +127,22 @@ func (rc *Client) NewAuthenticatedClient(redditId, refreshToken, accessToken str
 	return &AuthenticatedClient{rc, redditId, refreshToken, accessToken}
 }
 
-func (rc *Client) doRequest(r *Request) ([]byte, *RateLimitingInfo, error) {
-	req, err := r.HTTPRequest()
+func (rc *Client) doRequest(ctx context.Context, r *Request) ([]byte, *RateLimitingInfo, error) {
+	req, err := r.HTTPRequest(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	req = req.WithContext(httptrace.WithClientTrace(req.Context(), rc.tracer))
+	req = req.WithContext(httptrace.WithClientTrace(ctx, rc.tracer))
 
 	start := time.Now()
 
-	resp, err := rc.client.Do(req)
+	client := r.client
+	if client == nil {
+		client = rc.client
+	}
+
+	resp, err := client.Do(req)
 
 	_ = rc.statsd.Incr("reddit.api.calls", r.tags, 0.1)
 	_ = rc.statsd.Histogram("reddit.api.latency", float64(time.Since(start).Milliseconds()), r.tags, 0.1)
@@ -173,7 +178,7 @@ func (rc *Client) doRequest(r *Request) ([]byte, *RateLimitingInfo, error) {
 	return bb, rli, nil
 }
 
-func (rac *AuthenticatedClient) request(r *Request, rh ResponseHandler, empty interface{}) (interface{}, error) {
+func (rac *AuthenticatedClient) request(ctx context.Context, r *Request, rh ResponseHandler, empty interface{}) (interface{}, error) {
 	if rac.isRateLimited() {
 		return nil, ErrRateLimited
 	}
@@ -182,7 +187,7 @@ func (rac *AuthenticatedClient) request(r *Request, rh ResponseHandler, empty in
 		return nil, err
 	}
 
-	bb, rli, err := rac.doRequest(r)
+	bb, rli, err := rac.doRequest(ctx, r)
 
 	if err != nil && r.retry {
 		for _, backoff := range backoffSchedule {
@@ -196,7 +201,7 @@ func (rac *AuthenticatedClient) request(r *Request, rh ResponseHandler, empty in
 					return
 				}
 
-				bb, rli, err = rac.doRequest(r)
+				bb, rli, err = rac.doRequest(ctx, r)
 				done <- struct{}{}
 			})
 
@@ -281,7 +286,7 @@ func (rac *AuthenticatedClient) markRateLimited(rli *RateLimitingInfo) error {
 	return err
 }
 
-func (rac *AuthenticatedClient) RefreshTokens(opts ...RequestOption) (*RefreshTokenResponse, error) {
+func (rac *AuthenticatedClient) RefreshTokens(ctx context.Context, opts ...RequestOption) (*RefreshTokenResponse, error) {
 	opts = append(rac.defaultOpts, opts...)
 	opts = append(opts, []RequestOption{
 		WithTags([]string{"url:/api/v1/access_token"}),
@@ -293,7 +298,7 @@ func (rac *AuthenticatedClient) RefreshTokens(opts ...RequestOption) (*RefreshTo
 	}...)
 	req := NewRequest(opts...)
 
-	rtr, err := rac.request(req, NewRefreshTokenResponse, nil)
+	rtr, err := rac.request(ctx, req, NewRefreshTokenResponse, nil)
 	if err != nil {
 		switch rerr := err.(type) {
 		case ServerError:
@@ -313,7 +318,7 @@ func (rac *AuthenticatedClient) RefreshTokens(opts ...RequestOption) (*RefreshTo
 	return ret, nil
 }
 
-func (rac *AuthenticatedClient) AboutInfo(fullname string, opts ...RequestOption) (*ListingResponse, error) {
+func (rac *AuthenticatedClient) AboutInfo(ctx context.Context, fullname string, opts ...RequestOption) (*ListingResponse, error) {
 	opts = append(rac.defaultOpts, opts...)
 	opts = append(opts, []RequestOption{
 		WithMethod("GET"),
@@ -323,7 +328,7 @@ func (rac *AuthenticatedClient) AboutInfo(fullname string, opts ...RequestOption
 	}...)
 	req := NewRequest(opts...)
 
-	lr, err := rac.request(req, NewListingResponse, nil)
+	lr, err := rac.request(ctx, req, NewListingResponse, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -331,7 +336,7 @@ func (rac *AuthenticatedClient) AboutInfo(fullname string, opts ...RequestOption
 	return lr.(*ListingResponse), nil
 }
 
-func (rac *AuthenticatedClient) UserPosts(user string, opts ...RequestOption) (*ListingResponse, error) {
+func (rac *AuthenticatedClient) UserPosts(ctx context.Context, user string, opts ...RequestOption) (*ListingResponse, error) {
 	url := fmt.Sprintf("https://oauth.reddit.com/u/%s/submitted", user)
 	opts = append(rac.defaultOpts, opts...)
 	opts = append(opts, []RequestOption{
@@ -341,7 +346,7 @@ func (rac *AuthenticatedClient) UserPosts(user string, opts ...RequestOption) (*
 	}...)
 	req := NewRequest(opts...)
 
-	lr, err := rac.request(req, NewListingResponse, nil)
+	lr, err := rac.request(ctx, req, NewListingResponse, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -349,7 +354,7 @@ func (rac *AuthenticatedClient) UserPosts(user string, opts ...RequestOption) (*
 	return lr.(*ListingResponse), nil
 }
 
-func (rac *AuthenticatedClient) UserAbout(user string, opts ...RequestOption) (*UserResponse, error) {
+func (rac *AuthenticatedClient) UserAbout(ctx context.Context, user string, opts ...RequestOption) (*UserResponse, error) {
 	url := fmt.Sprintf("https://oauth.reddit.com/u/%s/about", user)
 	opts = append(rac.defaultOpts, opts...)
 	opts = append(opts, []RequestOption{
@@ -358,7 +363,7 @@ func (rac *AuthenticatedClient) UserAbout(user string, opts ...RequestOption) (*
 		WithURL(url),
 	}...)
 	req := NewRequest(opts...)
-	ur, err := rac.request(req, NewUserResponse, nil)
+	ur, err := rac.request(ctx, req, NewUserResponse, nil)
 
 	if err != nil {
 		return nil, err
@@ -368,7 +373,7 @@ func (rac *AuthenticatedClient) UserAbout(user string, opts ...RequestOption) (*
 
 }
 
-func (rac *AuthenticatedClient) SubredditAbout(subreddit string, opts ...RequestOption) (*SubredditResponse, error) {
+func (rac *AuthenticatedClient) SubredditAbout(ctx context.Context, subreddit string, opts ...RequestOption) (*SubredditResponse, error) {
 	url := fmt.Sprintf("https://oauth.reddit.com/r/%s/about", subreddit)
 	opts = append(rac.defaultOpts, opts...)
 	opts = append(opts, []RequestOption{
@@ -377,7 +382,7 @@ func (rac *AuthenticatedClient) SubredditAbout(subreddit string, opts ...Request
 		WithURL(url),
 	}...)
 	req := NewRequest(opts...)
-	sr, err := rac.request(req, NewSubredditResponse, nil)
+	sr, err := rac.request(ctx, req, NewSubredditResponse, nil)
 
 	if err != nil {
 		return nil, err
@@ -386,7 +391,7 @@ func (rac *AuthenticatedClient) SubredditAbout(subreddit string, opts ...Request
 	return sr.(*SubredditResponse), nil
 }
 
-func (rac *AuthenticatedClient) subredditPosts(subreddit string, sort string, opts ...RequestOption) (*ListingResponse, error) {
+func (rac *AuthenticatedClient) subredditPosts(ctx context.Context, subreddit string, sort string, opts ...RequestOption) (*ListingResponse, error) {
 	url := fmt.Sprintf("https://oauth.reddit.com/r/%s/%s", subreddit, sort)
 	opts = append(rac.defaultOpts, opts...)
 	opts = append(opts, []RequestOption{
@@ -396,7 +401,7 @@ func (rac *AuthenticatedClient) subredditPosts(subreddit string, sort string, op
 	}...)
 	req := NewRequest(opts...)
 
-	lr, err := rac.request(req, NewListingResponse, nil)
+	lr, err := rac.request(ctx, req, NewListingResponse, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -404,19 +409,19 @@ func (rac *AuthenticatedClient) subredditPosts(subreddit string, sort string, op
 	return lr.(*ListingResponse), nil
 }
 
-func (rac *AuthenticatedClient) SubredditHot(subreddit string, opts ...RequestOption) (*ListingResponse, error) {
-	return rac.subredditPosts(subreddit, "hot", opts...)
+func (rac *AuthenticatedClient) SubredditHot(ctx context.Context, subreddit string, opts ...RequestOption) (*ListingResponse, error) {
+	return rac.subredditPosts(ctx, subreddit, "hot", opts...)
 }
 
-func (rac *AuthenticatedClient) SubredditTop(subreddit string, opts ...RequestOption) (*ListingResponse, error) {
-	return rac.subredditPosts(subreddit, "top", opts...)
+func (rac *AuthenticatedClient) SubredditTop(ctx context.Context, subreddit string, opts ...RequestOption) (*ListingResponse, error) {
+	return rac.subredditPosts(ctx, subreddit, "top", opts...)
 }
 
-func (rac *AuthenticatedClient) SubredditNew(subreddit string, opts ...RequestOption) (*ListingResponse, error) {
-	return rac.subredditPosts(subreddit, "new", opts...)
+func (rac *AuthenticatedClient) SubredditNew(ctx context.Context, subreddit string, opts ...RequestOption) (*ListingResponse, error) {
+	return rac.subredditPosts(ctx, subreddit, "new", opts...)
 }
 
-func (rac *AuthenticatedClient) MessageInbox(opts ...RequestOption) (*ListingResponse, error) {
+func (rac *AuthenticatedClient) MessageInbox(ctx context.Context, opts ...RequestOption) (*ListingResponse, error) {
 	opts = append(rac.defaultOpts, opts...)
 	opts = append(opts, []RequestOption{
 		WithTags([]string{"url:/api/v1/message/inbox"}),
@@ -427,7 +432,7 @@ func (rac *AuthenticatedClient) MessageInbox(opts ...RequestOption) (*ListingRes
 	}...)
 	req := NewRequest(opts...)
 
-	lr, err := rac.request(req, NewListingResponse, EmptyListingResponse)
+	lr, err := rac.request(ctx, req, NewListingResponse, EmptyListingResponse)
 	if err != nil {
 		switch rerr := err.(type) {
 		case ServerError:
@@ -441,7 +446,7 @@ func (rac *AuthenticatedClient) MessageInbox(opts ...RequestOption) (*ListingRes
 	return lr.(*ListingResponse), nil
 }
 
-func (rac *AuthenticatedClient) MessageUnread(opts ...RequestOption) (*ListingResponse, error) {
+func (rac *AuthenticatedClient) MessageUnread(ctx context.Context, opts ...RequestOption) (*ListingResponse, error) {
 	opts = append(rac.defaultOpts, opts...)
 	opts = append(opts, []RequestOption{
 		WithTags([]string{"url:/api/v1/message/unread"}),
@@ -453,7 +458,7 @@ func (rac *AuthenticatedClient) MessageUnread(opts ...RequestOption) (*ListingRe
 
 	req := NewRequest(opts...)
 
-	lr, err := rac.request(req, NewListingResponse, EmptyListingResponse)
+	lr, err := rac.request(ctx, req, NewListingResponse, EmptyListingResponse)
 	if err != nil {
 		switch rerr := err.(type) {
 		case ServerError:
@@ -467,7 +472,7 @@ func (rac *AuthenticatedClient) MessageUnread(opts ...RequestOption) (*ListingRe
 	return lr.(*ListingResponse), nil
 }
 
-func (rac *AuthenticatedClient) Me(opts ...RequestOption) (*MeResponse, error) {
+func (rac *AuthenticatedClient) Me(ctx context.Context, opts ...RequestOption) (*MeResponse, error) {
 	opts = append(rac.defaultOpts, opts...)
 	opts = append(opts, []RequestOption{
 		WithTags([]string{"url:/api/v1/me"}),
@@ -477,7 +482,7 @@ func (rac *AuthenticatedClient) Me(opts ...RequestOption) (*MeResponse, error) {
 	}...)
 
 	req := NewRequest(opts...)
-	mr, err := rac.request(req, NewMeResponse, nil)
+	mr, err := rac.request(ctx, req, NewMeResponse, nil)
 	if err != nil {
 		switch rerr := err.(type) {
 		case ServerError:

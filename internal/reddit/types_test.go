@@ -1,26 +1,40 @@
-package reddit
+package reddit_test
 
 import (
 	"io/ioutil"
 	"testing"
 
+	"github.com/christianselig/apollo-backend/internal/reddit"
 	"github.com/stretchr/testify/assert"
 	"github.com/valyala/fastjson"
 )
 
-var (
-	parser = &fastjson.Parser{}
-)
+var pool = &fastjson.ParserPool{}
+
+func NewTestParser(t *testing.T) *fastjson.Parser {
+	t.Helper()
+
+	parser := pool.Get()
+
+	t.Cleanup(func() {
+		pool.Put(parser)
+	})
+
+	return parser
+}
 
 func TestMeResponseParsing(t *testing.T) {
+	t.Parallel()
+
 	bb, err := ioutil.ReadFile("testdata/me.json")
 	assert.NoError(t, err)
 
+	parser := NewTestParser(t)
 	val, err := parser.ParseBytes(bb)
 	assert.NoError(t, err)
 
-	ret := NewMeResponse(val)
-	me := ret.(*MeResponse)
+	ret := reddit.NewMeResponse(val)
+	me := ret.(*reddit.MeResponse)
 	assert.NotNil(t, me)
 
 	assert.Equal(t, "xgeee", me.ID)
@@ -28,14 +42,17 @@ func TestMeResponseParsing(t *testing.T) {
 }
 
 func TestRefreshTokenResponseParsing(t *testing.T) {
+	t.Parallel()
+
 	bb, err := ioutil.ReadFile("testdata/refresh_token.json")
 	assert.NoError(t, err)
 
+	parser := NewTestParser(t)
 	val, err := parser.ParseBytes(bb)
 	assert.NoError(t, err)
 
-	ret := NewRefreshTokenResponse(val)
-	rtr := ret.(*RefreshTokenResponse)
+	ret := reddit.NewRefreshTokenResponse(val)
+	rtr := ret.(*reddit.RefreshTokenResponse)
 	assert.NotNil(t, rtr)
 
 	assert.Equal(t, "56192486-VMT1xoioZmgAwyf4wob4LHMYmKdYGA", rtr.AccessToken)
@@ -43,15 +60,18 @@ func TestRefreshTokenResponseParsing(t *testing.T) {
 }
 
 func TestListingResponseParsing(t *testing.T) {
+	t.Parallel()
+
 	// Message list
 	bb, err := ioutil.ReadFile("testdata/message_inbox.json")
 	assert.NoError(t, err)
 
+	parser := NewTestParser(t)
 	val, err := parser.ParseBytes(bb)
 	assert.NoError(t, err)
 
-	ret := NewListingResponse(val)
-	l := ret.(*ListingResponse)
+	ret := reddit.NewListingResponse(val)
+	l := ret.(*reddit.ListingResponse)
 	assert.NotNil(t, l)
 
 	assert.Equal(t, 25, l.Count)
@@ -83,8 +103,8 @@ func TestListingResponseParsing(t *testing.T) {
 	val, err = parser.ParseBytes(bb)
 	assert.NoError(t, err)
 
-	ret = NewListingResponse(val)
-	l = ret.(*ListingResponse)
+	ret = reddit.NewListingResponse(val)
+	l = ret.(*reddit.ListingResponse)
 	assert.NotNil(t, l)
 
 	assert.Equal(t, 100, l.Count)
@@ -97,14 +117,17 @@ func TestListingResponseParsing(t *testing.T) {
 }
 
 func TestSubredditResponseParsing(t *testing.T) {
+	t.Parallel()
+
 	bb, err := ioutil.ReadFile("testdata/subreddit_about.json")
 	assert.NoError(t, err)
 
+	parser := NewTestParser(t)
 	val, err := parser.ParseBytes(bb)
 	assert.NoError(t, err)
 
-	ret := NewSubredditResponse(val)
-	s := ret.(*SubredditResponse)
+	ret := reddit.NewSubredditResponse(val)
+	s := ret.(*reddit.SubredditResponse)
 	assert.NotNil(t, s)
 
 	assert.Equal(t, "t5", s.Kind)
@@ -113,14 +136,17 @@ func TestSubredditResponseParsing(t *testing.T) {
 }
 
 func TestUserResponseParsing(t *testing.T) {
+	t.Parallel()
+
 	bb, err := ioutil.ReadFile("testdata/user_about.json")
 	assert.NoError(t, err)
 
+	parser := NewTestParser(t)
 	val, err := parser.ParseBytes(bb)
 	assert.NoError(t, err)
 
-	ret := NewUserResponse(val)
-	u := ret.(*UserResponse)
+	ret := reddit.NewUserResponse(val)
+	u := ret.(*reddit.UserResponse)
 	assert.NotNil(t, u)
 
 	assert.Equal(t, "t2", u.Kind)
@@ -130,14 +156,17 @@ func TestUserResponseParsing(t *testing.T) {
 }
 
 func TestUserPostsParsing(t *testing.T) {
+	t.Parallel()
+
 	bb, err := ioutil.ReadFile("testdata/user_posts.json")
 	assert.NoError(t, err)
 
+	parser := NewTestParser(t)
 	val, err := parser.ParseBytes(bb)
 	assert.NoError(t, err)
 
-	ret := NewListingResponse(val)
-	ps := ret.(*ListingResponse)
+	ret := reddit.NewListingResponse(val)
+	ps := ret.(*reddit.ListingResponse)
 	assert.NotNil(t, ps)
 
 	post := ps.Children[0]

@@ -23,6 +23,8 @@ import (
 )
 
 type trendingWorker struct {
+	context.Context
+
 	logger *logrus.Logger
 	statsd *statsd.Client
 	redis  *redis.Client
@@ -40,7 +42,7 @@ type trendingWorker struct {
 
 const trendingNotificationTitleFormat = "🔥 Trending in r/%s"
 
-func NewTrendingWorker(logger *logrus.Logger, statsd *statsd.Client, db *pgxpool.Pool, redis *redis.Client, queue rmq.Connection, consumers int) Worker {
+func NewTrendingWorker(ctx context.Context, logger *logrus.Logger, statsd *statsd.Client, db *pgxpool.Pool, redis *redis.Client, queue rmq.Connection, consumers int) Worker {
 	reddit := reddit.NewClient(
 		os.Getenv("REDDIT_CLIENT_ID"),
 		os.Getenv("REDDIT_CLIENT_SECRET"),
@@ -64,6 +66,7 @@ func NewTrendingWorker(logger *logrus.Logger, statsd *statsd.Client, db *pgxpool
 	}
 
 	return &trendingWorker{
+		ctx,
 		logger,
 		statsd,
 		redis,
@@ -131,8 +134,6 @@ func NewTrendingConsumer(tw *trendingWorker, tag int) *trendingConsumer {
 }
 
 func (tc *trendingConsumer) Consume(delivery rmq.Delivery) {
-	ctx := context.Background()
-
 	tc.logger.WithFields(logrus.Fields{
 		"subreddit#id": delivery.Payload(),
 	}).Debug("starting job")
@@ -150,7 +151,7 @@ func (tc *trendingConsumer) Consume(delivery rmq.Delivery) {
 
 	defer func() { _ = delivery.Ack() }()
 
-	subreddit, err := tc.subredditRepo.GetByID(ctx, id)
+	subreddit, err := tc.subredditRepo.GetByID(tc, id)
 	if err != nil {
 		tc.logger.WithFields(logrus.Fields{
 			"err": err,
@@ -158,7 +159,7 @@ func (tc *trendingConsumer) Consume(delivery rmq.Delivery) {
 		return
 	}
 
-	watchers, err := tc.watcherRepo.GetByTrendingSubredditID(ctx, subreddit.ID)
+	watchers, err := tc.watcherRepo.GetByTrendingSubredditID(tc, subreddit.ID)
 	if err != nil {
 		tc.logger.WithFields(logrus.Fields{
 			"subreddit#id": subreddit.ID,
@@ -179,7 +180,7 @@ func (tc *trendingConsumer) Consume(delivery rmq.Delivery) {
 	watcher := watchers[i]
 	rac := tc.reddit.NewAuthenticatedClient(watcher.Account.AccountID, watcher.Account.RefreshToken, watcher.Account.AccessToken)
 
-	tps, err := rac.SubredditTop(subreddit.Name, reddit.WithQuery("t", "week"))
+	tps, err := rac.SubredditTop(tc, subreddit.Name, reddit.WithQuery("t", "week"))
 	if err != nil {
 		tc.logger.WithFields(logrus.Fields{
 			"subreddit#id":   subreddit.ID,
@@ -219,7 +220,7 @@ func (tc *trendingConsumer) Consume(delivery rmq.Delivery) {
 	i = rand.Intn(len(watchers))
 	watcher = watchers[i]
 	rac = tc.reddit.NewAuthenticatedClient(watcher.Account.AccountID, watcher.Account.RefreshToken, watcher.Account.AccessToken)
-	hps, err := rac.SubredditHot(subreddit.Name)
+	hps, err := rac.SubredditHot(tc, subreddit.Name)
 	if err != nil {
 		tc.logger.WithFields(logrus.Fields{
 			"subreddit#id":   subreddit.ID,
@@ -256,7 +257,7 @@ func (tc *trendingConsumer) Consume(delivery rmq.Delivery) {
 			}
 
 			lockKey := fmt.Sprintf("watcher:trending:%d:%s", watcher.DeviceID, post.ID)
-			notified, _ := tc.redis.Get(ctx, lockKey).Bool()
+			notified, _ := tc.redis.Get(tc, lockKey).Bool()
 
 			if notified {
 				tc.logger.WithFields(logrus.Fields{
@@ -268,9 +269,9 @@ func (tc *trendingConsumer) Consume(delivery rmq.Delivery) {
 				continue
 			}
 
-			tc.redis.SetEX(ctx, lockKey, true, 48*time.Hour)
+			tc.redis.SetEX(tc, lockKey, true, 48*time.Hour)
 
-			if err := tc.watcherRepo.IncrementHits(ctx, watcher.ID); err != nil {
+			if err := tc.watcherRepo.IncrementHits(tc, watcher.ID); err != nil {
 				tc.logger.WithFields(logrus.Fields{
 					"subreddit#id": subreddit.ID,
 					"watcher#id":   watcher.ID,

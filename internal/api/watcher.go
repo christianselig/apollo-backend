@@ -103,7 +103,7 @@ func (a *api) createWatcherHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if cwr.Type == "subreddit" || cwr.Type == "trending" {
-		srr, err := ac.SubredditAbout(cwr.Subreddit)
+		srr, err := ac.SubredditAbout(ctx, cwr.Subreddit)
 		if err != nil {
 			a.errorResponse(w, r, 422, err.Error())
 			return
@@ -132,7 +132,7 @@ func (a *api) createWatcherHandler(w http.ResponseWriter, r *http.Request) {
 
 		watcher.WatcheeID = sr.ID
 	} else if cwr.Type == "user" {
-		urr, err := ac.UserAbout(cwr.User)
+		urr, err := ac.UserAbout(ctx, cwr.User)
 		if err != nil {
 			a.errorResponse(w, r, 500, err.Error())
 			return

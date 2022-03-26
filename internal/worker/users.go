@@ -23,6 +23,8 @@ import (
 )
 
 type usersWorker struct {
+	context.Context
+
 	logger *logrus.Logger
 	statsd *statsd.Client
 	db     *pgxpool.Pool
@@ -41,7 +43,7 @@ type usersWorker struct {
 
 const userNotificationTitleFormat = "👨\u200d🚀 %s"
 
-func NewUsersWorker(logger *logrus.Logger, statsd *statsd.Client, db *pgxpool.Pool, redis *redis.Client, queue rmq.Connection, consumers int) Worker {
+func NewUsersWorker(ctx context.Context, logger *logrus.Logger, statsd *statsd.Client, db *pgxpool.Pool, redis *redis.Client, queue rmq.Connection, consumers int) Worker {
 	reddit := reddit.NewClient(
 		os.Getenv("REDDIT_CLIENT_ID"),
 		os.Getenv("REDDIT_CLIENT_SECRET"),
@@ -65,6 +67,7 @@ func NewUsersWorker(logger *logrus.Logger, statsd *statsd.Client, db *pgxpool.Po
 	}
 
 	return &usersWorker{
+		ctx,
 		logger,
 		statsd,
 		db,
@@ -133,8 +136,6 @@ func NewUsersConsumer(uw *usersWorker, tag int) *usersConsumer {
 }
 
 func (uc *usersConsumer) Consume(delivery rmq.Delivery) {
-	ctx := context.Background()
-
 	uc.logger.WithFields(logrus.Fields{
 		"user#id": delivery.Payload(),
 	}).Debug("starting job")
@@ -152,7 +153,7 @@ func (uc *usersConsumer) Consume(delivery rmq.Delivery) {
 
 	defer func() { _ = delivery.Ack() }()
 
-	user, err := uc.userRepo.GetByID(ctx, id)
+	user, err := uc.userRepo.GetByID(uc, id)
 	if err != nil {
 		uc.logger.WithFields(logrus.Fields{
 			"err": err,
@@ -160,7 +161,7 @@ func (uc *usersConsumer) Consume(delivery rmq.Delivery) {
 		return
 	}
 
-	watchers, err := uc.watcherRepo.GetByUserID(ctx, user.ID)
+	watchers, err := uc.watcherRepo.GetByUserID(uc, user.ID)
 	if err != nil {
 		uc.logger.WithFields(logrus.Fields{
 			"user#id": user.ID,
@@ -180,10 +181,10 @@ func (uc *usersConsumer) Consume(delivery rmq.Delivery) {
 	i := rand.Intn(len(watchers))
 	watcher := watchers[i]
 
-	acc, _ := uc.accountRepo.GetByID(ctx, watcher.AccountID)
+	acc, _ := uc.accountRepo.GetByID(uc, watcher.AccountID)
 	rac := uc.reddit.NewAuthenticatedClient(acc.AccountID, acc.RefreshToken, acc.AccessToken)
 
-	ru, err := rac.UserAbout(user.Name)
+	ru, err := rac.UserAbout(uc, user.Name)
 	if err != nil {
 		uc.logger.WithFields(logrus.Fields{
 			"user#id": user.ID,
@@ -197,7 +198,7 @@ func (uc *usersConsumer) Consume(delivery rmq.Delivery) {
 			"user#id": user.ID,
 		}).Info("user disabled followers, removing")
 
-		if err := uc.watcherRepo.DeleteByTypeAndWatcheeID(ctx, domain.UserWatcher, user.ID); err != nil {
+		if err := uc.watcherRepo.DeleteByTypeAndWatcheeID(uc, domain.UserWatcher, user.ID); err != nil {
 			uc.logger.WithFields(logrus.Fields{
 				"user#id": user.ID,
 				"err":     err,
@@ -205,7 +206,7 @@ func (uc *usersConsumer) Consume(delivery rmq.Delivery) {
 			return
 		}
 
-		if err := uc.userRepo.Delete(ctx, user.ID); err != nil {
+		if err := uc.userRepo.Delete(uc, user.ID); err != nil {
 			uc.logger.WithFields(logrus.Fields{
 				"user#id": user.ID,
 				"err":     err,
@@ -214,7 +215,7 @@ func (uc *usersConsumer) Consume(delivery rmq.Delivery) {
 		}
 	}
 
-	posts, err := rac.UserPosts(user.Name)
+	posts, err := rac.UserPosts(uc, user.Name)
 	if err != nil {
 		uc.logger.WithFields(logrus.Fields{
 			"user#id": user.ID,
@@ -259,7 +260,7 @@ func (uc *usersConsumer) Consume(delivery rmq.Delivery) {
 		notification.Topic = "com.christianselig.Apollo"
 
 		for _, watcher := range notifs {
-			if err := uc.watcherRepo.IncrementHits(ctx, watcher.ID); err != nil {
+			if err := uc.watcherRepo.IncrementHits(uc, watcher.ID); err != nil {
 				uc.logger.WithFields(logrus.Fields{
 					"user#id":    user.ID,
 					"watcher#id": watcher.ID,
@@ -268,7 +269,7 @@ func (uc *usersConsumer) Consume(delivery rmq.Delivery) {
 				return
 			}
 
-			device, _ := uc.deviceRepo.GetByID(ctx, watcher.DeviceID)
+			device, _ := uc.deviceRepo.GetByID(uc, watcher.DeviceID)
 
 			title := fmt.Sprintf(userNotificationTitleFormat, watcher.Label)
 			payload.AlertTitle(title)

@@ -5,21 +5,19 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/jackc/pgx/v4/pgxpool"
-
 	"github.com/christianselig/apollo-backend/internal/domain"
 )
 
 type postgresUserRepository struct {
-	pool *pgxpool.Pool
+	conn Connection
 }
 
-func NewPostgresUser(pool *pgxpool.Pool) domain.UserRepository {
-	return &postgresUserRepository{pool: pool}
+func NewPostgresUser(conn Connection) domain.UserRepository {
+	return &postgresUserRepository{conn: conn}
 }
 
 func (p *postgresUserRepository) fetch(ctx context.Context, query string, args ...interface{}) ([]domain.User, error) {
-	rows, err := p.pool.Query(ctx, query, args...)
+	rows, err := p.conn.Query(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -89,7 +87,7 @@ func (p *postgresUserRepository) CreateOrUpdate(ctx context.Context, u *domain.U
 			UPDATE SET last_checked_at = $3
 		RETURNING id`
 
-	return p.pool.QueryRow(
+	return p.conn.QueryRow(
 		ctx,
 		query,
 		u.UserID,
@@ -100,7 +98,7 @@ func (p *postgresUserRepository) CreateOrUpdate(ctx context.Context, u *domain.U
 
 func (p *postgresUserRepository) Delete(ctx context.Context, id int64) error {
 	query := `DELETE FROM users WHERE id = $1`
-	res, err := p.pool.Exec(ctx, query, id)
+	res, err := p.conn.Exec(ctx, query, id)
 
 	if res.RowsAffected() != 1 {
 		return fmt.Errorf("weird behaviour, total rows affected: %d", res.RowsAffected())

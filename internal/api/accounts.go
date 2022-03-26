@@ -143,7 +143,7 @@ func (a *api) upsertAccountsHandler(w http.ResponseWriter, r *http.Request) {
 		delete(accsMap, acc.NormalizedUsername())
 
 		ac := a.reddit.NewAuthenticatedClient(reddit.SkipRateLimiting, acc.RefreshToken, acc.AccessToken)
-		tokens, err := ac.RefreshTokens()
+		tokens, err := ac.RefreshTokens(ctx)
 		if err != nil {
 			a.errorResponse(w, r, 422, err.Error())
 			return
@@ -155,7 +155,7 @@ func (a *api) upsertAccountsHandler(w http.ResponseWriter, r *http.Request) {
 		acc.AccessToken = tokens.AccessToken
 
 		ac = a.reddit.NewAuthenticatedClient(reddit.SkipRateLimiting, acc.RefreshToken, acc.AccessToken)
-		me, err := ac.Me()
+		me, err := ac.Me(ctx)
 
 		if err != nil {
 			a.errorResponse(w, r, 422, err.Error())
@@ -202,7 +202,7 @@ func (a *api) upsertAccountHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Here we check whether the account is supplied with a valid token.
 	ac := a.reddit.NewAuthenticatedClient(reddit.SkipRateLimiting, acct.RefreshToken, acct.AccessToken)
-	tokens, err := ac.RefreshTokens()
+	tokens, err := ac.RefreshTokens(ctx)
 	if err != nil {
 		a.logger.WithFields(logrus.Fields{
 			"err": err,
@@ -217,7 +217,7 @@ func (a *api) upsertAccountHandler(w http.ResponseWriter, r *http.Request) {
 	acct.AccessToken = tokens.AccessToken
 
 	ac = a.reddit.NewAuthenticatedClient(reddit.SkipRateLimiting, acct.RefreshToken, acct.AccessToken)
-	me, err := ac.Me()
+	me, err := ac.Me(ctx)
 
 	if err != nil {
 		a.logger.WithFields(logrus.Fields{
