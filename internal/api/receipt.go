@@ -52,6 +52,7 @@ func (a *api) checkReceiptHandler(w http.ResponseWriter, r *http.Request) {
 			_ = a.deviceRepo.Delete(ctx, apns)
 		} else {
 			dev.ActiveUntil = time.Now().Unix() + domain.DeviceActiveAfterReceitCheckDuration
+			dev.GracePeriodUntil = dev.ActiveUntil + domain.DeviceGracePeriodAfterReceiptExpiry
 			_ = a.deviceRepo.Update(ctx, &dev)
 		}
 	}
