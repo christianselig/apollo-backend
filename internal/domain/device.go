@@ -9,13 +9,15 @@ import (
 const (
 	DeviceGracePeriodDuration            = 3600           // 1 hour
 	DeviceActiveAfterReceitCheckDuration = 3600 * 24 * 30 // ~1 month
+	DeviceGracePeriodAfterReceiptExpiry  = 3600 * 24 * 30 // ~1 month
 )
 
 type Device struct {
-	ID          int64
-	APNSToken   string
-	Sandbox     bool
-	ActiveUntil int64
+	ID               int64
+	APNSToken        string
+	Sandbox          bool
+	ActiveUntil      int64
+	GracePeriodUntil int64
 }
 
 func (dev *Device) Validate() error {
