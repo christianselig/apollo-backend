@@ -15,7 +15,7 @@ import (
 func Execute(ctx context.Context) int {
 	_ = godotenv.Load()
 
-	if key, ok := os.LookupEnv("BUGSNAG_KEY"); ok {
+	if key, ok := os.LookupEnv("BUGSNAG_API_KEY"); ok {
 		bugsnag.Configure(bugsnag.Configuration{
 			APIKey:          key,
 			ReleaseStage:    os.Getenv("ENV"),
