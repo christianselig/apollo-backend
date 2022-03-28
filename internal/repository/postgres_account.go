@@ -49,7 +49,7 @@ func (p *postgresAccountRepository) fetch(ctx context.Context, query string, arg
 
 func (p *postgresAccountRepository) GetByID(ctx context.Context, id int64) (domain.Account, error) {
 	query := `
-		SELECT id, username, account_id, access_token, refresh_token, token_expires_at,
+		SELECT id, username, reddit_account_id, access_token, refresh_token, token_expires_at,
 			last_message_id, next_notification_check_at, next_stuck_notification_check_at,
 			check_count
 		FROM accounts
@@ -68,11 +68,11 @@ func (p *postgresAccountRepository) GetByID(ctx context.Context, id int64) (doma
 
 func (p *postgresAccountRepository) GetByRedditID(ctx context.Context, id string) (domain.Account, error) {
 	query := `
-		SELECT id, username, account_id, access_token, refresh_token, token_expires_at,
+		SELECT id, username, reddit_account_id, access_token, refresh_token, token_expires_at,
 			last_message_id, next_notification_check_at, next_stuck_notification_check_at,
 			check_count
 		FROM accounts
-		WHERE account_id = $1`
+		WHERE reddit_account_id = $1`
 
 	accs, err := p.fetch(ctx, query, id)
 	if err != nil {
@@ -87,7 +87,7 @@ func (p *postgresAccountRepository) GetByRedditID(ctx context.Context, id string
 }
 func (p *postgresAccountRepository) CreateOrUpdate(ctx context.Context, acc *domain.Account) error {
 	query := `
-		INSERT INTO accounts (username, account_id, access_token, refresh_token, token_expires_at,
+		INSERT INTO accounts (username, reddit_account_id, access_token, refresh_token, token_expires_at,
 			last_message_id, next_notification_check_at, next_stuck_notification_check_at)
 		VALUES ($1, $2, $3, $4, $5, '', NOW(), NOW())
 		ON CONFLICT(username) DO
@@ -110,7 +110,7 @@ func (p *postgresAccountRepository) CreateOrUpdate(ctx context.Context, acc *dom
 func (p *postgresAccountRepository) Create(ctx context.Context, acc *domain.Account) error {
 	query := `
 		INSERT INTO accounts
-			(username, account_id, access_token, refresh_token, token_expires_at,
+			(username, reddit_account_id, access_token, refresh_token, token_expires_at,
 			last_message_id, next_notification_check_at, next_stuck_notification_check_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		RETURNING id`
@@ -133,7 +133,7 @@ func (p *postgresAccountRepository) Update(ctx context.Context, acc *domain.Acco
 	query := `
 		UPDATE accounts
 		SET username = $2,
-			account_id = $3,
+			reddit_account_id = $3,
 			access_token = $4,
 			refresh_token = $5,
 			token_expires_at = $6,
@@ -196,7 +196,7 @@ func (p *postgresAccountRepository) Disassociate(ctx context.Context, acc *domai
 
 func (p *postgresAccountRepository) GetByAPNSToken(ctx context.Context, token string) ([]domain.Account, error) {
 	query := `
-		SELECT accounts.id, username, accounts.account_id, access_token, refresh_token, token_expires_at,
+		SELECT accounts.id, username, accounts.reddit_account_id, access_token, refresh_token, token_expires_at,
 			last_message_id, next_notification_check_at, next_stuck_notification_check_at,
 			check_count
 		FROM accounts
