@@ -28,8 +28,8 @@ func (a *api) upsertDeviceHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	d.ActiveUntil = time.Now().Unix() + domain.DeviceGracePeriodDuration
-	d.GracePeriodUntil = d.ActiveUntil + domain.DeviceGracePeriodAfterReceiptExpiry
+	d.ExpiresAt = time.Now().Add(domain.DeviceReceiptCheckPeriodDuration)
+	d.GracePeriodExpiresAt = d.ExpiresAt.Add(domain.DeviceGracePeriodAfterReceiptExpiry)
 
 	if err := a.deviceRepo.CreateOrUpdate(ctx, d); err != nil {
 		a.errorResponse(w, r, 500, err.Error())

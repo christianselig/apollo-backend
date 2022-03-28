@@ -2,6 +2,7 @@ package domain
 
 import (
 	"context"
+	"time"
 
 	validation "github.com/go-ozzo/ozzo-validation/v4"
 )
@@ -29,8 +30,8 @@ func (wt WatcherType) String() string {
 
 type Watcher struct {
 	ID             int64
-	CreatedAt      float64
-	LastNotifiedAt float64
+	CreatedAt      time.Time
+	LastNotifiedAt time.Time
 	Label          string
 
 	DeviceID     int64

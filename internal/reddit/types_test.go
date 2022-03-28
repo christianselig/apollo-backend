@@ -3,6 +3,7 @@ package reddit
 import (
 	"io/ioutil"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/valyala/fastjson"
@@ -60,13 +61,14 @@ func TestListingResponseParsing(t *testing.T) {
 	assert.Equal(t, "", l.Before)
 
 	thing := l.Children[0]
+	created := time.Time(time.Date(2021, time.July, 14, 13, 56, 35, 0, time.Local))
 	assert.Equal(t, "t4", thing.Kind)
 	assert.Equal(t, "138z6ke", thing.ID)
 	assert.Equal(t, "unknown", thing.Type)
 	assert.Equal(t, "iamthatis", thing.Author)
 	assert.Equal(t, "how goes it", thing.Subject)
 	assert.Equal(t, "how are you today", thing.Body)
-	assert.Equal(t, 1626285395.0, thing.CreatedAt)
+	assert.Equal(t, created, thing.CreatedAt)
 	assert.Equal(t, "hugocat", thing.Destination)
 	assert.Equal(t, "t4_138z6ke", thing.FullName())
 
