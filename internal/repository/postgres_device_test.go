@@ -2,6 +2,8 @@ package repository_test
 
 import (
 	"context"
+	"crypto/rand"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -89,6 +91,43 @@ func TestPostgresDevice_Create(t *testing.T) {
 			}
 
 			assert.NotEqual(t, 0, tc.have.ID)
+		})
+	}
+}
+
+func TestPostgresDevice_Update(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	repo := NewTestPostgresDevice(t)
+
+	testCases := map[string]struct {
+		fn  func(*domain.Device)
+		err error
+	}{
+		"valid update":              {func(dev *domain.Device) { dev.Sandbox = true }, nil},
+		"empty update":              {func(dev *domain.Device) {}, nil},
+		"update on non existant id": {func(dev *domain.Device) { dev.ID = 0 }, errors.New("weird behaviour, total rows affected: 0")},
+	}
+
+	for scenario, tc := range testCases { //nolint:paralleltest
+		t.Run(scenario, func(t *testing.T) {
+			b := make([]byte, 64)
+			rand.Read(b)
+
+			dev := &domain.Device{APNSToken: string(b)}
+			require.NoError(t, repo.Create(ctx, dev))
+
+			tc.fn(dev)
+
+			err := repo.Update(ctx, dev)
+			if tc.err != nil {
+				require.Error(t, err)
+				assert.Equal(t, tc.err, err)
+				return
+			}
+
+			require.NoError(t, err)
 		})
 	}
 }
