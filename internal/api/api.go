@@ -107,9 +107,19 @@ func (a *api) Routes() *mux.Router {
 	r.HandleFunc("/v1/receipt", a.checkReceiptHandler).Methods("POST")
 	r.HandleFunc("/v1/receipt/{apns}", a.checkReceiptHandler).Methods("POST")
 
+	r.HandleFunc("/v1/test/bugsnag", a.testBugsnagHandler).Methods("POST")
+
 	r.Use(a.loggingMiddleware)
 
 	return r
+}
+
+func (a *api) testBugsnagHandler(w http.ResponseWriter, r *http.Request) {
+	if err := bugsnag.Notify(fmt.Errorf("Test error")); err != nil {
+		a.errorResponse(w, r, 500, err.Error())
+		return
+	}
+	w.WriteHeader(http.StatusOK)
 }
 
 type LoggingResponseWriter struct {
