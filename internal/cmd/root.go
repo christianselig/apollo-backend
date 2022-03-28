@@ -20,6 +20,7 @@ func Execute(ctx context.Context) int {
 			APIKey:          key,
 			ReleaseStage:    os.Getenv("ENV"),
 			ProjectPackages: []string{"main", "github.com/christianselig/apollo-backend"},
+			AppVersion:      os.Getenv("RENDER_GIT_COMMIT"),
 		})
 	}
 
