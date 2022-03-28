@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-go/statsd"
+	"github.com/bugsnag/bugsnag-go/v2"
 	"github.com/go-redis/redis/v8"
 	"github.com/gorilla/mux"
 	"github.com/jackc/pgx/v4/pgxpool"
@@ -79,7 +80,7 @@ func NewAPI(ctx context.Context, logger *logrus.Logger, statsd *statsd.Client, r
 func (a *api) Server(port int) *http.Server {
 	return &http.Server{
 		Addr:    fmt.Sprintf(":%d", port),
-		Handler: a.Routes(),
+		Handler: bugsnag.Handler(a.Routes()),
 	}
 }
 
