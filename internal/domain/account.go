@@ -3,8 +3,16 @@ package domain
 import (
 	"context"
 	"strings"
+	"time"
 
 	validation "github.com/go-ozzo/ozzo-validation/v4"
+)
+
+const (
+	NotificationCheckInterval      = 5 * time.Second  // time between notification checks
+	NotificationCheckTimeout       = 60 * time.Second // time before we give up an account check lock
+	StuckNotificationCheckInterval = 2 * time.Minute  // time between stuck notification checks
+	StaleTokenThreshold            = 2 * time.Hour    // time an oauth token has to be expired for to be stale
 )
 
 // Account represents an account we need to periodically check in the notifications worker.
@@ -12,16 +20,17 @@ type Account struct {
 	ID int64
 
 	// Reddit information
-	Username     string
-	AccountID    string
-	AccessToken  string
-	RefreshToken string
-	ExpiresAt    int64
+	Username       string
+	AccountID      string
+	AccessToken    string
+	RefreshToken   string
+	TokenExpiresAt time.Time
 
 	// Tracking how far behind we are
-	LastMessageID string
-	LastCheckedAt float64
-	LastUnstuckAt float64
+	LastMessageID                string
+	NextNotificationCheckAt      time.Time
+	NextStuckNotificationCheckAt time.Time
+	CheckCount                   int64
 }
 
 func (acct *Account) NormalizedUsername() string {
@@ -49,5 +58,5 @@ type AccountRepository interface {
 	Disassociate(ctx context.Context, acc *Account, dev *Device) error
 
 	PruneOrphaned(ctx context.Context) (int64, error)
-	PruneStale(ctx context.Context, before int64) (int64, error)
+	PruneStale(ctx context.Context, expiry time.Time) (int64, error)
 }

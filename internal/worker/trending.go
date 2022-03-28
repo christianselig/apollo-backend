@@ -235,14 +235,14 @@ func (tc *trendingConsumer) Consume(delivery rmq.Delivery) {
 	}).Debug("loaded hot posts")
 
 	// Trending only counts for posts less than 2 days old
-	threshold := float64(time.Now().AddDate(0, 0, -2).UTC().Unix())
+	threshold := time.Now().Add(-24 * time.Hour * 2)
 
 	for _, post := range hps.Children {
 		if post.Score < medianScore {
 			continue
 		}
 
-		if post.CreatedAt < threshold {
+		if post.CreatedAt.Before(threshold) {
 			break
 		}
 
@@ -251,7 +251,7 @@ func (tc *trendingConsumer) Consume(delivery rmq.Delivery) {
 		notification.Payload = payloadFromTrendingPost(post)
 
 		for _, watcher := range watchers {
-			if watcher.CreatedAt > post.CreatedAt {
+			if watcher.CreatedAt.After(post.CreatedAt) {
 				continue
 			}
 

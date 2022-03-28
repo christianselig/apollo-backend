@@ -2,22 +2,23 @@ package domain
 
 import (
 	"context"
+	"time"
 
 	validation "github.com/go-ozzo/ozzo-validation/v4"
 )
 
 const (
-	DeviceGracePeriodDuration            = 3600           // 1 hour
-	DeviceActiveAfterReceitCheckDuration = 3600 * 24 * 30 // ~1 month
-	DeviceGracePeriodAfterReceiptExpiry  = 3600 * 24 * 30 // ~1 month
+	DeviceReceiptCheckPeriodDuration     = 1 * time.Hour
+	DeviceActiveAfterReceitCheckDuration = 30 * 24 * time.Hour // ~1 month
+	DeviceGracePeriodAfterReceiptExpiry  = 30 * 24 * time.Hour // ~1 month
 )
 
 type Device struct {
-	ID               int64
-	APNSToken        string
-	Sandbox          bool
-	ActiveUntil      int64
-	GracePeriodUntil int64
+	ID                   int64
+	APNSToken            string
+	Sandbox              bool
+	ExpiresAt            time.Time
+	GracePeriodExpiresAt time.Time
 }
 
 func (dev *Device) Validate() error {
@@ -40,5 +41,5 @@ type DeviceRepository interface {
 	SetNotifiable(ctx context.Context, dev *Device, acct *Account, inbox, watcher, global bool) error
 	GetNotifiable(ctx context.Context, dev *Device, acct *Account) (bool, bool, bool, error)
 
-	PruneStale(ctx context.Context, before int64) (int64, error)
+	PruneStale(ctx context.Context, expiry time.Time) (int64, error)
 }

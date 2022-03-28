@@ -161,7 +161,7 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 
 	defer func() { _ = delivery.Ack() }()
 
-	now := float64(time.Now().UnixNano()/int64(time.Millisecond)) / 1000
+	now := time.Now()
 
 	account, err := nc.accountRepo.GetByID(ctx, id)
 	if err != nil {
@@ -171,20 +171,22 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 		return
 	}
 
-	previousLastCheckedAt := account.LastCheckedAt
-	newAccount := (previousLastCheckedAt == 0)
-	account.LastCheckedAt = now
+	newAccount := account.CheckCount == 0
+	previousNextCheck := account.NextNotificationCheckAt
+
+	account.CheckCount++
+	account.NextNotificationCheckAt = time.Now().Add(domain.NotificationCheckInterval)
 
 	if err = nc.accountRepo.Update(ctx, &account); err != nil {
 		nc.logger.WithFields(logrus.Fields{
 			"account#username": account.NormalizedUsername(),
 			"err":              err,
-		}).Error("failed to update last_checked_at for account")
+		}).Error("failed to update next_notification_check_at for account")
 		return
 	}
 
 	rac := nc.reddit.NewAuthenticatedClient(account.AccountID, account.RefreshToken, account.AccessToken)
-	if account.ExpiresAt < int64(now) {
+	if account.TokenExpiresAt.Before(now) {
 		nc.logger.WithFields(logrus.Fields{
 			"account#username": account.NormalizedUsername(),
 		}).Debug("refreshing reddit token")
@@ -213,7 +215,7 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 		// Update account
 		account.AccessToken = tokens.AccessToken
 		account.RefreshToken = tokens.RefreshToken
-		account.ExpiresAt = int64(now + 3540)
+		account.TokenExpiresAt = now.Add(3600 * time.Second)
 
 		// Refresh client
 		rac = nc.reddit.NewAuthenticatedClient(account.AccountID, tokens.RefreshToken, tokens.AccessToken)
@@ -230,8 +232,8 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 	// Only update delay on accounts we can actually check, otherwise it skews
 	// the numbers too much.
 	if !newAccount {
-		latency := now - previousLastCheckedAt - float64(backoff)
-		_ = nc.statsd.Histogram("apollo.queue.delay", latency, []string{}, rate)
+		latency := now.Sub(previousNextCheck) - backoff*time.Second
+		_ = nc.statsd.Histogram("apollo.queue.delay", float64(latency.Milliseconds()), []string{}, rate)
 	}
 
 	nc.logger.WithFields(logrus.Fields{

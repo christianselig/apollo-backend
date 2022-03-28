@@ -3,13 +3,16 @@ package domain
 import (
 	"context"
 	"strings"
+	"time"
 
 	validation "github.com/go-ozzo/ozzo-validation/v4"
 )
 
+const UserRefreshInterval = 2 * time.Minute
+
 type User struct {
-	ID            int64
-	LastCheckedAt float64
+	ID          int64
+	NextCheckAt time.Time
 
 	// Reddit information
 	UserID string
