@@ -6,6 +6,7 @@ import (
 	"runtime"
 	"runtime/pprof"
 
+	"github.com/bugsnag/bugsnag-go/v2"
 	_ "github.com/heroku/x/hmetrics/onload"
 	"github.com/joho/godotenv"
 	"github.com/spf13/cobra"
@@ -13,6 +14,14 @@ import (
 
 func Execute(ctx context.Context) int {
 	_ = godotenv.Load()
+
+	if key, ok := os.LookupEnv("BUGSNAG_KEY"); ok {
+		bugsnag.Configure(bugsnag.Configuration{
+			APIKey:          key,
+			ReleaseStage:    os.Getenv("ENV"),
+			ProjectPackages: []string{"main", "github.com/christianselig/apollo-backend"},
+		})
+	}
 
 	profile := false
 
