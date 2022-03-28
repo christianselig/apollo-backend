@@ -41,6 +41,7 @@ func TestRefreshTokenResponseParsing(t *testing.T) {
 
 	assert.Equal(t, "56192486-VMT1xoioZmgAwyf4wob4LHMYmKdYGA", rtr.AccessToken)
 	assert.Equal(t, "56192486-tCz513pO3IMgrtu4ODrZBKqyvrXptw", rtr.RefreshToken)
+	assert.Equal(t, 1*time.Hour, rtr.Expiry)
 }
 
 func TestListingResponseParsing(t *testing.T) {

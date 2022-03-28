@@ -150,7 +150,7 @@ func (a *api) upsertAccountsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Reset expiration timer
-		acc.TokenExpiresAt = time.Now().Add(1 * time.Hour)
+		acc.TokenExpiresAt = time.Now().Add(tokens.Expiry)
 		acc.RefreshToken = tokens.RefreshToken
 		acc.AccessToken = tokens.AccessToken
 
@@ -215,7 +215,7 @@ func (a *api) upsertAccountHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Reset expiration timer
-	acct.TokenExpiresAt = time.Now().Add(1 * time.Hour)
+	acct.TokenExpiresAt = time.Now().Add(tokens.Expiry)
 	acct.RefreshToken = tokens.RefreshToken
 	acct.AccessToken = tokens.AccessToken
 

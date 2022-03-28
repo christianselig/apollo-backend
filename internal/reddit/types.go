@@ -30,8 +30,9 @@ func NewError(val *fastjson.Value, status int) *Error {
 }
 
 type RefreshTokenResponse struct {
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
+	AccessToken  string        `json:"access_token"`
+	RefreshToken string        `json:"refresh_token"`
+	Expiry       time.Duration `json:"expires_in"`
 }
 
 func NewRefreshTokenResponse(val *fastjson.Value) interface{} {
@@ -39,6 +40,7 @@ func NewRefreshTokenResponse(val *fastjson.Value) interface{} {
 
 	rtr.AccessToken = string(val.GetStringBytes("access_token"))
 	rtr.RefreshToken = string(val.GetStringBytes("refresh_token"))
+	rtr.Expiry = time.Duration(val.GetInt("expires_in")) * time.Second
 
 	return rtr
 }

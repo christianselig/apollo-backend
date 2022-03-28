@@ -215,7 +215,7 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 		// Update account
 		account.AccessToken = tokens.AccessToken
 		account.RefreshToken = tokens.RefreshToken
-		account.TokenExpiresAt = now.Add(3600 * time.Second)
+		account.TokenExpiresAt = now.Add(tokens.Expiry)
 
 		// Refresh client
 		rac = nc.reddit.NewAuthenticatedClient(account.AccountID, tokens.RefreshToken, tokens.AccessToken)
