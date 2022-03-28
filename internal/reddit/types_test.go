@@ -41,6 +41,7 @@ func TestRefreshTokenResponseParsing(t *testing.T) {
 
 	assert.Equal(t, "***REMOVED***", rtr.AccessToken)
 	assert.Equal(t, "***REMOVED***", rtr.RefreshToken)
+	assert.Equal(t, 1*time.Hour, rtr.Expiry)
 }
 
 func TestListingResponseParsing(t *testing.T) {
