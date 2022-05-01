@@ -318,7 +318,7 @@ func (tc *trendingConsumer) Consume(delivery rmq.Delivery) {
 func payloadFromTrendingPost(post *reddit.Thing) *payload.Payload {
 	title := fmt.Sprintf(trendingNotificationTitleFormat, post.Subreddit)
 
-	return payload.
+	payload := payload.
 		NewPayload().
 		AlertTitle(title).
 		AlertBody(post.Title).
@@ -331,4 +331,10 @@ func payloadFromTrendingPost(post *reddit.Thing) *payload.Payload {
 		Custom("post_age", post.CreatedAt).
 		MutableContent().
 		Sound("traloop.wav")
+
+	if post.Thumbnail != "" {
+		payload.Custom("thumbnail", post.Thumbnail)
+	}
+
+	return payload
 }

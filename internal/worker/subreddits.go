@@ -447,5 +447,9 @@ func payloadFromPost(post *reddit.Thing) *payload.Payload {
 		MutableContent().
 		Sound("traloop.wav")
 
+	if post.Thumbnail != "" {
+		payload.Custom("thumbnail", post.Thumbnail)
+	}
+
 	return payload
 }
