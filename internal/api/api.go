@@ -107,6 +107,8 @@ func (a *api) Routes() *mux.Router {
 	r.HandleFunc("/v1/receipt", a.checkReceiptHandler).Methods("POST")
 	r.HandleFunc("/v1/receipt/{apns}", a.checkReceiptHandler).Methods("POST")
 
+	r.HandleFunc("/v1/contact", a.contactHandler).Methods("POST")
+
 	r.HandleFunc("/v1/test/bugsnag", a.testBugsnagHandler).Methods("POST")
 
 	r.Use(a.loggingMiddleware)
