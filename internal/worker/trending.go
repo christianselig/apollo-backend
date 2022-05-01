@@ -323,7 +323,7 @@ func payloadFromTrendingPost(post *reddit.Thing) *payload.Payload {
 		AlertTitle(title).
 		AlertBody(post.Title).
 		AlertSummaryArg(post.Subreddit).
-		Category("post-watch").
+		Category("trending-post").
 		Custom("post_title", post.Title).
 		Custom("post_id", post.ID).
 		Custom("subreddit", post.Subreddit).
