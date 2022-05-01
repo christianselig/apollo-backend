@@ -422,9 +422,12 @@ func payloadFromMessage(acct domain.Account, msg *reddit.Thing, badgeCount int) 
 	switch {
 	case (msg.Kind == "t1" && msg.Type == "username_mention"):
 		title := fmt.Sprintf(usernameMentionNotificationTitleFormat, postTitle)
+		postID := reddit.PostIDFromContext(msg.Context)
 		payload = payload.
 			AlertTitle(title).
 			Custom("comment_id", msg.ID).
+			Custom("post_id", postID).
+			Custom("subreddit", msg.Subreddit).
 			Custom("type", "username")
 
 		pType, _ := reddit.SplitID(msg.ParentID)
@@ -444,6 +447,7 @@ func payloadFromMessage(acct domain.Account, msg *reddit.Thing, badgeCount int) 
 			Custom("comment_id", msg.ID).
 			Custom("post_id", postID).
 			Custom("subject", "comment").
+			Custom("subreddit", msg.Subreddit).
 			Custom("type", "post").
 			ThreadID("comment")
 	case (msg.Kind == "t1" && msg.Type == "comment_reply"):
@@ -455,6 +459,7 @@ func payloadFromMessage(acct domain.Account, msg *reddit.Thing, badgeCount int) 
 			Custom("comment_id", msg.ID).
 			Custom("post_id", postID).
 			Custom("subject", "comment").
+			Custom("subreddit", msg.Subreddit).
 			Custom("type", "comment").
 			ThreadID("comment")
 	case (msg.Kind == "t4"):
