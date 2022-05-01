@@ -15,10 +15,11 @@ require (
 	github.com/go-redis/redismock/v8 v8.0.6
 	github.com/gorilla/mux v1.8.0
 	github.com/heroku/x v0.0.50
-	github.com/jackc/pgx/v4 v4.15.0
+	github.com/jackc/pgx/v4 v4.16.0
 	github.com/joho/godotenv v1.4.0
-	github.com/sideshow/apns2 v0.22.0
+	github.com/sideshow/apns2 v0.23.0
 	github.com/sirupsen/logrus v1.8.1
+	github.com/smtp2go-oss/smtp2go-go v1.0.1 // indirect
 	github.com/spf13/cobra v1.4.0
 	github.com/stretchr/testify v1.7.1
 	github.com/valyala/fastjson v1.6.3
