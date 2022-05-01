@@ -460,6 +460,7 @@ func payloadFromMessage(acct domain.Account, msg *reddit.Thing, badgeCount int) 
 			AlertTitle(title).
 			AlertSubtitle(postTitle).
 			Category("inbox-private-message").
+			Custom("comment_id", msg.ID).
 			Custom("type", "private-message")
 	}
 
