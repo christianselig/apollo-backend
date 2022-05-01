@@ -25,6 +25,11 @@ const (
 	backoff      = 5 // How long we wait in between checking for notifications, in seconds
 	pollDuration = 5 * time.Millisecond
 	rate         = 0.1
+
+	postReplyNotificationTitleFormat       = "%s to %s"
+	commentReplyNotificationTitleFormat    = "%s in %s"
+	privateMessageNotificationTitleFormat  = "Message from %s"
+	usernameMentionNotificationTitleFormat = "Mention in \u201c%s\u201d"
 )
 
 type notificationsWorker struct {
@@ -416,7 +421,7 @@ func payloadFromMessage(acct domain.Account, msg *reddit.Thing, badgeCount int) 
 
 	switch {
 	case (msg.Kind == "t1" && msg.Type == "username_mention"):
-		title := fmt.Sprintf(`Mention in “%s”`, postTitle)
+		title := fmt.Sprintf(usernameMentionNotificationTitleFormat, postTitle)
 		payload = payload.AlertTitle(title).Custom("type", "username")
 
 		pType, _ := reddit.SplitID(msg.ParentID)
@@ -428,7 +433,7 @@ func payloadFromMessage(acct domain.Account, msg *reddit.Thing, badgeCount int) 
 
 		payload = payload.Custom("subject", "comment").ThreadID("comment")
 	case (msg.Kind == "t1" && msg.Type == "post_reply"):
-		title := fmt.Sprintf(`%s to “%s”`, msg.Author, postTitle)
+		title := fmt.Sprintf(postReplyNotificationTitleFormat, msg.Author, postTitle)
 		payload = payload.
 			AlertTitle(title).
 			Category("inbox-post-reply").
@@ -437,7 +442,7 @@ func payloadFromMessage(acct domain.Account, msg *reddit.Thing, badgeCount int) 
 			Custom("type", "post").
 			ThreadID("comment")
 	case (msg.Kind == "t1" && msg.Type == "comment_reply"):
-		title := fmt.Sprintf(`%s in “%s”`, msg.Author, postTitle)
+		title := fmt.Sprintf(commentReplyNotificationTitleFormat, msg.Author, postTitle)
 		postID := reddit.PostIDFromContext(msg.Context)
 		payload = payload.
 			AlertTitle(title).
@@ -448,7 +453,7 @@ func payloadFromMessage(acct domain.Account, msg *reddit.Thing, badgeCount int) 
 			Custom("type", "comment").
 			ThreadID("comment")
 	case (msg.Kind == "t4"):
-		title := fmt.Sprintf(`Message from %s`, msg.Author)
+		title := fmt.Sprintf(privateMessageNotificationTitleFormat, msg.Author)
 		payload = payload.
 			AlertTitle(title).
 			AlertSubtitle(postTitle).
