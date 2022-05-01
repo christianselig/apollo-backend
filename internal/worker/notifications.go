@@ -434,10 +434,12 @@ func payloadFromMessage(acct domain.Account, msg *reddit.Thing, badgeCount int) 
 		payload = payload.Custom("subject", "comment").ThreadID("comment")
 	case (msg.Kind == "t1" && msg.Type == "post_reply"):
 		title := fmt.Sprintf(postReplyNotificationTitleFormat, msg.Author, postTitle)
+		postID := reddit.PostIDFromContext(msg.Context)
 		payload = payload.
 			AlertTitle(title).
 			Category("inbox-post-reply").
-			Custom("post_id", msg.ID).
+			Custom("comment_id", msg.ID).
+			Custom("post_id", postID).
 			Custom("subject", "comment").
 			Custom("type", "post").
 			ThreadID("comment")
