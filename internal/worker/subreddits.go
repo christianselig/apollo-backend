@@ -438,7 +438,7 @@ func payloadFromPost(post *reddit.Thing) *payload.Payload {
 	payload := payload.
 		NewPayload().
 		AlertSummaryArg(post.Subreddit).
-		Category("post-watch").
+		Category("subreddit-watch").
 		Custom("post_title", post.Title).
 		Custom("post_id", post.ID).
 		Custom("subreddit", post.Subreddit).
