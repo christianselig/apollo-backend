@@ -38,7 +38,7 @@ type trendingWorker struct {
 	watcherRepo   domain.WatcherRepository
 }
 
-const trendingNotificationTitleFormat = "🔥 Trending in r/%s"
+const trendingNotificationTitleFormat = "🔥 r/%s Trending"
 
 func NewTrendingWorker(logger *logrus.Logger, statsd *statsd.Client, db *pgxpool.Pool, redis *redis.Client, queue rmq.Connection, consumers int) Worker {
 	reddit := reddit.NewClient(
@@ -318,10 +318,9 @@ func (tc *trendingConsumer) Consume(delivery rmq.Delivery) {
 func payloadFromTrendingPost(post *reddit.Thing) *payload.Payload {
 	title := fmt.Sprintf(trendingNotificationTitleFormat, post.Subreddit)
 
-	payload := payload.
+	return payload.
 		NewPayload().
 		AlertTitle(title).
-		AlertSubtitle(post.Title).
 		AlertBody(post.Title).
 		AlertSummaryArg(post.Subreddit).
 		Category("post-watch").
@@ -332,6 +331,4 @@ func payloadFromTrendingPost(post *reddit.Thing) *payload.Payload {
 		Custom("post_age", post.CreatedAt).
 		MutableContent().
 		Sound("traloop.wav")
-
-	return payload
 }
