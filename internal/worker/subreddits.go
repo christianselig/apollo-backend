@@ -40,7 +40,10 @@ type subredditsWorker struct {
 	watcherRepo   domain.WatcherRepository
 }
 
-const subredditNotificationTitleFormat = "📣 %s"
+const (
+	subredditNotificationTitleFormat = "📣 \u201c%s\u201d Watcher"
+	subredditNotificationBodyFormat  = "r/%s: \u201c%s\u201d"
+)
 
 func NewSubredditsWorker(logger *logrus.Logger, statsd *statsd.Client, db *pgxpool.Pool, redis *redis.Client, queue rmq.Connection, consumers int) Worker {
 	reddit := reddit.NewClient(
@@ -391,6 +394,9 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 			title := fmt.Sprintf(subredditNotificationTitleFormat, watcher.Label)
 			payload.AlertTitle(title)
 
+			body := fmt.Sprintf(subredditNotificationBodyFormat, subreddit.Name, post.Title)
+			payload.AlertBody(body)
+
 			notification := &apns2.Notification{}
 			notification.Topic = "com.christianselig.Apollo"
 			notification.DeviceToken = watcher.Device.APNSToken
@@ -429,12 +435,8 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 }
 
 func payloadFromPost(post *reddit.Thing) *payload.Payload {
-	subtitle := fmt.Sprintf("r/%s", post.Subreddit)
-
 	payload := payload.
 		NewPayload().
-		AlertSubtitle(subtitle).
-		AlertBody(post.Title).
 		AlertSummaryArg(post.Subreddit).
 		Category("post-watch").
 		Custom("post_title", post.Title).
