@@ -329,6 +329,7 @@ func payloadFromTrendingPost(post *reddit.Thing) *payload.Payload {
 		Custom("subreddit", post.Subreddit).
 		Custom("author", post.Author).
 		Custom("post_age", post.CreatedAt).
+		ThreadID("trending-post").
 		MutableContent().
 		Sound("traloop.wav")
 

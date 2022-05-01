@@ -438,12 +438,13 @@ func payloadFromPost(post *reddit.Thing) *payload.Payload {
 	payload := payload.
 		NewPayload().
 		AlertSummaryArg(post.Subreddit).
-		Category("subreddit-watch").
+		Category("subreddit-watcher").
 		Custom("post_title", post.Title).
 		Custom("post_id", post.ID).
 		Custom("subreddit", post.Subreddit).
 		Custom("author", post.Author).
 		Custom("post_age", post.CreatedAt).
+		ThreadID("subreddit-watcher").
 		MutableContent().
 		Sound("traloop.wav")
 
