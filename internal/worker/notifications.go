@@ -422,7 +422,10 @@ func payloadFromMessage(acct domain.Account, msg *reddit.Thing, badgeCount int) 
 	switch {
 	case (msg.Kind == "t1" && msg.Type == "username_mention"):
 		title := fmt.Sprintf(usernameMentionNotificationTitleFormat, postTitle)
-		payload = payload.AlertTitle(title).Custom("type", "username")
+		payload = payload.
+			AlertTitle(title).
+			Custom("comment_id", msg.ID).
+			Custom("type", "username")
 
 		pType, _ := reddit.SplitID(msg.ParentID)
 		if pType == "t1" {
