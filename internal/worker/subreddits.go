@@ -318,17 +318,13 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 				continue
 			}
 
-			matched := true
+			matched := watcher.KeywordMatches(lowcaseTitle)
 
 			if watcher.Author != "" && lowcaseAuthor != watcher.Author {
 				matched = false
 			}
 
 			if watcher.Upvotes > 0 && post.Score < watcher.Upvotes {
-				matched = false
-			}
-
-			if watcher.Keyword != "" && !strings.Contains(lowcaseTitle, watcher.Keyword) {
 				matched = false
 			}
 

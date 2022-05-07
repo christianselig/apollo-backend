@@ -2,6 +2,7 @@ package domain
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	validation "github.com/go-ozzo/ozzo-validation/v4"
@@ -51,6 +52,26 @@ type Watcher struct {
 	// Related models
 	Device  Device
 	Account Account
+}
+
+func (w *Watcher) KeywordMatches(haystack string) bool {
+	if w.Keyword == "" {
+		return true
+	}
+
+	keywords := strings.FieldsFunc(w.Keyword, func(r rune) bool {
+		return r == '+' || r == ','
+	})
+
+	haystack = strings.ToLower(haystack)
+
+	for _, keyword := range keywords {
+		if !strings.Contains(haystack, keyword) {
+			return false
+		}
+	}
+
+	return true
 }
 
 func (w *Watcher) Validate() error {
