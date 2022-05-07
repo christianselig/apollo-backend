@@ -3,6 +3,7 @@ package reddit
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/valyala/fastjson"
 )
@@ -29,8 +30,9 @@ func NewError(val *fastjson.Value, status int) *Error {
 }
 
 type RefreshTokenResponse struct {
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
+	AccessToken  string        `json:"access_token"`
+	RefreshToken string        `json:"refresh_token"`
+	Expiry       time.Duration `json:"expires_in"`
 }
 
 func NewRefreshTokenResponse(val *fastjson.Value) interface{} {
@@ -38,6 +40,7 @@ func NewRefreshTokenResponse(val *fastjson.Value) interface{} {
 
 	rtr.AccessToken = string(val.GetStringBytes("access_token"))
 	rtr.RefreshToken = string(val.GetStringBytes("refresh_token"))
+	rtr.Expiry = time.Duration(val.GetInt("expires_in")) * time.Second
 
 	return rtr
 }
@@ -61,25 +64,25 @@ func NewMeResponse(val *fastjson.Value) interface{} {
 }
 
 type Thing struct {
-	Kind          string  `json:"kind"`
-	ID            string  `json:"id"`
-	Type          string  `json:"type"`
-	Author        string  `json:"author"`
-	Subject       string  `json:"subject"`
-	Body          string  `json:"body"`
-	CreatedAt     float64 `json:"created_utc"`
-	Context       string  `json:"context"`
-	ParentID      string  `json:"parent_id"`
-	LinkTitle     string  `json:"link_title"`
-	Destination   string  `json:"dest"`
-	Subreddit     string  `json:"subreddit"`
-	SubredditType string  `json:"subreddit_type"`
-	Score         int64   `json:"score"`
-	SelfText      string  `json:"selftext"`
-	Title         string  `json:"title"`
-	URL           string  `json:"url"`
-	Flair         string  `json:"flair"`
-	Thumbnail     string  `json:"thumbnail"`
+	Kind          string    `json:"kind"`
+	ID            string    `json:"id"`
+	Type          string    `json:"type"`
+	Author        string    `json:"author"`
+	Subject       string    `json:"subject"`
+	Body          string    `json:"body"`
+	CreatedAt     time.Time `json:"created_utc"`
+	Context       string    `json:"context"`
+	ParentID      string    `json:"parent_id"`
+	LinkTitle     string    `json:"link_title"`
+	Destination   string    `json:"dest"`
+	Subreddit     string    `json:"subreddit"`
+	SubredditType string    `json:"subreddit_type"`
+	Score         int64     `json:"score"`
+	SelfText      string    `json:"selftext"`
+	Title         string    `json:"title"`
+	URL           string    `json:"url"`
+	Flair         string    `json:"flair"`
+	Thumbnail     string    `json:"thumbnail"`
 }
 
 func (t *Thing) FullName() string {
@@ -96,13 +99,14 @@ func NewThing(val *fastjson.Value) *Thing {
 	t.Kind = string(val.GetStringBytes("kind"))
 
 	data := val.Get("data")
+	unix := int64(data.GetFloat64("created_utc"))
 
 	t.ID = string(data.GetStringBytes("id"))
 	t.Type = string(data.GetStringBytes("type"))
 	t.Author = string(data.GetStringBytes("author"))
 	t.Subject = string(data.GetStringBytes("subject"))
 	t.Body = string(data.GetStringBytes("body"))
-	t.CreatedAt = data.GetFloat64("created_utc")
+	t.CreatedAt = time.Unix(unix, 0).UTC()
 	t.Context = string(data.GetStringBytes("context"))
 	t.ParentID = string(data.GetStringBytes("parent_id"))
 	t.LinkTitle = string(data.GetStringBytes("link_title"))

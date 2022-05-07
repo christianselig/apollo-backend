@@ -150,7 +150,7 @@ func (a *api) upsertAccountsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Reset expiration timer
-		acc.ExpiresAt = time.Now().Unix() + 3540
+		acc.TokenExpiresAt = time.Now().Add(tokens.Expiry)
 		acc.RefreshToken = tokens.RefreshToken
 		acc.AccessToken = tokens.AccessToken
 
@@ -175,7 +175,10 @@ func (a *api) upsertAccountsHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		_ = a.accountRepo.Associate(ctx, &acc, &dev)
+		if err := a.accountRepo.Associate(ctx, &acc, &dev); err != nil {
+			a.errorResponse(w, r, 422, err.Error())
+			return
+		}
 	}
 
 	for _, acc := range accsMap {
@@ -228,7 +231,7 @@ func (a *api) upsertAccountHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Reset expiration timer
-	acct.ExpiresAt = time.Now().Unix() + 3540
+	acct.TokenExpiresAt = time.Now().Add(tokens.Expiry)
 	acct.RefreshToken = tokens.RefreshToken
 	acct.AccessToken = tokens.AccessToken
 
