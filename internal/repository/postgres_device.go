@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/christianselig/apollo-backend/internal/domain"
 )
@@ -29,8 +30,8 @@ func (p *postgresDeviceRepository) fetch(ctx context.Context, query string, args
 			&dev.ID,
 			&dev.APNSToken,
 			&dev.Sandbox,
-			&dev.ActiveUntil,
-			&dev.GracePeriodUntil,
+			&dev.ExpiresAt,
+			&dev.GracePeriodExpiresAt,
 		); err != nil {
 			return nil, err
 		}
@@ -41,7 +42,7 @@ func (p *postgresDeviceRepository) fetch(ctx context.Context, query string, args
 
 func (p *postgresDeviceRepository) GetByID(ctx context.Context, id int64) (domain.Device, error) {
 	query := `
-		SELECT id, apns_token, sandbox, active_until, grace_period_until
+		SELECT id, apns_token, sandbox, expires_at, grace_period_expires_at
 		FROM devices
 		WHERE id = $1`
 
@@ -58,7 +59,7 @@ func (p *postgresDeviceRepository) GetByID(ctx context.Context, id int64) (domai
 
 func (p *postgresDeviceRepository) GetByAPNSToken(ctx context.Context, token string) (domain.Device, error) {
 	query := `
-		SELECT id, apns_token, sandbox, active_until, grace_period_until
+		SELECT id, apns_token, sandbox, expires_at, grace_period_expires_at
 		FROM devices
 		WHERE apns_token = $1`
 
@@ -75,7 +76,7 @@ func (p *postgresDeviceRepository) GetByAPNSToken(ctx context.Context, token str
 
 func (p *postgresDeviceRepository) GetByAccountID(ctx context.Context, id int64) ([]domain.Device, error) {
 	query := `
-		SELECT devices.id, apns_token, sandbox, active_until, grace_period_until
+		SELECT devices.id, apns_token, sandbox, expires_at, grace_period_expires_at
 		FROM devices
 		INNER JOIN devices_accounts ON devices.id = devices_accounts.device_id
 		WHERE devices_accounts.account_id = $1`
@@ -85,7 +86,7 @@ func (p *postgresDeviceRepository) GetByAccountID(ctx context.Context, id int64)
 
 func (p *postgresDeviceRepository) GetInboxNotifiableByAccountID(ctx context.Context, id int64) ([]domain.Device, error) {
 	query := `
-		SELECT devices.id, apns_token, sandbox, active_until, grace_period_until
+		SELECT devices.id, apns_token, sandbox, expires_at, grace_period_expires_at
 		FROM devices
 		INNER JOIN devices_accounts ON devices.id = devices_accounts.device_id
 		WHERE devices_accounts.account_id = $1 AND
@@ -97,7 +98,7 @@ func (p *postgresDeviceRepository) GetInboxNotifiableByAccountID(ctx context.Con
 
 func (p *postgresDeviceRepository) GetWatcherNotifiableByAccountID(ctx context.Context, id int64) ([]domain.Device, error) {
 	query := `
-		SELECT devices.id, apns_token, sandbox, active_until, grace_period_until
+		SELECT devices.id, apns_token, sandbox, expires_at, grace_period_expires_at
 		FROM devices
 		INNER JOIN devices_accounts ON devices.id = devices_accounts.device_id
 		WHERE devices_accounts.account_id = $1 AND
@@ -109,10 +110,10 @@ func (p *postgresDeviceRepository) GetWatcherNotifiableByAccountID(ctx context.C
 
 func (p *postgresDeviceRepository) CreateOrUpdate(ctx context.Context, dev *domain.Device) error {
 	query := `
-		INSERT INTO devices (apns_token, sandbox, active_until, grace_period_until)
+		INSERT INTO devices (apns_token, sandbox, expires_at, grace_period_expires_at)
 		VALUES ($1, $2, $3, $4)
 		ON CONFLICT(apns_token) DO
-			UPDATE SET active_until = $3, grace_period_until = $4
+			UPDATE SET expires_at = $3, grace_period_expires_at = $4
 		RETURNING id`
 
 	return p.conn.QueryRow(
@@ -120,8 +121,8 @@ func (p *postgresDeviceRepository) CreateOrUpdate(ctx context.Context, dev *doma
 		query,
 		dev.APNSToken,
 		dev.Sandbox,
-		dev.ActiveUntil,
-		dev.GracePeriodUntil,
+		&dev.ExpiresAt,
+		&dev.GracePeriodExpiresAt,
 	).Scan(&dev.ID)
 }
 
@@ -132,7 +133,7 @@ func (p *postgresDeviceRepository) Create(ctx context.Context, dev *domain.Devic
 
 	query := `
 		INSERT INTO devices
-			(apns_token, sandbox, active_until, grace_period_until)
+			(apns_token, sandbox, expires_at, grace_period_expires_at)
 		VALUES ($1, $2, $3, $4)
 		RETURNING id`
 
@@ -141,8 +142,8 @@ func (p *postgresDeviceRepository) Create(ctx context.Context, dev *domain.Devic
 		query,
 		dev.APNSToken,
 		dev.Sandbox,
-		dev.ActiveUntil,
-		dev.GracePeriodUntil,
+		dev.ExpiresAt,
+		dev.GracePeriodExpiresAt,
 	).Scan(&dev.ID)
 }
 
@@ -153,10 +154,10 @@ func (p *postgresDeviceRepository) Update(ctx context.Context, dev *domain.Devic
 
 	query := `
 		UPDATE devices
-		SET active_until = $2, grace_period_until = $3
+		SET expires_at = $2, grace_period_expires_at = $3
 		WHERE id = $1`
 
-	res, err := p.conn.Exec(ctx, query, dev.ID, dev.ActiveUntil, dev.GracePeriodUntil)
+	res, err := p.pool.Exec(ctx, query, dev.ID, dev.ExpiresAt, dev.GracePeriodExpiresAt)
 
 	if res.RowsAffected() != 1 {
 		return fmt.Errorf("weird behaviour, total rows affected: %d", res.RowsAffected())
@@ -207,10 +208,10 @@ func (p *postgresDeviceRepository) GetNotifiable(ctx context.Context, dev *domai
 	return inbox, watcher, global, nil
 }
 
-func (p *postgresDeviceRepository) PruneStale(ctx context.Context, before int64) (int64, error) {
-	query := `DELETE FROM devices WHERE grace_period_until < $1`
+func (p *postgresDeviceRepository) PruneStale(ctx context.Context, expiry time.Time) (int64, error) {
+	query := `DELETE FROM devices WHERE grace_period_expires_at < $1`
 
-	res, err := p.conn.Exec(ctx, query, before)
+	res, err := p.pool.Exec(ctx, query, expiry)
 
 	return res.RowsAffected(), err
 }

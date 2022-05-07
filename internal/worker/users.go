@@ -235,11 +235,11 @@ func (uc *usersConsumer) Consume(delivery rmq.Delivery) {
 
 		for _, watcher := range watchers {
 			// Make sure we only alert on activities created after the search
-			if watcher.CreatedAt > post.CreatedAt {
+			if watcher.CreatedAt.After(post.CreatedAt) {
 				continue
 			}
 
-			if watcher.LastNotifiedAt > post.CreatedAt {
+			if watcher.LastNotifiedAt.After(post.CreatedAt) {
 				continue
 			}
 

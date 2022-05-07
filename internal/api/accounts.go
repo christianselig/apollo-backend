@@ -150,7 +150,7 @@ func (a *api) upsertAccountsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Reset expiration timer
-		acc.ExpiresAt = time.Now().Unix() + 3540
+		acc.TokenExpiresAt = time.Now().Add(tokens.Expiry)
 		acc.RefreshToken = tokens.RefreshToken
 		acc.AccessToken = tokens.AccessToken
 
@@ -175,13 +175,32 @@ func (a *api) upsertAccountsHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		_ = a.accountRepo.Associate(ctx, &acc, &dev)
+		if err := a.accountRepo.Associate(ctx, &acc, &dev); err != nil {
+			a.errorResponse(w, r, 422, err.Error())
+			return
+		}
 	}
 
 	for _, acc := range accsMap {
 		fmt.Println(acc.NormalizedUsername())
 		_ = a.accountRepo.Disassociate(ctx, &acc, &dev)
 	}
+
+	go func(apns string) {
+		url := fmt.Sprintf("https://apollopushserver.xyz/api/new-server-addition?apns_token=%s", apns)
+		req, err := http.NewRequest("POST", url, nil)
+		req.Header.Set("Authentication", "Bearer 98g5j89aurqwfcsp9khlnvgd38fa15")
+
+		if err != nil {
+			a.logger.WithFields(logrus.Fields{
+				"apns": apns,
+			}).Error(err)
+			return
+		}
+
+		resp, _ := a.httpClient.Do(req)
+		resp.Body.Close()
+	}(apns)
 
 	w.WriteHeader(http.StatusOK)
 }
@@ -212,7 +231,7 @@ func (a *api) upsertAccountHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Reset expiration timer
-	acct.ExpiresAt = time.Now().Unix() + 3540
+	acct.TokenExpiresAt = time.Now().Add(tokens.Expiry)
 	acct.RefreshToken = tokens.RefreshToken
 	acct.AccessToken = tokens.AccessToken
 

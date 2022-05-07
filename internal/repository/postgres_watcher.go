@@ -91,7 +91,7 @@ func (p *postgresWatcherRepository) GetByID(ctx context.Context, id int64) (doma
 			devices.apns_token,
 			devices.sandbox,
 			accounts.id,
-			accounts.account_id,
+			accounts.reddit_account_id,
 			accounts.access_token,
 			accounts.refresh_token,
 			COALESCE(subreddits.name, '') AS subreddit_label,
@@ -136,7 +136,7 @@ func (p *postgresWatcherRepository) GetByTypeAndWatcheeID(ctx context.Context, t
 			devices.apns_token,
 			devices.sandbox,
 			accounts.id,
-			accounts.account_id,
+			accounts.reddit_account_id,
 			accounts.access_token,
 			accounts.refresh_token,
 			COALESCE(subreddits.name, '') AS subreddit_label,
@@ -189,7 +189,7 @@ func (p *postgresWatcherRepository) GetByDeviceAPNSTokenAndAccountRedditID(ctx c
 			devices.apns_token,
 			devices.sandbox,
 			accounts.id,
-			accounts.account_id,
+			accounts.reddit_account_id,
 			accounts.access_token,
 			accounts.refresh_token,
 			COALESCE(subreddits.name, '') AS subreddit_label,
@@ -201,7 +201,7 @@ func (p *postgresWatcherRepository) GetByDeviceAPNSTokenAndAccountRedditID(ctx c
 		LEFT JOIN users ON watchers.type = 1 AND watchers.watchee_id = users.id
 		WHERE
 			devices.apns_token = $1 AND
-			accounts.account_id = $2`
+			accounts.reddit_account_id = $2`
 
 	return p.fetch(ctx, query, apns, rid)
 }

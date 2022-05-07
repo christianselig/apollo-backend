@@ -5,6 +5,7 @@ go 1.18
 require (
 	github.com/DataDog/datadog-go v4.8.3+incompatible
 	github.com/adjust/rmq/v4 v4.0.5
+	github.com/bugsnag/bugsnag-go/v2 v2.1.2
 	github.com/dustin/go-humanize v1.0.0
 	github.com/go-co-op/gocron v1.13.0
 	github.com/go-ozzo/ozzo-validation/v4 v4.3.0
@@ -13,10 +14,11 @@ require (
 	github.com/gorilla/mux v1.8.0
 	github.com/heroku/x v0.0.50
 	github.com/jackc/pgconn v1.11.0
-	github.com/jackc/pgx/v4 v4.15.0
+	github.com/jackc/pgx/v4 v4.16.0
 	github.com/joho/godotenv v1.4.0
-	github.com/sideshow/apns2 v0.20.0
+	github.com/sideshow/apns2 v0.23.0
 	github.com/sirupsen/logrus v1.8.1
+	github.com/smtp2go-oss/smtp2go-go v1.0.1 // indirect
 	github.com/spf13/cobra v1.4.0
 	github.com/stretchr/testify v1.7.1
 	github.com/valyala/fastjson v1.6.3

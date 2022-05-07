@@ -29,7 +29,7 @@ func (p *postgresSubredditRepository) fetch(ctx context.Context, query string, a
 			&sr.ID,
 			&sr.SubredditID,
 			&sr.Name,
-			&sr.LastCheckedAt,
+			&sr.NextCheckAt,
 		); err != nil {
 			return nil, err
 		}
@@ -40,7 +40,7 @@ func (p *postgresSubredditRepository) fetch(ctx context.Context, query string, a
 
 func (p *postgresSubredditRepository) GetByID(ctx context.Context, id int64) (domain.Subreddit, error) {
 	query := `
-		SELECT id, subreddit_id, name, last_checked_at
+		SELECT id, subreddit_id, name, next_check_at
 		FROM subreddits
 		WHERE id = $1`
 
@@ -57,7 +57,7 @@ func (p *postgresSubredditRepository) GetByID(ctx context.Context, id int64) (do
 
 func (p *postgresSubredditRepository) GetByName(ctx context.Context, name string) (domain.Subreddit, error) {
 	query := `
-		SELECT id, subreddit_id, name, last_checked_at
+		SELECT id, subreddit_id, name, next_check_at
 		FROM subreddits
 		WHERE name = $1`
 
@@ -80,8 +80,8 @@ func (p *postgresSubredditRepository) CreateOrUpdate(ctx context.Context, sr *do
 	}
 
 	query := `
-		INSERT INTO subreddits (subreddit_id, name)
-		VALUES ($1, $2)
+		INSERT INTO subreddits (subreddit_id, name, next_check_at)
+		VALUES ($1, $2, NOW())
 		ON CONFLICT(subreddit_id) DO NOTHING
 		RETURNING id`
 

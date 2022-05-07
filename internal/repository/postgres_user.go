@@ -30,7 +30,7 @@ func (p *postgresUserRepository) fetch(ctx context.Context, query string, args .
 			&u.ID,
 			&u.UserID,
 			&u.Name,
-			&u.LastCheckedAt,
+			&u.NextCheckAt,
 		); err != nil {
 			return nil, err
 		}
@@ -41,7 +41,7 @@ func (p *postgresUserRepository) fetch(ctx context.Context, query string, args .
 
 func (p *postgresUserRepository) GetByID(ctx context.Context, id int64) (domain.User, error) {
 	query := `
-		SELECT id, user_id, name, last_checked_at
+		SELECT id, user_id, name, next_check_at
 		FROM users
 		WHERE id = $1`
 
@@ -58,7 +58,7 @@ func (p *postgresUserRepository) GetByID(ctx context.Context, id int64) (domain.
 
 func (p *postgresUserRepository) GetByName(ctx context.Context, name string) (domain.User, error) {
 	query := `
-		SELECT id, user_id, name, last_checked_at
+		SELECT id, user_id, name, next_check_at
 		FROM users
 		WHERE name = $1`
 
@@ -81,10 +81,9 @@ func (p *postgresUserRepository) CreateOrUpdate(ctx context.Context, u *domain.U
 	}
 
 	query := `
-		INSERT INTO users (user_id, name)
-		VALUES ($1, $2)
-		ON CONFLICT(user_id) DO
-			UPDATE SET last_checked_at = $3
+		INSERT INTO users (user_id, name, next_check_at)
+		VALUES ($1, $2, NOW())
+		ON CONFLICT(user_id) DO NOTHING
 		RETURNING id`
 
 	return p.conn.QueryRow(
@@ -92,7 +91,7 @@ func (p *postgresUserRepository) CreateOrUpdate(ctx context.Context, u *domain.U
 		query,
 		u.UserID,
 		u.NormalizedName(),
-		u.LastCheckedAt,
+		u.NextCheckAt,
 	).Scan(&u.ID)
 }
 

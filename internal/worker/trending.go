@@ -40,7 +40,7 @@ type trendingWorker struct {
 	watcherRepo   domain.WatcherRepository
 }
 
-const trendingNotificationTitleFormat = "🔥 Trending in r/%s"
+const trendingNotificationTitleFormat = "🔥 r/%s Trending"
 
 func NewTrendingWorker(ctx context.Context, logger *logrus.Logger, statsd *statsd.Client, db *pgxpool.Pool, redis *redis.Client, queue rmq.Connection, consumers int) Worker {
 	reddit := reddit.NewClient(
@@ -236,14 +236,14 @@ func (tc *trendingConsumer) Consume(delivery rmq.Delivery) {
 	}).Debug("loaded hot posts")
 
 	// Trending only counts for posts less than 2 days old
-	threshold := float64(time.Now().AddDate(0, 0, -2).UTC().Unix())
+	threshold := time.Now().Add(-24 * time.Hour * 2)
 
 	for _, post := range hps.Children {
 		if post.Score < medianScore {
 			continue
 		}
 
-		if post.CreatedAt < threshold {
+		if post.CreatedAt.Before(threshold) {
 			break
 		}
 
@@ -252,7 +252,7 @@ func (tc *trendingConsumer) Consume(delivery rmq.Delivery) {
 		notification.Payload = payloadFromTrendingPost(post)
 
 		for _, watcher := range watchers {
-			if watcher.CreatedAt > post.CreatedAt {
+			if watcher.CreatedAt.After(post.CreatedAt) {
 				continue
 			}
 
@@ -322,17 +322,21 @@ func payloadFromTrendingPost(post *reddit.Thing) *payload.Payload {
 	payload := payload.
 		NewPayload().
 		AlertTitle(title).
-		AlertSubtitle(post.Title).
 		AlertBody(post.Title).
 		AlertSummaryArg(post.Subreddit).
-		Category("post-watch").
+		Category("trending-post").
 		Custom("post_title", post.Title).
 		Custom("post_id", post.ID).
 		Custom("subreddit", post.Subreddit).
 		Custom("author", post.Author).
 		Custom("post_age", post.CreatedAt).
+		ThreadID("trending-post").
 		MutableContent().
 		Sound("traloop.wav")
+
+	if post.Thumbnail != "" {
+		payload.Custom("thumbnail", post.Thumbnail)
+	}
 
 	return payload
 }

@@ -42,7 +42,10 @@ type subredditsWorker struct {
 	watcherRepo   domain.WatcherRepository
 }
 
-const subredditNotificationTitleFormat = "📣 %s"
+const (
+	subredditNotificationTitleFormat = "📣 \u201c%s\u201d Watcher"
+	subredditNotificationBodyFormat  = "r/%s: \u201c%s\u201d"
+)
 
 func NewSubredditsWorker(ctx context.Context, logger *logrus.Logger, statsd *statsd.Client, db *pgxpool.Pool, redis *redis.Client, queue rmq.Connection, consumers int) Worker {
 	reddit := reddit.NewClient(
@@ -178,7 +181,7 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 		return
 	}
 
-	threshold := float64(time.Now().AddDate(0, 0, -1).UTC().Unix())
+	threshold := time.Now().Add(-24 * time.Hour)
 	posts := []*reddit.Thing{}
 	before := ""
 	finished := false
@@ -235,7 +238,7 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 		}
 
 		for _, post := range sps.Children {
-			if post.CreatedAt < threshold {
+			if post.CreatedAt.Before(threshold) {
 				finished = true
 				break
 			}
@@ -285,7 +288,7 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 			}).Debug("loaded hot posts")
 
 			for _, post := range sps.Children {
-				if post.CreatedAt < threshold {
+				if post.CreatedAt.Before(threshold) {
 					break
 				}
 				if _, ok := seenPosts[post.ID]; !ok {
@@ -311,7 +314,7 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 
 		for _, watcher := range watchers {
 			// Make sure we only alert on posts created after the search
-			if watcher.CreatedAt > post.CreatedAt {
+			if watcher.CreatedAt.After(post.CreatedAt) {
 				continue
 			}
 
@@ -392,6 +395,9 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 			title := fmt.Sprintf(subredditNotificationTitleFormat, watcher.Label)
 			payload.AlertTitle(title)
 
+			body := fmt.Sprintf(subredditNotificationBodyFormat, subreddit.Name, post.Title)
+			payload.AlertBody(body)
+
 			notification := &apns2.Notification{}
 			notification.Topic = "com.christianselig.Apollo"
 			notification.DeviceToken = watcher.Device.APNSToken
@@ -430,21 +436,22 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 }
 
 func payloadFromPost(post *reddit.Thing) *payload.Payload {
-	subtitle := fmt.Sprintf("r/%s", post.Subreddit)
-
 	payload := payload.
 		NewPayload().
-		AlertSubtitle(subtitle).
-		AlertBody(post.Title).
 		AlertSummaryArg(post.Subreddit).
-		Category("post-watch").
+		Category("subreddit-watcher").
 		Custom("post_title", post.Title).
 		Custom("post_id", post.ID).
 		Custom("subreddit", post.Subreddit).
 		Custom("author", post.Author).
 		Custom("post_age", post.CreatedAt).
+		ThreadID("subreddit-watcher").
 		MutableContent().
 		Sound("traloop.wav")
+
+	if post.Thumbnail != "" {
+		payload.Custom("thumbnail", post.Thumbnail)
+	}
 
 	return payload
 }

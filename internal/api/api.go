@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-go/statsd"
+	"github.com/bugsnag/bugsnag-go/v2"
 	"github.com/go-redis/redis/v8"
 	"github.com/gorilla/mux"
 	"github.com/jackc/pgx/v4/pgxpool"
@@ -21,10 +22,11 @@ import (
 )
 
 type api struct {
-	logger *logrus.Logger
-	statsd *statsd.Client
-	reddit *reddit.Client
-	apns   *token.Token
+	logger     *logrus.Logger
+	statsd     *statsd.Client
+	reddit     *reddit.Client
+	apns       *token.Token
+	httpClient *http.Client
 
 	accountRepo   domain.AccountRepository
 	deviceRepo    domain.DeviceRepository
@@ -62,11 +64,14 @@ func NewAPI(ctx context.Context, logger *logrus.Logger, statsd *statsd.Client, r
 	watcherRepo := repository.NewPostgresWatcher(pool)
 	userRepo := repository.NewPostgresUser(pool)
 
+	client := &http.Client{}
+
 	return &api{
-		logger: logger,
-		statsd: statsd,
-		reddit: reddit,
-		apns:   apns,
+		logger:     logger,
+		statsd:     statsd,
+		reddit:     reddit,
+		apns:       apns,
+		httpClient: client,
 
 		accountRepo:   accountRepo,
 		deviceRepo:    deviceRepo,
@@ -79,7 +84,7 @@ func NewAPI(ctx context.Context, logger *logrus.Logger, statsd *statsd.Client, r
 func (a *api) Server(port int) *http.Server {
 	return &http.Server{
 		Addr:    fmt.Sprintf(":%d", port),
-		Handler: a.Routes(),
+		Handler: bugsnag.Handler(a.Routes()),
 	}
 }
 
@@ -106,9 +111,21 @@ func (a *api) Routes() *mux.Router {
 	r.HandleFunc("/v1/receipt", a.checkReceiptHandler).Methods("POST")
 	r.HandleFunc("/v1/receipt/{apns}", a.checkReceiptHandler).Methods("POST")
 
+	r.HandleFunc("/v1/contact", a.contactHandler).Methods("POST")
+
+	r.HandleFunc("/v1/test/bugsnag", a.testBugsnagHandler).Methods("POST")
+
 	r.Use(a.loggingMiddleware)
 
 	return r
+}
+
+func (a *api) testBugsnagHandler(w http.ResponseWriter, r *http.Request) {
+	if err := bugsnag.Notify(fmt.Errorf("Test error")); err != nil {
+		a.errorResponse(w, r, 500, err.Error())
+		return
+	}
+	w.WriteHeader(http.StatusOK)
 }
 
 type LoggingResponseWriter struct {

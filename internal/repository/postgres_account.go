@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/christianselig/apollo-backend/internal/domain"
 )
@@ -31,10 +32,11 @@ func (p *postgresAccountRepository) fetch(ctx context.Context, query string, arg
 			&acc.AccountID,
 			&acc.AccessToken,
 			&acc.RefreshToken,
-			&acc.ExpiresAt,
+			&acc.TokenExpiresAt,
 			&acc.LastMessageID,
-			&acc.LastCheckedAt,
-			&acc.LastUnstuckAt,
+			&acc.NextNotificationCheckAt,
+			&acc.NextStuckNotificationCheckAt,
+			&acc.CheckCount,
 		); err != nil {
 			return nil, err
 		}
@@ -45,7 +47,9 @@ func (p *postgresAccountRepository) fetch(ctx context.Context, query string, arg
 
 func (p *postgresAccountRepository) GetByID(ctx context.Context, id int64) (domain.Account, error) {
 	query := `
-		SELECT id, username, account_id, access_token, refresh_token, expires_at, last_message_id, last_checked_at, last_unstuck_at
+		SELECT id, username, reddit_account_id, access_token, refresh_token, token_expires_at,
+			last_message_id, next_notification_check_at, next_stuck_notification_check_at,
+			check_count
 		FROM accounts
 		WHERE id = $1`
 
@@ -62,9 +66,11 @@ func (p *postgresAccountRepository) GetByID(ctx context.Context, id int64) (doma
 
 func (p *postgresAccountRepository) GetByRedditID(ctx context.Context, id string) (domain.Account, error) {
 	query := `
-		SELECT id, username, account_id, access_token, refresh_token, expires_at, last_message_id, last_checked_at, last_unstuck_at
+		SELECT id, username, reddit_account_id, access_token, refresh_token, token_expires_at,
+			last_message_id, next_notification_check_at, next_stuck_notification_check_at,
+			check_count
 		FROM accounts
-		WHERE account_id = $1`
+		WHERE reddit_account_id = $1`
 
 	accs, err := p.fetch(ctx, query, id)
 	if err != nil {
@@ -79,12 +85,13 @@ func (p *postgresAccountRepository) GetByRedditID(ctx context.Context, id string
 }
 func (p *postgresAccountRepository) CreateOrUpdate(ctx context.Context, acc *domain.Account) error {
 	query := `
-		INSERT INTO accounts (username, account_id, access_token, refresh_token, expires_at, last_message_id, last_checked_at, last_unstuck_at)
-		VALUES ($1, $2, $3, $4, $5, '', 0, 0)
+		INSERT INTO accounts (username, reddit_account_id, access_token, refresh_token, token_expires_at,
+			last_message_id, next_notification_check_at, next_stuck_notification_check_at)
+		VALUES ($1, $2, $3, $4, $5, '', NOW(), NOW())
 		ON CONFLICT(username) DO
 			UPDATE SET access_token = $3,
 				refresh_token = $4,
-				expires_at = $5
+				token_expires_at = $5
 		RETURNING id`
 
 	return p.conn.QueryRow(
@@ -94,14 +101,15 @@ func (p *postgresAccountRepository) CreateOrUpdate(ctx context.Context, acc *dom
 		acc.AccountID,
 		acc.AccessToken,
 		acc.RefreshToken,
-		acc.ExpiresAt,
+		acc.TokenExpiresAt,
 	).Scan(&acc.ID)
 }
 
 func (p *postgresAccountRepository) Create(ctx context.Context, acc *domain.Account) error {
 	query := `
 		INSERT INTO accounts
-			(username, account_id, access_token, refresh_token, expires_at, last_message_id, last_checked_at, last_unstuck_at)
+			(username, reddit_account_id, access_token, refresh_token, token_expires_at,
+			last_message_id, next_notification_check_at, next_stuck_notification_check_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		RETURNING id`
 
@@ -112,10 +120,10 @@ func (p *postgresAccountRepository) Create(ctx context.Context, acc *domain.Acco
 		acc.AccountID,
 		acc.AccessToken,
 		acc.RefreshToken,
-		acc.ExpiresAt,
+		acc.TokenExpiresAt,
 		acc.LastMessageID,
-		acc.LastCheckedAt,
-		acc.LastUnstuckAt,
+		acc.NextNotificationCheckAt,
+		acc.NextStuckNotificationCheckAt,
 	).Scan(&acc.ID)
 }
 
@@ -123,13 +131,14 @@ func (p *postgresAccountRepository) Update(ctx context.Context, acc *domain.Acco
 	query := `
 		UPDATE accounts
 		SET username = $2,
-			account_id = $3,
+			reddit_account_id = $3,
 			access_token = $4,
 			refresh_token = $5,
-			expires_at = $6,
+			token_expires_at = $6,
 			last_message_id = $7,
-			last_checked_at = $8,
-			last_unstuck_at = $9
+			next_notification_check_at = $8,
+			next_stuck_notification_check_at = $9,
+			check_count = $10
 		WHERE id = $1`
 
 	res, err := p.conn.Exec(
@@ -140,10 +149,11 @@ func (p *postgresAccountRepository) Update(ctx context.Context, acc *domain.Acco
 		acc.AccountID,
 		acc.AccessToken,
 		acc.RefreshToken,
-		acc.ExpiresAt,
+		acc.TokenExpiresAt,
 		acc.LastMessageID,
-		acc.LastCheckedAt,
-		acc.LastUnstuckAt,
+		acc.NextNotificationCheckAt,
+		acc.NextStuckNotificationCheckAt,
+		acc.CheckCount,
 	)
 
 	if res.RowsAffected() != 1 {
@@ -184,7 +194,9 @@ func (p *postgresAccountRepository) Disassociate(ctx context.Context, acc *domai
 
 func (p *postgresAccountRepository) GetByAPNSToken(ctx context.Context, token string) ([]domain.Account, error) {
 	query := `
-		SELECT accounts.id, username, accounts.account_id, access_token, refresh_token, expires_at, last_message_id, last_checked_at, last_unstuck_at
+		SELECT accounts.id, username, accounts.reddit_account_id, access_token, refresh_token, token_expires_at,
+			last_message_id, next_notification_check_at, next_stuck_notification_check_at,
+			check_count
 		FROM accounts
 		INNER JOIN devices_accounts ON accounts.id = devices_accounts.account_id
 		INNER JOIN devices ON devices.id = devices_accounts.device_id
@@ -193,12 +205,12 @@ func (p *postgresAccountRepository) GetByAPNSToken(ctx context.Context, token st
 	return p.fetch(ctx, query, token)
 }
 
-func (p *postgresAccountRepository) PruneStale(ctx context.Context, before int64) (int64, error) {
+func (p *postgresAccountRepository) PruneStale(ctx context.Context, expiry time.Time) (int64, error) {
 	query := `
 		DELETE FROM accounts
-		WHERE expires_at < $1`
+		WHERE token_expires_at < $1`
 
-	res, err := p.conn.Exec(ctx, query, before)
+	res, err := p.pool.Exec(ctx, query, expiry)
 
 	return res.RowsAffected(), err
 }

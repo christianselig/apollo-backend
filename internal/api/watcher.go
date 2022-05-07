@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	validation "github.com/go-ozzo/ozzo-validation/v4"
 	"github.com/gorilla/mux"
@@ -230,17 +231,17 @@ func (a *api) deleteWatcherHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 type watcherItem struct {
-	ID          int64   `json:"id"`
-	CreatedAt   float64 `json:"created_at"`
-	Type        string  `json:"type"`
-	Label       string  `json:"label"`
-	SourceLabel string  `json:"source_label"`
-	Upvotes     *int64  `json:"upvotes,omitempty"`
-	Keyword     string  `json:"keyword,omitempty"`
-	Flair       string  `json:"flair,omitempty"`
-	Domain      string  `json:"domain,omitempty"`
-	Hits        int64   `json:"hits"`
-	Author      string  `json:"author,omitempty"`
+	ID          int64     `json:"id"`
+	CreatedAt   time.Time `json:"created_at"`
+	Type        string    `json:"type"`
+	Label       string    `json:"label"`
+	SourceLabel string    `json:"source_label"`
+	Upvotes     *int64    `json:"upvotes,omitempty"`
+	Keyword     string    `json:"keyword,omitempty"`
+	Flair       string    `json:"flair,omitempty"`
+	Domain      string    `json:"domain,omitempty"`
+	Hits        int64     `json:"hits"`
+	Author      string    `json:"author,omitempty"`
 }
 
 func (a *api) listWatchersHandler(w http.ResponseWriter, r *http.Request) {

@@ -3,6 +3,7 @@ package reddit_test
 import (
 	"io/ioutil"
 	"testing"
+	"time"
 
 	"github.com/christianselig/apollo-backend/internal/reddit"
 	"github.com/stretchr/testify/assert"
@@ -57,6 +58,7 @@ func TestRefreshTokenResponseParsing(t *testing.T) {
 
 	assert.Equal(t, "56192486-VMT1xoioZmgAwyf4wob4LHMYmKdYGA", rtr.AccessToken)
 	assert.Equal(t, "56192486-tCz513pO3IMgrtu4ODrZBKqyvrXptw", rtr.RefreshToken)
+	assert.Equal(t, 1*time.Hour, rtr.Expiry)
 }
 
 func TestListingResponseParsing(t *testing.T) {
@@ -80,13 +82,14 @@ func TestListingResponseParsing(t *testing.T) {
 	assert.Equal(t, "", l.Before)
 
 	thing := l.Children[0]
+	created := time.Time(time.Date(2021, time.July, 14, 17, 56, 35, 0, time.UTC))
 	assert.Equal(t, "t4", thing.Kind)
 	assert.Equal(t, "138z6ke", thing.ID)
 	assert.Equal(t, "unknown", thing.Type)
 	assert.Equal(t, "iamthatis", thing.Author)
 	assert.Equal(t, "how goes it", thing.Subject)
 	assert.Equal(t, "how are you today", thing.Body)
-	assert.Equal(t, 1626285395.0, thing.CreatedAt)
+	assert.Equal(t, created, thing.CreatedAt)
 	assert.Equal(t, "hugocat", thing.Destination)
 	assert.Equal(t, "t4_138z6ke", thing.FullName())
 

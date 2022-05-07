@@ -9,27 +9,19 @@ import (
 
 	"github.com/DataDog/datadog-go/statsd"
 	"github.com/adjust/rmq/v4"
-	"github.com/christianselig/apollo-backend/internal/cmdutil"
-	"github.com/christianselig/apollo-backend/internal/repository"
 	"github.com/go-co-op/gocron"
 	"github.com/go-redis/redis/v8"
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+
+	"github.com/christianselig/apollo-backend/internal/cmdutil"
+	"github.com/christianselig/apollo-backend/internal/domain"
+	"github.com/christianselig/apollo-backend/internal/repository"
 )
 
-const (
-	batchSize    = 250
-	checkTimeout = 60 // how long until we force a check
-
-	accountEnqueueInterval      = 5      // how frequently we want to check (seconds)
-	subredditEnqueueInterval    = 2 * 60 // how frequently we want to check (seconds)
-	userEnqueueInterval         = 2 * 60 // how frequently we want to check (seconds)
-	stuckAccountEnqueueInterval = 2 * 60 // how frequently we want to check (seconds)
-
-	staleAccountThreshold = 7200 // 2 hours
-)
+const batchSize = 250
 
 func SchedulerCmd(ctx context.Context) *cobra.Command {
 	cmd := &cobra.Command{
@@ -129,16 +121,16 @@ func evalScript(ctx context.Context, redis *redis.Client) (string, error) {
 		end
 
 		return retv
-	`, checkTimeout)
+	`, int64(domain.NotificationCheckTimeout.Seconds()))
 
 	return redis.ScriptLoad(ctx, lua).Result()
 }
 
 func pruneAccounts(ctx context.Context, logger *logrus.Logger, pool *pgxpool.Pool) {
-	before := time.Now().Unix() - staleAccountThreshold
+	expiry := time.Now().Add(-domain.StaleTokenThreshold)
 	ar := repository.NewPostgresAccount(pool)
 
-	stale, err := ar.PruneStale(ctx, before)
+	stale, err := ar.PruneStale(ctx, expiry)
 	if err != nil {
 		logger.WithFields(logrus.Fields{
 			"err": err,
@@ -156,16 +148,17 @@ func pruneAccounts(ctx context.Context, logger *logrus.Logger, pool *pgxpool.Poo
 
 	if count := stale + orphaned; count > 0 {
 		logger.WithFields(logrus.Fields{
-			"count": count,
+			"stale":    stale,
+			"orphaned": orphaned,
 		}).Info("pruned accounts")
 	}
 }
 
 func pruneDevices(ctx context.Context, logger *logrus.Logger, pool *pgxpool.Pool) {
-	threshold := time.Now().Unix()
+	now := time.Now()
 	dr := repository.NewPostgresDevice(pool)
 
-	count, err := dr.PruneStale(ctx, threshold)
+	count, err := dr.PruneStale(ctx, now)
 	if err != nil {
 		logger.WithFields(logrus.Fields{
 			"err": err,
@@ -225,6 +218,8 @@ func reportStats(ctx context.Context, logger *logrus.Logger, statsd *statsd.Clie
 
 func enqueueUsers(ctx context.Context, logger *logrus.Logger, statsd *statsd.Client, pool *pgxpool.Pool, queue rmq.Queue) {
 	now := time.Now()
+	next := now.Add(domain.NotificationCheckInterval)
+
 	ids := []int64{}
 
 	defer func() {
@@ -233,21 +228,20 @@ func enqueueUsers(ctx context.Context, logger *logrus.Logger, statsd *statsd.Cli
 		_ = statsd.Histogram("apollo.queue.runtime", float64(time.Since(now).Milliseconds()), tags, 1)
 	}()
 
-	ready := now.Unix() - userEnqueueInterval
 	err := pool.BeginFunc(ctx, func(tx pgx.Tx) error {
 		stmt := `
-			WITH userb AS (
+			WITH batch AS (
 			  SELECT id
 				FROM users
-				WHERE last_checked_at < $1
-				ORDER BY last_checked_at
+				WHERE next_check_at < $1
+				ORDER BY next_check_at
 				LIMIT 100
 			)
 			UPDATE users
-			SET last_checked_at = $2
-			WHERE users.id IN(SELECT id FROM userb)
+			SET next_check_at = $2
+			WHERE users.id IN(SELECT id FROM batch)
 			RETURNING users.id`
-		rows, err := tx.Query(ctx, stmt, ready, now.Unix())
+		rows, err := tx.Query(ctx, stmt, now, next)
 		if err != nil {
 			return err
 		}
@@ -273,7 +267,7 @@ func enqueueUsers(ctx context.Context, logger *logrus.Logger, statsd *statsd.Cli
 
 	logger.WithFields(logrus.Fields{
 		"count": len(ids),
-		"start": ready,
+		"start": now,
 	}).Debug("enqueueing user batch")
 
 	batchIds := make([]string, len(ids))
@@ -290,6 +284,8 @@ func enqueueUsers(ctx context.Context, logger *logrus.Logger, statsd *statsd.Cli
 
 func enqueueSubreddits(ctx context.Context, logger *logrus.Logger, statsd *statsd.Client, pool *pgxpool.Pool, queues []rmq.Queue) {
 	now := time.Now()
+	next := now.Add(domain.SubredditCheckInterval)
+
 	ids := []int64{}
 
 	defer func() {
@@ -298,21 +294,20 @@ func enqueueSubreddits(ctx context.Context, logger *logrus.Logger, statsd *stats
 		_ = statsd.Histogram("apollo.queue.runtime", float64(time.Since(now).Milliseconds()), tags, 1)
 	}()
 
-	ready := now.Unix() - subredditEnqueueInterval
 	err := pool.BeginFunc(ctx, func(tx pgx.Tx) error {
 		stmt := `
-			WITH subreddit AS (
+			WITH batch AS (
 			  SELECT id
 				FROM subreddits
-				WHERE last_checked_at < $1
-				ORDER BY last_checked_at
+				WHERE next_check_at < $1
+				ORDER BY next_check_at
 				LIMIT 100
 			)
 			UPDATE subreddits
-			SET last_checked_at = $2
-			WHERE subreddits.id IN(SELECT id FROM subreddit)
+			SET next_check_at = $2
+			WHERE subreddits.id IN(SELECT id FROM batch)
 			RETURNING subreddits.id`
-		rows, err := tx.Query(ctx, stmt, ready, now.Unix())
+		rows, err := tx.Query(ctx, stmt, now, next)
 		if err != nil {
 			return err
 		}
@@ -338,7 +333,7 @@ func enqueueSubreddits(ctx context.Context, logger *logrus.Logger, statsd *stats
 
 	logger.WithFields(logrus.Fields{
 		"count": len(ids),
-		"start": ready,
+		"start": now,
 	}).Debug("enqueueing subreddit batch")
 
 	batchIds := make([]string, len(ids))
@@ -359,6 +354,8 @@ func enqueueSubreddits(ctx context.Context, logger *logrus.Logger, statsd *stats
 
 func enqueueStuckAccounts(ctx context.Context, logger *logrus.Logger, statsd *statsd.Client, pool *pgxpool.Pool, queue rmq.Queue) {
 	now := time.Now()
+	next := now.Add(domain.StuckNotificationCheckInterval)
+
 	ids := []int64{}
 
 	defer func() {
@@ -367,22 +364,21 @@ func enqueueStuckAccounts(ctx context.Context, logger *logrus.Logger, statsd *st
 		_ = statsd.Histogram("apollo.queue.runtime", float64(time.Since(now).Milliseconds()), tags, 1)
 	}()
 
-	ready := now.Unix() - stuckAccountEnqueueInterval
 	err := pool.BeginFunc(ctx, func(tx pgx.Tx) error {
 		stmt := `
-			WITH account AS (
+			WITH batch AS (
 			  SELECT id
 				FROM accounts
 				WHERE
-					last_unstuck_at < $1
-				ORDER BY last_unstuck_at
+					next_stuck_notification_check_at < $1
+				ORDER BY next_stuck_notification_check_at
 				LIMIT 500
 			)
 			UPDATE accounts
-			SET last_unstuck_at = $2
-			WHERE accounts.id IN(SELECT id FROM account)
+			SET next_stuck_notification_check_at = $2
+			WHERE accounts.id IN(SELECT id FROM batch)
 			RETURNING accounts.id`
-		rows, err := tx.Query(ctx, stmt, ready, now.Unix())
+		rows, err := tx.Query(ctx, stmt, now, next)
 		if err != nil {
 			return err
 		}
@@ -408,7 +404,7 @@ func enqueueStuckAccounts(ctx context.Context, logger *logrus.Logger, statsd *st
 
 	logger.WithFields(logrus.Fields{
 		"count": len(ids),
-		"start": ready,
+		"start": now,
 	}).Debug("enqueueing stuck account batch")
 
 	batchIds := make([]string, len(ids))
@@ -426,6 +422,8 @@ func enqueueStuckAccounts(ctx context.Context, logger *logrus.Logger, statsd *st
 
 func enqueueAccounts(ctx context.Context, logger *logrus.Logger, statsd *statsd.Client, pool *pgxpool.Pool, redisConn *redis.Client, luaSha string, queue rmq.Queue) {
 	now := time.Now()
+	next := now.Add(domain.NotificationCheckInterval)
+
 	ids := []int64{}
 	enqueued := 0
 	skipped := 0
@@ -437,29 +435,21 @@ func enqueueAccounts(ctx context.Context, logger *logrus.Logger, statsd *statsd.
 		_ = statsd.Histogram("apollo.queue.runtime", float64(time.Since(now).Milliseconds()), tags, 1)
 	}()
 
-	// Start looking for accounts that were last checked at least 5 seconds ago
-	// and at most 6 seconds ago. Also look for accounts that haven't been checked
-	// in over a minute.
-	ts := now.Unix()
-	ready := ts - accountEnqueueInterval
-	expired := ts - checkTimeout
-
 	err := pool.BeginFunc(ctx, func(tx pgx.Tx) error {
 		stmt := `
 			WITH account AS (
 			  SELECT id
 				FROM accounts
 				WHERE
-					last_enqueued_at < $1
-					OR last_checked_at < $2
-				ORDER BY last_checked_at
+					next_notification_check_at < $1
+				ORDER BY next_notification_check_at
 				LIMIT 2500
 			)
 			UPDATE accounts
-			SET last_enqueued_at = $3
+			SET next_notification_check_at = $2
 			WHERE accounts.id IN(SELECT id FROM account)
 			RETURNING accounts.id`
-		rows, err := tx.Query(ctx, stmt, ready, expired, ts)
+		rows, err := tx.Query(ctx, stmt, now, next)
 		if err != nil {
 			return err
 		}
@@ -485,7 +475,7 @@ func enqueueAccounts(ctx context.Context, logger *logrus.Logger, statsd *statsd.
 
 	logger.WithFields(logrus.Fields{
 		"count": len(ids),
-		"start": ready,
+		"start": now,
 	}).Debug("enqueueing account batch")
 	// Split ids in batches
 	for i := 0; i < len(ids); i += batchSize {
@@ -530,7 +520,7 @@ func enqueueAccounts(ctx context.Context, logger *logrus.Logger, statsd *statsd.
 	logger.WithFields(logrus.Fields{
 		"count":   enqueued,
 		"skipped": skipped,
-		"start":   ready,
+		"start":   now,
 	}).Debug("done enqueueing account batch")
 }
 

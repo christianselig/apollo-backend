@@ -25,6 +25,11 @@ const (
 	backoff      = 5 // How long we wait in between checking for notifications, in seconds
 	pollDuration = 5 * time.Millisecond
 	rate         = 0.1
+
+	postReplyNotificationTitleFormat       = "%s to %s"
+	commentReplyNotificationTitleFormat    = "%s in %s"
+	privateMessageNotificationTitleFormat  = "Message from %s"
+	usernameMentionNotificationTitleFormat = "Mention in \u201c%s\u201d"
 )
 
 type notificationsWorker struct {
@@ -162,30 +167,33 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 
 	defer func() { _ = delivery.Ack() }()
 
-	now := float64(time.Now().UnixNano()/int64(time.Millisecond)) / 1000
+	now := time.Now()
 
 	account, err := nc.accountRepo.GetByID(nc, id)
 	if err != nil {
 		nc.logger.WithFields(logrus.Fields{
-			"err": err,
+			"account#id": id,
+			"err":        err,
 		}).Error("failed to fetch account from database")
 		return
 	}
 
-	previousLastCheckedAt := account.LastCheckedAt
-	newAccount := (previousLastCheckedAt == 0)
-	account.LastCheckedAt = now
+	newAccount := account.CheckCount == 0
+	previousNextCheck := account.NextNotificationCheckAt
+
+	account.CheckCount++
+	account.NextNotificationCheckAt = time.Now().Add(domain.NotificationCheckInterval)
 
 	if err = nc.accountRepo.Update(nc, &account); err != nil {
 		nc.logger.WithFields(logrus.Fields{
 			"account#username": account.NormalizedUsername(),
 			"err":              err,
-		}).Error("failed to update last_checked_at for account")
+		}).Error("failed to update next_notification_check_at for account")
 		return
 	}
 
 	rac := nc.reddit.NewAuthenticatedClient(account.AccountID, account.RefreshToken, account.AccessToken)
-	if account.ExpiresAt < int64(now) {
+	if account.TokenExpiresAt.Before(now) {
 		nc.logger.WithFields(logrus.Fields{
 			"account#username": account.NormalizedUsername(),
 		}).Debug("refreshing reddit token")
@@ -214,7 +222,7 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 		// Update account
 		account.AccessToken = tokens.AccessToken
 		account.RefreshToken = tokens.RefreshToken
-		account.ExpiresAt = int64(now + 3540)
+		account.TokenExpiresAt = now.Add(tokens.Expiry)
 
 		// Refresh client
 		rac = nc.reddit.NewAuthenticatedClient(account.AccountID, tokens.RefreshToken, tokens.AccessToken)
@@ -231,8 +239,8 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 	// Only update delay on accounts we can actually check, otherwise it skews
 	// the numbers too much.
 	if !newAccount {
-		latency := now - previousLastCheckedAt - float64(backoff)
-		_ = nc.statsd.Histogram("apollo.queue.delay", latency, []string{}, rate)
+		latency := now.Sub(previousNextCheck) - backoff*time.Second
+		_ = nc.statsd.Histogram("apollo.queue.delay", float64(latency.Milliseconds()), []string{}, rate)
 	}
 
 	nc.logger.WithFields(logrus.Fields{
@@ -417,8 +425,14 @@ func payloadFromMessage(acct domain.Account, msg *reddit.Thing, badgeCount int) 
 
 	switch {
 	case (msg.Kind == "t1" && msg.Type == "username_mention"):
-		title := fmt.Sprintf(`Mention in “%s”`, postTitle)
-		payload = payload.AlertTitle(title).Custom("type", "username")
+		title := fmt.Sprintf(usernameMentionNotificationTitleFormat, postTitle)
+		postID := reddit.PostIDFromContext(msg.Context)
+		payload = payload.
+			AlertTitle(title).
+			Custom("comment_id", msg.ID).
+			Custom("post_id", postID).
+			Custom("subreddit", msg.Subreddit).
+			Custom("type", "username")
 
 		pType, _ := reddit.SplitID(msg.ParentID)
 		if pType == "t1" {
@@ -429,16 +443,19 @@ func payloadFromMessage(acct domain.Account, msg *reddit.Thing, badgeCount int) 
 
 		payload = payload.Custom("subject", "comment").ThreadID("comment")
 	case (msg.Kind == "t1" && msg.Type == "post_reply"):
-		title := fmt.Sprintf(`%s to “%s”`, msg.Author, postTitle)
+		title := fmt.Sprintf(postReplyNotificationTitleFormat, msg.Author, postTitle)
+		postID := reddit.PostIDFromContext(msg.Context)
 		payload = payload.
 			AlertTitle(title).
 			Category("inbox-post-reply").
-			Custom("post_id", msg.ID).
+			Custom("comment_id", msg.ID).
+			Custom("post_id", postID).
 			Custom("subject", "comment").
+			Custom("subreddit", msg.Subreddit).
 			Custom("type", "post").
 			ThreadID("comment")
 	case (msg.Kind == "t1" && msg.Type == "comment_reply"):
-		title := fmt.Sprintf(`%s in “%s”`, msg.Author, postTitle)
+		title := fmt.Sprintf(commentReplyNotificationTitleFormat, msg.Author, postTitle)
 		postID := reddit.PostIDFromContext(msg.Context)
 		payload = payload.
 			AlertTitle(title).
@@ -446,14 +463,16 @@ func payloadFromMessage(acct domain.Account, msg *reddit.Thing, badgeCount int) 
 			Custom("comment_id", msg.ID).
 			Custom("post_id", postID).
 			Custom("subject", "comment").
+			Custom("subreddit", msg.Subreddit).
 			Custom("type", "comment").
 			ThreadID("comment")
 	case (msg.Kind == "t4"):
-		title := fmt.Sprintf(`Message from %s`, msg.Author)
+		title := fmt.Sprintf(privateMessageNotificationTitleFormat, msg.Author)
 		payload = payload.
 			AlertTitle(title).
 			AlertSubtitle(postTitle).
 			Category("inbox-private-message").
+			Custom("comment_id", msg.ID).
 			Custom("type", "private-message")
 	}
 
