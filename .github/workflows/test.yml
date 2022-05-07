@@ -19,6 +19,8 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+        ports:
+          - 5432:5432
 
     steps:
     - uses: actions/checkout@v2
@@ -31,4 +33,4 @@ jobs:
     - name: Test
       run: go test ./... -v -race -timeout 5s
       env:
-        DATABASE_URL: postgres://postgres:postgres@postgres/apollo_test
+        DATABASE_URL: postgres://postgres:postgres@localhost/apollo_test
