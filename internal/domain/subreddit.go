@@ -2,6 +2,7 @@ package domain
 
 import (
 	"context"
+	"errors"
 	"regexp"
 	"strings"
 
@@ -21,9 +22,21 @@ func (sr *Subreddit) NormalizedName() string {
 	return strings.ToLower(sr.Name)
 }
 
+func validPrefix(value interface{}) error {
+	s, _ := value.(string)
+	if len(s) < 2 {
+		return nil
+	}
+	if s[1] != '_' || s[0] != 'u' {
+		return nil
+	}
+
+	return errors.New("invalid subreddit format")
+}
+
 func (sr *Subreddit) Validate() error {
 	return validation.ValidateStruct(sr,
-		validation.Field(&sr.Name, validation.Required, validation.Length(3, 32), validation.Match(regexp.MustCompile(`^(?!u_)[a-zA-Z0-9]\w{1,19}$`))),
+		validation.Field(&sr.Name, validation.Required, validation.Length(3, 32), validation.By(validPrefix), validation.Match(regexp.MustCompile(`^[a-zA-Z0-9]\w{1,19}$`))),
 		validation.Field(&sr.SubredditID, validation.Required, validation.Length(4, 9)),
 	)
 }
