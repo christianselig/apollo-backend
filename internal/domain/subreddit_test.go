@@ -13,7 +13,7 @@ import (
 func TestValidate(t *testing.T) {
 	t.Parallel()
 
-	tests := map[string]struct {
+	tt := map[string]struct {
 		subreddit domain.Subreddit
 		err       error
 	}{
@@ -23,7 +23,7 @@ func TestValidate(t *testing.T) {
 		"valid subreddit with _":          {domain.Subreddit{Name: "p_i_x_a_r", SubredditID: "abcd"}, nil},
 	}
 
-	for scenario, tc := range tests {
+	for scenario, tc := range tt {
 		t.Run(scenario, func(t *testing.T) {
 			t.Parallel()
 
