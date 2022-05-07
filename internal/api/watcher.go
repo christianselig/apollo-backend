@@ -70,9 +70,13 @@ func (a *api) createWatcherHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	accs, err := a.accountRepo.GetByAPNSToken(ctx, apns)
-	if err != nil || len(accs) == 0 {
+	if err != nil {
 		a.errorResponse(w, r, 422, err.Error())
 		return
+	}
+
+	if len(accs) == 0 {
+		a.errorResponse(w, r, 422, "can't create watchers without accounts")
 	}
 
 	account := accs[0]
