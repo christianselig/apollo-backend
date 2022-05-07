@@ -3,6 +3,7 @@ package repository_test
 import (
 	"context"
 	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"testing"
 
@@ -112,11 +113,11 @@ func TestPostgresDevice_Update(t *testing.T) {
 
 	for scenario, tc := range testCases { //nolint:paralleltest
 		t.Run(scenario, func(t *testing.T) {
-			b := make([]byte, 64)
+			b := make([]byte, 32)
 			_, err := rand.Read(b)
 			require.NoError(t, err)
 
-			dev := &domain.Device{APNSToken: string(b)}
+			dev := &domain.Device{APNSToken: hex.EncodeToString(b)}
 			require.NoError(t, repo.Create(ctx, dev))
 
 			tc.fn(dev)
