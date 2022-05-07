@@ -21,6 +21,8 @@ type accountNotificationsRequest struct {
 }
 
 func (a *api) notificationsAccountHandler(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
 	anr := &accountNotificationsRequest{}
 	if err := json.NewDecoder(r.Body).Decode(anr); err != nil {
 		a.errorResponse(w, r, 500, err.Error())
@@ -30,8 +32,6 @@ func (a *api) notificationsAccountHandler(w http.ResponseWriter, r *http.Request
 	vars := mux.Vars(r)
 	apns := vars["apns"]
 	rid := vars["redditID"]
-
-	ctx := context.Background()
 
 	dev, err := a.deviceRepo.GetByAPNSToken(ctx, apns)
 	if err != nil {
@@ -54,11 +54,11 @@ func (a *api) notificationsAccountHandler(w http.ResponseWriter, r *http.Request
 }
 
 func (a *api) getNotificationsAccountHandler(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
 	vars := mux.Vars(r)
 	apns := vars["apns"]
 	rid := vars["redditID"]
-
-	ctx := context.Background()
 
 	dev, err := a.deviceRepo.GetByAPNSToken(ctx, apns)
 	if err != nil {
@@ -85,11 +85,11 @@ func (a *api) getNotificationsAccountHandler(w http.ResponseWriter, r *http.Requ
 }
 
 func (a *api) disassociateAccountHandler(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
 	vars := mux.Vars(r)
 	apns := vars["apns"]
 	rid := vars["redditID"]
-
-	ctx := context.Background()
 
 	dev, err := a.deviceRepo.GetByAPNSToken(ctx, apns)
 	if err != nil {
@@ -112,10 +112,10 @@ func (a *api) disassociateAccountHandler(w http.ResponseWriter, r *http.Request)
 }
 
 func (a *api) upsertAccountsHandler(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
 	vars := mux.Vars(r)
 	apns := vars["apns"]
-
-	ctx := context.Background()
 
 	dev, err := a.deviceRepo.GetByAPNSToken(ctx, apns)
 	if err != nil {
@@ -206,9 +206,10 @@ func (a *api) upsertAccountsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *api) upsertAccountHandler(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
 	vars := mux.Vars(r)
 
-	ctx := context.Background()
 	var acct domain.Account
 
 	if err := json.NewDecoder(r.Body).Decode(&acct); err != nil {
