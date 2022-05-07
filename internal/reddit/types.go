@@ -82,7 +82,7 @@ type Thing struct {
 	Title         string    `json:"title"`
 	URL           string    `json:"url"`
 	Flair         string    `json:"flair"`
-	Thumbnail     string  `json:"thumbnail"`
+	Thumbnail     string    `json:"thumbnail"`
 }
 
 func (t *Thing) FullName() string {
@@ -106,7 +106,7 @@ func NewThing(val *fastjson.Value) *Thing {
 	t.Author = string(data.GetStringBytes("author"))
 	t.Subject = string(data.GetStringBytes("subject"))
 	t.Body = string(data.GetStringBytes("body"))
-	t.CreatedAt = time.Unix(unix, 0)
+	t.CreatedAt = time.Unix(unix, 0).UTC()
 	t.Context = string(data.GetStringBytes("context"))
 	t.ParentID = string(data.GetStringBytes("parent_id"))
 	t.LinkTitle = string(data.GetStringBytes("link_title"))
