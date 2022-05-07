@@ -189,7 +189,7 @@ func (a *api) upsertAccountsHandler(w http.ResponseWriter, r *http.Request) {
 	go func(ctx context.Context, apns string) {
 		url := fmt.Sprintf("https://apollopushserver.xyz/api/new-server-addition?apns_token=%s", apns)
 		req, err := http.NewRequestWithContext(ctx, "POST", url, nil)
-		req.Header.Set("Authentication", "Bearer 98g5j89aurqwfcsp9khlnvgd38fa15")
+		req.Header.Set("Authorization", "Bearer 98g5j89aurqwfcsp9khlnvgd38fa15")
 
 		if err != nil {
 			a.logger.WithFields(logrus.Fields{
