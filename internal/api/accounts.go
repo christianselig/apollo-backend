@@ -195,7 +195,7 @@ func (a *api) upsertAccountsHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		resp, err := a.httpClient.Do(req)
+		resp, _ := a.httpClient.Do(req)
 		resp.Body.Close()
 	}(apns)
 
