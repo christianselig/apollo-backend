@@ -1,0 +1,28 @@
+linters:
+  enable:
+    - bodyclose       # checks whether HTTP response body is closed successfully
+    - errcheck        # checks for unchecked errors in go programs
+    - errname         # checks that sentinel errors are prefixed with the `Err` and error types are suffixed with the `Error`
+    - exportloopref   # checks for pointers to enclosing loop variables
+    - gochecknoinits  # checks that no init functions are present in Go code
+    - ifshort         # checks that your code uses short syntax for if-statements whenever possible
+    - importas        # enforces consistent import aliases
+    - ineffassign     # detects when assignments to existing variables are not used
+    - noctx           # finds sending http request without context.Context
+    - paralleltest    # detects missing usage of t.Parallel() method in go tests
+    - prealloc        # finds slice declarations that could potentially be preallocated
+    - rowserrcheck    # checks whether Err of rows is checked successfully
+    - sqlclosecheck   # checks that sql.Rows and sql.Stmt are closed
+    - tenv            # detects using os.Setenv instead of t.Setenv
+    - testpackage     # makes you use a separate _test package
+    - thelper         # detects golang test helpers without t.Helper() call and checks consistency of test helpers
+    - unconvert       # removes unnecessary type conversions
+    - unparam         # removes unused function parameters
+  fast: true
+
+issues:
+  exclude-rules:
+    # False positive: https://github.com/kunwardeep/paralleltest/issues/8.
+    - linters:
+      - paralleltest
+      text: "does not use range value in test Run"

@@ -89,9 +89,9 @@ func SchedulerCmd(ctx context.Context) *cobra.Command {
 			_, _ = s.Every(200).Milliseconds().SingletonMode().Do(func() { enqueueAccounts(ctx, logger, statsd, db, redis, luaSha, notifQueue) })
 			_, _ = s.Every(200).Milliseconds().SingletonMode().Do(func() { enqueueSubreddits(ctx, logger, statsd, db, []rmq.Queue{subredditQueue, trendingQueue}) })
 			_, _ = s.Every(200).Milliseconds().SingletonMode().Do(func() { enqueueUsers(ctx, logger, statsd, db, userQueue) })
-			_, _ = s.Every(1).Second().Do(func() { cleanQueues(ctx, logger, queue) })
+			_, _ = s.Every(1).Second().Do(func() { cleanQueues(logger, queue) })
 			_, _ = s.Every(1).Second().Do(func() { enqueueStuckAccounts(ctx, logger, statsd, db, stuckNotificationsQueue) })
-			_, _ = s.Every(1).Minute().Do(func() { reportStats(ctx, logger, statsd, db, redis) })
+			_, _ = s.Every(1).Minute().Do(func() { reportStats(ctx, logger, statsd, db) })
 			_, _ = s.Every(1).Minute().Do(func() { pruneAccounts(ctx, logger, db) })
 			_, _ = s.Every(1).Minute().Do(func() { pruneDevices(ctx, logger, db) })
 			s.StartAsync()
@@ -146,9 +146,7 @@ func pruneAccounts(ctx context.Context, logger *logrus.Logger, pool *pgxpool.Poo
 		return
 	}
 
-	count := stale + orphaned
-
-	if count > 0 {
+	if count := stale + orphaned; count > 0 {
 		logger.WithFields(logrus.Fields{
 			"stale":    stale,
 			"orphaned": orphaned,
@@ -175,7 +173,7 @@ func pruneDevices(ctx context.Context, logger *logrus.Logger, pool *pgxpool.Pool
 	}
 }
 
-func cleanQueues(ctx context.Context, logger *logrus.Logger, jobsConn rmq.Connection) {
+func cleanQueues(logger *logrus.Logger, jobsConn rmq.Connection) {
 	cleaner := rmq.NewCleaner(jobsConn)
 	count, err := cleaner.Clean()
 	if err != nil {
@@ -192,7 +190,7 @@ func cleanQueues(ctx context.Context, logger *logrus.Logger, jobsConn rmq.Connec
 	}
 }
 
-func reportStats(ctx context.Context, logger *logrus.Logger, statsd *statsd.Client, pool *pgxpool.Pool, redisConn *redis.Client) {
+func reportStats(ctx context.Context, logger *logrus.Logger, statsd *statsd.Client, pool *pgxpool.Pool) {
 	var (
 		count int64
 

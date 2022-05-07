@@ -26,8 +26,7 @@ func (a *api) contactHandler(w http.ResponseWriter, r *http.Request) {
 		TextBody: smr.Body,
 	}
 
-	_, err := smtp2go.Send(msg)
-	if err != nil {
+	if _, err := smtp2go.Send(msg); err != nil {
 		a.errorResponse(w, r, 500, err.Error())
 		return
 	}

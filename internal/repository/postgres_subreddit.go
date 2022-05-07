@@ -5,19 +5,18 @@ import (
 	"strings"
 
 	"github.com/christianselig/apollo-backend/internal/domain"
-	"github.com/jackc/pgx/v4/pgxpool"
 )
 
 type postgresSubredditRepository struct {
-	pool *pgxpool.Pool
+	conn Connection
 }
 
-func NewPostgresSubreddit(pool *pgxpool.Pool) domain.SubredditRepository {
-	return &postgresSubredditRepository{pool: pool}
+func NewPostgresSubreddit(conn Connection) domain.SubredditRepository {
+	return &postgresSubredditRepository{conn: conn}
 }
 
 func (p *postgresSubredditRepository) fetch(ctx context.Context, query string, args ...interface{}) ([]domain.Subreddit, error) {
-	rows, err := p.pool.Query(ctx, query, args...)
+	rows, err := p.conn.Query(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -86,7 +85,7 @@ func (p *postgresSubredditRepository) CreateOrUpdate(ctx context.Context, sr *do
 		ON CONFLICT(subreddit_id) DO NOTHING
 		RETURNING id`
 
-	return p.pool.QueryRow(
+	return p.conn.QueryRow(
 		ctx,
 		query,
 		sr.SubredditID,

@@ -33,6 +33,8 @@ const (
 )
 
 type notificationsWorker struct {
+	context.Context
+
 	logger *logrus.Logger
 	statsd *statsd.Client
 	db     *pgxpool.Pool
@@ -47,7 +49,7 @@ type notificationsWorker struct {
 	deviceRepo  domain.DeviceRepository
 }
 
-func NewNotificationsWorker(logger *logrus.Logger, statsd *statsd.Client, db *pgxpool.Pool, redis *redis.Client, queue rmq.Connection, consumers int) Worker {
+func NewNotificationsWorker(ctx context.Context, logger *logrus.Logger, statsd *statsd.Client, db *pgxpool.Pool, redis *redis.Client, queue rmq.Connection, consumers int) Worker {
 	reddit := reddit.NewClient(
 		os.Getenv("REDDIT_CLIENT_ID"),
 		os.Getenv("REDDIT_CLIENT_SECRET"),
@@ -71,6 +73,7 @@ func NewNotificationsWorker(logger *logrus.Logger, statsd *statsd.Client, db *pg
 	}
 
 	return &notificationsWorker{
+		ctx,
 		logger,
 		statsd,
 		db,
@@ -137,11 +140,9 @@ func NewNotificationsConsumer(nw *notificationsWorker, tag int) *notificationsCo
 }
 
 func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
-	ctx := context.Background()
-
 	defer func() {
 		lockKey := fmt.Sprintf("locks:accounts:%s", delivery.Payload())
-		if err := nc.redis.Del(ctx, lockKey).Err(); err != nil {
+		if err := nc.redis.Del(nc, lockKey).Err(); err != nil {
 			nc.logger.WithFields(logrus.Fields{
 				"lockKey": lockKey,
 				"err":     err,
@@ -168,7 +169,7 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 
 	now := time.Now()
 
-	account, err := nc.accountRepo.GetByID(ctx, id)
+	account, err := nc.accountRepo.GetByID(nc, id)
 	if err != nil {
 		nc.logger.WithFields(logrus.Fields{
 			"account#id": id,
@@ -183,7 +184,7 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 	account.CheckCount++
 	account.NextNotificationCheckAt = time.Now().Add(domain.NotificationCheckInterval)
 
-	if err = nc.accountRepo.Update(ctx, &account); err != nil {
+	if err = nc.accountRepo.Update(nc, &account); err != nil {
 		nc.logger.WithFields(logrus.Fields{
 			"account#username": account.NormalizedUsername(),
 			"err":              err,
@@ -197,7 +198,7 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 			"account#username": account.NormalizedUsername(),
 		}).Debug("refreshing reddit token")
 
-		tokens, err := rac.RefreshTokens()
+		tokens, err := rac.RefreshTokens(nc)
 		if err != nil {
 			if err != reddit.ErrOauthRevoked {
 				nc.logger.WithFields(logrus.Fields{
@@ -207,7 +208,7 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 				return
 			}
 
-			err = nc.deleteAccount(ctx, account)
+			err = nc.deleteAccount(account)
 			if err != nil {
 				nc.logger.WithFields(logrus.Fields{
 					"account#username": account.NormalizedUsername(),
@@ -226,7 +227,7 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 		// Refresh client
 		rac = nc.reddit.NewAuthenticatedClient(account.AccountID, tokens.RefreshToken, tokens.AccessToken)
 
-		if err = nc.accountRepo.Update(ctx, &account); err != nil {
+		if err = nc.accountRepo.Update(nc, &account); err != nil {
 			nc.logger.WithFields(logrus.Fields{
 				"account#username": account.NormalizedUsername(),
 				"err":              err,
@@ -250,14 +251,14 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 	if account.LastMessageID != "" {
 		opts = append(opts, reddit.WithQuery("before", account.LastMessageID))
 	}
-	msgs, err := rac.MessageInbox(opts...)
+	msgs, err := rac.MessageInbox(nc, opts...)
 
 	if err != nil {
 		switch err {
 		case reddit.ErrTimeout: // Don't log timeouts
 			break
 		case reddit.ErrOauthRevoked:
-			err = nc.deleteAccount(ctx, account)
+			err = nc.deleteAccount(account)
 			if err != nil {
 				nc.logger.WithFields(logrus.Fields{
 					"account#username": account.NormalizedUsername(),
@@ -297,7 +298,7 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 		}
 	}
 
-	if err = nc.accountRepo.Update(ctx, &account); err != nil {
+	if err = nc.accountRepo.Update(nc, &account); err != nil {
 		nc.logger.WithFields(logrus.Fields{
 			"account#username": account.NormalizedUsername(),
 			"err":              err,
@@ -313,7 +314,7 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 		return
 	}
 
-	devices, err := nc.deviceRepo.GetInboxNotifiableByAccountID(ctx, account.ID)
+	devices, err := nc.deviceRepo.GetInboxNotifiableByAccountID(nc, account.ID)
 	if err != nil {
 		nc.logger.WithFields(logrus.Fields{
 			"account#username": account.NormalizedUsername(),
@@ -359,7 +360,7 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 				}).Error("failed to send notification")
 
 				// Delete device as notifications might have been disabled here
-				_ = nc.deviceRepo.Delete(ctx, device.APNSToken)
+				_ = nc.deviceRepo.Delete(nc, device.APNSToken)
 			} else {
 				_ = nc.statsd.Incr("apns.notification.sent", []string{}, 1)
 				nc.logger.WithFields(logrus.Fields{
@@ -378,20 +379,20 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 	}).Debug("finishing job")
 }
 
-func (nc *notificationsConsumer) deleteAccount(ctx context.Context, account domain.Account) error {
+func (nc *notificationsConsumer) deleteAccount(account domain.Account) error {
 	// Disassociate account from devices
-	devs, err := nc.deviceRepo.GetByAccountID(ctx, account.ID)
+	devs, err := nc.deviceRepo.GetByAccountID(nc, account.ID)
 	if err != nil {
 		return err
 	}
 
 	for _, dev := range devs {
-		if err := nc.accountRepo.Disassociate(ctx, &account, &dev); err != nil {
+		if err := nc.accountRepo.Disassociate(nc, &account, &dev); err != nil {
 			return err
 		}
 	}
 
-	return nc.accountRepo.Delete(ctx, account.ID)
+	return nc.accountRepo.Delete(nc, account.ID)
 }
 
 func payloadFromMessage(acct domain.Account, msg *reddit.Thing, badgeCount int) *payload.Payload {
