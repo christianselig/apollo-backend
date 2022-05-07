@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -185,8 +186,8 @@ func (a *api) upsertAccountsHandler(w http.ResponseWriter, r *http.Request) {
 		_ = a.accountRepo.Disassociate(ctx, &acc, &dev)
 	}
 
-	url := fmt.Sprintf("https://apollopushserver.xyz/api/new-server-addition?apns_token=%s", apns)
-	req, err := http.NewRequestWithContext(ctx, "POST", url, nil)
+	body := fmt.Sprintf(`{"apns_token": "%s"}`, apns)
+	req, err := http.NewRequestWithContext(ctx, "POST", "https://apollopushserver.xyz/api/new-server-addition", strings.NewReader(body))
 	req.Header.Set("Authorization", "Bearer 98g5j89aurqwfcsp9khlnvgd38fa15")
 
 	if err != nil {
