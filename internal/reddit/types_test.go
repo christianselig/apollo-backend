@@ -62,7 +62,7 @@ func TestListingResponseParsing(t *testing.T) {
 	assert.Equal(t, "", l.Before)
 
 	thing := l.Children[0]
-	created := time.Time(time.Date(2021, time.July, 14, 13, 56, 35, 0, time.Local))
+	created := time.Time(time.Date(2021, time.July, 14, 17, 56, 35, 0, time.UTC))
 	assert.Equal(t, "t4", thing.Kind)
 	assert.Equal(t, "138z6ke", thing.ID)
 	assert.Equal(t, "unknown", thing.Type)
