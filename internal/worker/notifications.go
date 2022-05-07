@@ -171,7 +171,8 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 	account, err := nc.accountRepo.GetByID(ctx, id)
 	if err != nil {
 		nc.logger.WithFields(logrus.Fields{
-			"err": err,
+			"account#id": id,
+			"err":        err,
 		}).Error("failed to fetch account from database")
 		return
 	}
