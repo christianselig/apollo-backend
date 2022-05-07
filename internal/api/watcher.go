@@ -1,7 +1,6 @@
 package api
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"strconv"
@@ -44,7 +43,7 @@ type watcherCreatedResponse struct {
 }
 
 func (a *api) createWatcherHandler(w http.ResponseWriter, r *http.Request) {
-	ctx := context.Background()
+	ctx := r.Context()
 
 	vars := mux.Vars(r)
 	apns := vars["apns"]
@@ -175,7 +174,7 @@ func (a *api) createWatcherHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *api) editWatcherHandler(w http.ResponseWriter, r *http.Request) {
-	ctx := context.Background()
+	ctx := r.Context()
 
 	vars := mux.Vars(r)
 	id, err := strconv.ParseInt(vars["watcherID"], 10, 64)
@@ -216,7 +215,7 @@ func (a *api) editWatcherHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *api) deleteWatcherHandler(w http.ResponseWriter, r *http.Request) {
-	ctx := context.Background()
+	ctx := r.Context()
 
 	vars := mux.Vars(r)
 	id, err := strconv.ParseInt(vars["watcherID"], 10, 64)
@@ -250,7 +249,7 @@ type watcherItem struct {
 }
 
 func (a *api) listWatchersHandler(w http.ResponseWriter, r *http.Request) {
-	ctx := context.Background()
+	ctx := r.Context()
 
 	vars := mux.Vars(r)
 	apns := vars["apns"]

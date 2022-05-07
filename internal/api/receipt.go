@@ -1,7 +1,6 @@
 package api
 
 import (
-	"context"
 	"encoding/json"
 	"io/ioutil"
 	"net/http"
@@ -15,7 +14,7 @@ import (
 )
 
 func (a *api) checkReceiptHandler(w http.ResponseWriter, r *http.Request) {
-	ctx := context.Background()
+	ctx := r.Context()
 
 	vars := mux.Vars(r)
 	apns := vars["apns"]

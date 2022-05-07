@@ -1,7 +1,6 @@
 package api
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -20,7 +19,7 @@ import (
 const notificationTitle = "📣 Hello, is this thing on?"
 
 func (a *api) upsertDeviceHandler(w http.ResponseWriter, r *http.Request) {
-	ctx := context.Background()
+	ctx := r.Context()
 
 	d := &domain.Device{}
 	if err := json.NewDecoder(r.Body).Decode(d); err != nil {
@@ -40,9 +39,9 @@ func (a *api) upsertDeviceHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *api) testDeviceHandler(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
+	ctx := r.Context()
 
-	ctx := context.Background()
+	vars := mux.Vars(r)
 	tok := vars["apns"]
 
 	d, err := a.deviceRepo.GetByAPNSToken(ctx, tok)
@@ -92,8 +91,9 @@ func (a *api) testDeviceHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *api) deleteDeviceHandler(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
 	vars := mux.Vars(r)
-	ctx := context.Background()
 
 	dev, err := a.deviceRepo.GetByAPNSToken(ctx, vars["apns"])
 	if err != nil {

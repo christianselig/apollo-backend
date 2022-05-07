@@ -1,7 +1,6 @@
 package api
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 
@@ -25,9 +24,9 @@ type notificationGenerator func(*payload.Payload)
 
 func generateNotificationTester(a *api, fun notificationGenerator) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		vars := mux.Vars(r)
+		ctx := r.Context()
 
-		ctx := context.Background()
+		vars := mux.Vars(r)
 		tok := vars["apns"]
 
 		d, err := a.deviceRepo.GetByAPNSToken(ctx, tok)
