@@ -2,6 +2,7 @@ package itunes
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -168,6 +169,8 @@ type (
 )
 
 func NewIAPResponse(receipt string, production bool) (*IAPResponse, error) {
+	ctx := context.Background()
+
 	// Send the receipt data string off to Apple's servers to verify
 	appleVerificationURL := "https://buy.itunes.apple.com/verifyReceipt"
 
@@ -186,7 +189,7 @@ func NewIAPResponse(receipt string, production bool) (*IAPResponse, error) {
 		return nil, err
 	}
 
-	request, requestErr := http.NewRequest("POST", appleVerificationURL, bytes.NewBuffer(bb))
+	request, requestErr := http.NewRequestWithContext(ctx, "POST", appleVerificationURL, bytes.NewBuffer(bb))
 
 	if requestErr != nil {
 		fmt.Println(requestErr)
@@ -364,7 +367,7 @@ func (iapr *IAPResponse) handleAppleResponse() {
 		mostRecentTransactionUnixTimestamp := mostRecentTransaction.ExpiresDateMS / 1000
 
 		// Check if it's not active
-		currentTimeUnixTimestamp := int64(time.Now().Unix())
+		currentTimeUnixTimestamp := time.Now().Unix()
 
 		if mostRecentTransactionUnixTimestamp < currentTimeUnixTimestamp {
 			if len(iapr.PendingRenewalInfo) > 0 && iapr.PendingRenewalInfo[0].SubscriptionAutoRenewStatus == "0" {

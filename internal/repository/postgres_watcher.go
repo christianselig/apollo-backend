@@ -5,21 +5,19 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/jackc/pgx/v4/pgxpool"
-
 	"github.com/christianselig/apollo-backend/internal/domain"
 )
 
 type postgresWatcherRepository struct {
-	pool *pgxpool.Pool
+	conn Connection
 }
 
-func NewPostgresWatcher(pool *pgxpool.Pool) domain.WatcherRepository {
-	return &postgresWatcherRepository{pool: pool}
+func NewPostgresWatcher(conn Connection) domain.WatcherRepository {
+	return &postgresWatcherRepository{conn: conn}
 }
 
 func (p *postgresWatcherRepository) fetch(ctx context.Context, query string, args ...interface{}) ([]domain.Watcher, error) {
-	rows, err := p.pool.Query(ctx, query, args...)
+	rows, err := p.conn.Query(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -221,7 +219,7 @@ func (p *postgresWatcherRepository) Create(ctx context.Context, watcher *domain.
 		VALUES ($1, 0, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 		RETURNING id`
 
-	return p.pool.QueryRow(
+	return p.conn.QueryRow(
 		ctx,
 		query,
 		now,
@@ -255,7 +253,7 @@ func (p *postgresWatcherRepository) Update(ctx context.Context, watcher *domain.
 			label = $8
 		WHERE id = $1`
 
-	res, err := p.pool.Exec(
+	res, err := p.conn.Exec(
 		ctx,
 		query,
 		watcher.ID,
@@ -277,7 +275,7 @@ func (p *postgresWatcherRepository) Update(ctx context.Context, watcher *domain.
 func (p *postgresWatcherRepository) IncrementHits(ctx context.Context, id int64) error {
 	now := time.Now().Unix()
 	query := `UPDATE watchers SET hits = hits + 1, last_notified_at = $2 WHERE id = $1`
-	res, err := p.pool.Exec(ctx, query, id, now)
+	res, err := p.conn.Exec(ctx, query, id, now)
 
 	if res.RowsAffected() != 1 {
 		return fmt.Errorf("weird behaviour, total rows affected: %d", res.RowsAffected())
@@ -287,7 +285,7 @@ func (p *postgresWatcherRepository) IncrementHits(ctx context.Context, id int64)
 
 func (p *postgresWatcherRepository) Delete(ctx context.Context, id int64) error {
 	query := `DELETE FROM watchers WHERE id = $1`
-	res, err := p.pool.Exec(ctx, query, id)
+	res, err := p.conn.Exec(ctx, query, id)
 
 	if res.RowsAffected() != 1 {
 		return fmt.Errorf("weird behaviour, total rows affected: %d", res.RowsAffected())
@@ -297,7 +295,7 @@ func (p *postgresWatcherRepository) Delete(ctx context.Context, id int64) error 
 
 func (p *postgresWatcherRepository) DeleteByTypeAndWatcheeID(ctx context.Context, typ domain.WatcherType, id int64) error {
 	query := `DELETE FROM watchers WHERE type = $1 AND watchee_id = $2`
-	res, err := p.pool.Exec(ctx, query, typ, id)
+	res, err := p.conn.Exec(ctx, query, typ, id)
 
 	if res.RowsAffected() == 0 {
 		return fmt.Errorf("weird behaviour, total rows affected: %d", res.RowsAffected())

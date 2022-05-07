@@ -1,6 +1,7 @@
 package reddit
 
 import (
+	"context"
 	"encoding/base64"
 	"fmt"
 	"net/http"
@@ -20,6 +21,7 @@ type Request struct {
 	tags               []string
 	emptyResponseBytes int
 	retry              bool
+	client             *http.Client
 }
 
 type RequestOption func(*Request)
@@ -38,6 +40,7 @@ func NewRequest(opts ...RequestOption) *Request {
 
 		emptyResponseBytes: 0,
 		retry:              true,
+		client:             nil,
 	}
 
 	for _, opt := range opts {
@@ -47,8 +50,8 @@ func NewRequest(opts ...RequestOption) *Request {
 	return req
 }
 
-func (r *Request) HTTPRequest() (*http.Request, error) {
-	req, err := http.NewRequest(r.method, r.url, strings.NewReader(r.body.Encode()))
+func (r *Request) HTTPRequest(ctx context.Context) (*http.Request, error) {
+	req, err := http.NewRequestWithContext(ctx, r.method, r.url, strings.NewReader(r.body.Encode()))
 	req.URL.RawQuery = r.query.Encode()
 
 	req.Header.Add("Accept", "application/json")
@@ -121,5 +124,11 @@ func WithEmptyResponseBytes(bytes int) RequestOption {
 func WithRetry(retry bool) RequestOption {
 	return func(req *Request) {
 		req.retry = retry
+	}
+}
+
+func WithClient(client *http.Client) RequestOption {
+	return func(req *Request) {
+		req.client = client
 	}
 }

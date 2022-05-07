@@ -68,7 +68,7 @@ func WorkerCmd(ctx context.Context) *cobra.Command {
 				return fmt.Errorf("invalid queue: %s", queueID)
 			}
 
-			worker := workerFn(logger, statsd, db, redis, queue, consumers)
+			worker := workerFn(ctx, logger, statsd, db, redis, queue, consumers)
 			if err := worker.Start(); err != nil {
 				return err
 			}
