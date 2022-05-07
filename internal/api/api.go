@@ -22,10 +22,11 @@ import (
 )
 
 type api struct {
-	logger *logrus.Logger
-	statsd *statsd.Client
-	reddit *reddit.Client
-	apns   *token.Token
+	logger     *logrus.Logger
+	statsd     *statsd.Client
+	reddit     *reddit.Client
+	apns       *token.Token
+	httpClient *http.Client
 
 	accountRepo   domain.AccountRepository
 	deviceRepo    domain.DeviceRepository
@@ -63,11 +64,14 @@ func NewAPI(ctx context.Context, logger *logrus.Logger, statsd *statsd.Client, r
 	watcherRepo := repository.NewPostgresWatcher(pool)
 	userRepo := repository.NewPostgresUser(pool)
 
+	client := &http.Client{}
+
 	return &api{
-		logger: logger,
-		statsd: statsd,
-		reddit: reddit,
-		apns:   apns,
+		logger:     logger,
+		statsd:     statsd,
+		reddit:     reddit,
+		apns:       apns,
+		httpClient: client,
 
 		accountRepo:   accountRepo,
 		deviceRepo:    deviceRepo,
