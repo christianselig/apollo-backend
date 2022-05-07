@@ -210,7 +210,7 @@ func (p *postgresAccountRepository) PruneStale(ctx context.Context, expiry time.
 		DELETE FROM accounts
 		WHERE token_expires_at < $1`
 
-	res, err := p.pool.Exec(ctx, query, expiry)
+	res, err := p.conn.Exec(ctx, query, expiry)
 
 	return res.RowsAffected(), err
 }

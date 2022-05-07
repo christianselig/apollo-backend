@@ -1,4 +1,4 @@
-package domain
+package domain_test
 
 import (
 	"errors"
@@ -6,21 +6,27 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/christianselig/apollo-backend/internal/domain"
 )
 
 func TestValidate(t *testing.T) {
+	t.Parallel()
+
 	tests := map[string]struct {
-		subreddit Subreddit
+		subreddit domain.Subreddit
 		err       error
 	}{
-		"invalid subreddit prefix":        {Subreddit{Name: "u_iamthatis"}, errors.New("invalid subreddit format")},
-		"valid subreddit":                 {Subreddit{Name: "pics", SubredditID: "abcd"}, nil},
-		"valid subreddit starting with u": {Subreddit{Name: "urcool", SubredditID: "abcd"}, nil},
-		"valid subreddit with _":          {Subreddit{Name: "p_i_x_a_r", SubredditID: "abcd"}, nil},
+		"invalid subreddit prefix":        {domain.Subreddit{Name: "u_iamthatis"}, errors.New("invalid subreddit format")},
+		"valid subreddit":                 {domain.Subreddit{Name: "pics", SubredditID: "abcd"}, nil},
+		"valid subreddit starting with u": {domain.Subreddit{Name: "urcool", SubredditID: "abcd"}, nil},
+		"valid subreddit with _":          {domain.Subreddit{Name: "p_i_x_a_r", SubredditID: "abcd"}, nil},
 	}
 
 	for scenario, tc := range tests {
 		t.Run(scenario, func(t *testing.T) {
+			t.Parallel()
+
 			err := tc.subreddit.Validate()
 
 			if tc.err == nil {

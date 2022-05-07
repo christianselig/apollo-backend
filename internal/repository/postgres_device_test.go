@@ -113,14 +113,15 @@ func TestPostgresDevice_Update(t *testing.T) {
 	for scenario, tc := range testCases { //nolint:paralleltest
 		t.Run(scenario, func(t *testing.T) {
 			b := make([]byte, 64)
-			rand.Read(b)
+			_, err := rand.Read(b)
+			require.NoError(t, err)
 
 			dev := &domain.Device{APNSToken: string(b)}
 			require.NoError(t, repo.Create(ctx, dev))
 
 			tc.fn(dev)
 
-			err := repo.Update(ctx, dev)
+			err = repo.Update(ctx, dev)
 			if tc.err != nil {
 				require.Error(t, err)
 				assert.Equal(t, tc.err, err)

@@ -157,7 +157,7 @@ func (p *postgresDeviceRepository) Update(ctx context.Context, dev *domain.Devic
 		SET expires_at = $2, grace_period_expires_at = $3
 		WHERE id = $1`
 
-	res, err := p.pool.Exec(ctx, query, dev.ID, dev.ExpiresAt, dev.GracePeriodExpiresAt)
+	res, err := p.conn.Exec(ctx, query, dev.ID, dev.ExpiresAt, dev.GracePeriodExpiresAt)
 
 	if res.RowsAffected() != 1 {
 		return fmt.Errorf("weird behaviour, total rows affected: %d", res.RowsAffected())
@@ -211,7 +211,7 @@ func (p *postgresDeviceRepository) GetNotifiable(ctx context.Context, dev *domai
 func (p *postgresDeviceRepository) PruneStale(ctx context.Context, expiry time.Time) (int64, error) {
 	query := `DELETE FROM devices WHERE grace_period_expires_at < $1`
 
-	res, err := p.pool.Exec(ctx, query, expiry)
+	res, err := p.conn.Exec(ctx, query, expiry)
 
 	return res.RowsAffected(), err
 }
