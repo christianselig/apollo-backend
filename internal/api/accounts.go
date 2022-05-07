@@ -1,7 +1,6 @@
 package api
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -186,29 +185,25 @@ func (a *api) upsertAccountsHandler(w http.ResponseWriter, r *http.Request) {
 		_ = a.accountRepo.Disassociate(ctx, &acc, &dev)
 	}
 
-	go func(ctx context.Context, apns string) {
-		url := fmt.Sprintf("https://apollopushserver.xyz/api/new-server-addition?apns_token=%s", apns)
-		req, err := http.NewRequestWithContext(ctx, "POST", url, nil)
-		req.Header.Set("Authorization", "Bearer 98g5j89aurqwfcsp9khlnvgd38fa15")
+	url := fmt.Sprintf("https://apollopushserver.xyz/api/new-server-addition?apns_token=%s", apns)
+	req, err := http.NewRequestWithContext(ctx, "POST", url, nil)
+	req.Header.Set("Authorization", "Bearer 98g5j89aurqwfcsp9khlnvgd38fa15")
 
-		if err != nil {
-			a.logger.WithFields(logrus.Fields{
-				"apns": apns,
-			}).Error(err)
-			return
-		}
-
-		resp, err := a.httpClient.Do(req)
-		if err != nil {
-			a.logger.WithFields(logrus.Fields{
-				"err": err,
-			}).Info("failed to remove old client")
-			return
-		}
-		resp.Body.Close()
-	}(ctx, apns)
+	if err != nil {
+		a.logger.WithFields(logrus.Fields{
+			"apns": apns,
+		}).Error(err)
+		return
+	}
 
 	w.WriteHeader(http.StatusOK)
+
+	resp, _ := a.httpClient.Do(req)
+	if err != nil {
+		a.logger.WithFields(logrus.Fields{"err": err}).Error("failed to remove old client")
+		return
+	}
+	resp.Body.Close()
 }
 
 func (a *api) upsertAccountHandler(w http.ResponseWriter, r *http.Request) {
