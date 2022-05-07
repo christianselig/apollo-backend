@@ -77,6 +77,7 @@ func (a *api) createWatcherHandler(w http.ResponseWriter, r *http.Request) {
 
 	if len(accs) == 0 {
 		a.errorResponse(w, r, 422, "can't create watchers without accounts")
+		return
 	}
 
 	account := accs[0]
