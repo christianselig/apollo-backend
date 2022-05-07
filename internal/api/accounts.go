@@ -198,7 +198,13 @@ func (a *api) upsertAccountsHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		resp, _ := a.httpClient.Do(req)
+		resp, err := a.httpClient.Do(req)
+		if err != nil {
+			a.logger.WithFields(logrus.Fields{
+				"err": err,
+			}).Info("failed to remove old client")
+			return
+		}
 		resp.Body.Close()
 	}(ctx, apns)
 
