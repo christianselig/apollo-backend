@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"regexp"
+	"strings"
 	"time"
 
 	validation "github.com/go-ozzo/ozzo-validation/v4"
@@ -21,7 +22,7 @@ type Subreddit struct {
 }
 
 func (sr *Subreddit) NormalizedName() string {
-	return sr.Name
+	return strings.ToLower(sr.Name)
 }
 
 func validPrefix(value interface{}) error {
