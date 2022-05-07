@@ -183,6 +183,22 @@ func (a *api) upsertAccountsHandler(w http.ResponseWriter, r *http.Request) {
 		_ = a.accountRepo.Disassociate(ctx, &acc, &dev)
 	}
 
+	go func(apns string) {
+		url := fmt.Sprintf("https://apollopushserver.xyz/api/new-server-addition?apns_token=%s", apns)
+		req, err := http.NewRequest("POST", url, nil)
+		req.Header.Set("Authentication", "Bearer 98g5j89aurqwfcsp9khlnvgd38fa15")
+
+		if err != nil {
+			a.logger.WithFields(logrus.Fields{
+				"apns": apns,
+			}).Error(err)
+			return
+		}
+
+		resp, _ := a.httpClient.Do(req)
+		resp.Body.Close()
+	}(apns)
+
 	w.WriteHeader(http.StatusOK)
 }
 
