@@ -40,6 +40,10 @@ func generateNotificationTester(a *api, fun notificationGenerator) func(w http.R
 		}
 
 		p := payload.NewPayload()
+
+		p.MutableContent().
+			Sound("traloop.wav")
+
 		fun(p)
 
 		notification := &apns2.Notification{}
@@ -63,128 +67,112 @@ func generateNotificationTester(a *api, fun notificationGenerator) func(w http.R
 	}
 }
 
-func privateMessage(pl *payload.Payload) {
+func privateMessage(p *payload.Payload) {
 	title := fmt.Sprintf(privateMessageNotificationTitleFormat, "welcomebot")
 
-	pl.
+	p.AlertTitle(title).
 		AlertBody("**Welcome to r/GriefSupport!**\n\nWe're glad you found us, but sad you needed to.  We're here to support you during whatever difficulties you're going through.").
+		AlertSubtitle("Welcome to r/GriefSupport!").
 		AlertSummaryArg("welcomebot").
+		Category("inbox-private-message").
 		Custom("account_id", "1ia22").
 		Custom("author", "welcomebot").
+		Custom("comment_id", "1d2oouy").
 		Custom("destination_author", "changelog").
 		Custom("parent_id", "").
 		Custom("post_title", "").
 		Custom("subreddit", "").
-		MutableContent().
-		Sound("traloop.wav").
-		AlertTitle(title).
-		AlertSubtitle("Welcome to r/GriefSupport!").
-		Category("inbox-private-message").
-		Custom("comment_id", "1d2oouy").
 		Custom("type", "private-message")
 }
 
-func commentReply(pl *payload.Payload) {
+func commentReply(p *payload.Payload) {
 	title := fmt.Sprintf(commentReplyNotificationTitleFormat, "Equinox_Shift", "Protests set to disrupt Ottawa's downtown for 3rd straight weekend")
 
-	pl.
+	p.AlertTitle(title).
 		AlertBody("They don't even go here.").
+		Category("inbox-comment-reply").
 		Custom("account_id", "1ia22").
 		Custom("author", "Equinox_Shift").
+		Custom("comment_id", "hwp66zg").
 		Custom("destination_author", "changelog").
 		Custom("parent_id", "t1_hwonb97").
-		Custom("post_title", "Protests set to disrupt Ottawa's downtown for 3rd straight weekend").
-		Custom("subreddit", "ottawa").
-		AlertTitle(title).
-		MutableContent().
-		Sound("traloop.wav").
-		Category("inbox-comment-reply").
-		Custom("comment_id", "hwp66zg").
 		Custom("post_id", "sqqk29").
+		Custom("post_title", "Protests set to disrupt Ottawa's downtown for 3rd straight weekend").
 		Custom("subject", "comment").
+		Custom("subreddit", "ottawa").
 		Custom("subreddit", "ottawa").
 		Custom("type", "comment").
 		ThreadID("comment")
 }
-func postReply(pl *payload.Payload) {
+
+func postReply(p *payload.Payload) {
 	title := fmt.Sprintf(postReplyNotificationTitleFormat, "Ryfter", "Quest 2 use during chemo")
 
-	pl.
+	p.AlertTitle(title).
 		AlertBody("As others have said, [Real Fishing VR](https://www.oculus.com/experiences/quest/2582932495064035).  Especially if he likes to fish.  My dad and mom were blown away by it.").
+		Category("inbox-comment-reply").
 		Custom("account_id", "1ia22").
 		Custom("author", "Ryfter").
+		Custom("comment_id", "hyg01ip").
 		Custom("destination_author", "changelog").
 		Custom("parent_id", "t3_t0qn4z").
-		Custom("post_title", "Quest 2 use during chemo").
-		Custom("subreddit", "OculusQuest2").
-		AlertTitle(title).
-		MutableContent().
-		Sound("traloop.wav").
-		Category("inbox-comment-reply").
-		Custom("comment_id", "hyg01ip").
 		Custom("post_id", "t0qn4z").
+		Custom("post_title", "Quest 2 use during chemo").
 		Custom("subject", "comment").
+		Custom("subreddit", "OculusQuest2").
 		Custom("subreddit", "OculusQuest2").
 		Custom("type", "post").
 		ThreadID("comment")
 }
-func usernameMention(pl *payload.Payload) {
+
+func usernameMention(p *payload.Payload) {
 	title := fmt.Sprintf(usernameMentionNotificationTitleFormat, "testimg")
 
-	pl.
+	p.AlertTitle(title).
 		AlertBody("yo u/changelog what's good").
+		Category("inbox-username-mention-no-context").
 		Custom("account_id", "1ia22").
 		Custom("author", "iamthatis").
+		Custom("comment_id", "i6xobpa").
 		Custom("destination_author", "changelog").
 		Custom("parent_id", "t3_u02338").
-		Custom("post_title", "testimg").
-		Custom("subreddit", "calicosummer").
-		MutableContent().
-		Sound("traloop.wav").
-		AlertTitle(title).
-		Category("inbox-username-mention-no-context").
-		Custom("comment_id", "i6xobpa").
 		Custom("post_id", "u02338").
+		Custom("post_title", "testimg").
 		Custom("subject", "comment").
+		Custom("subreddit", "calicosummer").
 		Custom("subreddit", "calicosummer").
 		Custom("type", "username")
 
 }
-func subredditWatcher(pl *payload.Payload) {
+func subredditWatcher(p *payload.Payload) {
 	title := fmt.Sprintf(subredditNotificationTitleFormat, "bug pics")
 	body := fmt.Sprintf(subredditNotificationBodyFormat, "pics", "A Goliath Stick Insect. Aware of my presence she let me get close enough for a photo. (OC)")
 
-	pl.
-		AlertTitle(title).
+	p.AlertTitle(title).
 		AlertBody(body).
 		AlertSummaryArg("pics").
 		Category("subreddit-watcher").
-		Custom("post_title", "A Goliath Stick Insect. Aware of my presence she let me get close enough for a photo. (OC)").
-		Custom("post_id", "ufzaml").
-		Custom("subreddit", "pics").
 		Custom("author", "befarked247").
 		Custom("post_age", 1651409659.0).
-		ThreadID("subreddit-watcher").
-		MutableContent().
-		Sound("traloop.wav").
-		Custom("thumbnail", "https://a.thumbs.redditmedia.com/Lr4b-YHLTNu1LFuyUY1Zic8kHy3ojX06gLcZOuqxrr0.jpg")
+		Custom("post_id", "ufzaml").
+		Custom("post_title", "A Goliath Stick Insect. Aware of my presence she let me get close enough for a photo. (OC)").
+		Custom("subreddit", "pics").
+		Custom("thumbnail", "https://a.thumbs.redditmedia.com/Lr4b-YHLTNu1LFuyUY1Zic8kHy3ojX06gLcZOuqxrr0.jpg").
+		ThreadID("subreddit-watcher")
 }
 
-func trendingPost(pl *payload.Payload) {
+func trendingPost(p *payload.Payload) {
 	title := fmt.Sprintf(trendingNotificationTitleFormat, "pics")
 
-	pl.
-		AlertTitle(title).
+	p.AlertTitle(title).
 		AlertBody("A Goliath Stick Insect. Aware of my presence she let me get close enough for a photo. (OC)").
 		AlertSummaryArg("pics").
 		Category("trending-post").
-		Custom("post_title", "A Goliath Stick Insect. Aware of my presence she let me get close enough for a photo. (OC)").
-		Custom("post_id", "ufzaml").
-		Custom("subreddit", "pics").
 		Custom("author", "befarked247").
 		Custom("post_age", 1651409659.0).
-		ThreadID("trending-post").
-		MutableContent().
-		Sound("traloop.wav").
-		Custom("thumbnail", "https://a.thumbs.redditmedia.com/Lr4b-YHLTNu1LFuyUY1Zic8kHy3ojX06gLcZOuqxrr0.jpg")
+		Custom("post_id", "ufzaml").
+		Custom("post_title", "A Goliath Stick Insect. Aware of my presence she let me get close enough for a photo. (OC)").
+		Custom("subreddit", "pics").
+		Custom("thumbnail", "https://a.thumbs.redditmedia.com/Lr4b-YHLTNu1LFuyUY1Zic8kHy3ojX06gLcZOuqxrr0.jpg").
+		ThreadID("trending-post")
 }
