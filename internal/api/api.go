@@ -96,6 +96,12 @@ func (a *api) Routes() *mux.Router {
 	r.HandleFunc("/v1/device", a.upsertDeviceHandler).Methods("POST")
 	r.HandleFunc("/v1/device/{apns}", a.deleteDeviceHandler).Methods("DELETE")
 	r.HandleFunc("/v1/device/{apns}/test", a.testDeviceHandler).Methods("POST")
+	r.HandleFunc("/v1/device/{apns}/test/comment_reply", generateNotificationTester(a, commentReply)).Methods("POST")
+	r.HandleFunc("/v1/device/{apns}/test/post_reply", generateNotificationTester(a, postReply)).Methods("POST")
+	r.HandleFunc("/v1/device/{apns}/test/private_message", generateNotificationTester(a, privateMessage)).Methods("POST")
+	r.HandleFunc("/v1/device/{apns}/test/subreddit_watcher", generateNotificationTester(a, subredditWatcher)).Methods("POST")
+	r.HandleFunc("/v1/device/{apns}/test/trending_post", generateNotificationTester(a, trendingPost)).Methods("POST")
+	r.HandleFunc("/v1/device/{apns}/test/username_mention", generateNotificationTester(a, usernameMention)).Methods("POST")
 
 	r.HandleFunc("/v1/device/{apns}/account", a.upsertAccountHandler).Methods("POST")
 	r.HandleFunc("/v1/device/{apns}/accounts", a.upsertAccountsHandler).Methods("POST")
