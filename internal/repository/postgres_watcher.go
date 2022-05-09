@@ -211,8 +211,6 @@ func (p *postgresWatcherRepository) Create(ctx context.Context, watcher *domain.
 		return err
 	}
 
-	now := float64(time.Now().UTC().Unix())
-
 	query := `
 		INSERT INTO watchers
 			(created_at, last_notified_at, label, device_id, account_id, type, watchee_id, author, subreddit, upvotes, keyword, flair, domain)
@@ -222,7 +220,7 @@ func (p *postgresWatcherRepository) Create(ctx context.Context, watcher *domain.
 	return p.conn.QueryRow(
 		ctx,
 		query,
-		now,
+		time.Now(),
 		watcher.Label,
 		watcher.DeviceID,
 		watcher.AccountID,
