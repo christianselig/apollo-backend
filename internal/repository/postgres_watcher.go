@@ -211,16 +211,19 @@ func (p *postgresWatcherRepository) Create(ctx context.Context, watcher *domain.
 		return err
 	}
 
+	now := time.Now()
+
 	query := `
 		INSERT INTO watchers
 			(created_at, last_notified_at, label, device_id, account_id, type, watchee_id, author, subreddit, upvotes, keyword, flair, domain)
-		VALUES ($1, 0, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 		RETURNING id`
 
 	return p.conn.QueryRow(
 		ctx,
 		query,
-		time.Now(),
+		now,
+		now,
 		watcher.Label,
 		watcher.DeviceID,
 		watcher.AccountID,
@@ -271,9 +274,8 @@ func (p *postgresWatcherRepository) Update(ctx context.Context, watcher *domain.
 }
 
 func (p *postgresWatcherRepository) IncrementHits(ctx context.Context, id int64) error {
-	now := time.Now().Unix()
 	query := `UPDATE watchers SET hits = hits + 1, last_notified_at = $2 WHERE id = $1`
-	res, err := p.conn.Exec(ctx, query, id, now)
+	res, err := p.conn.Exec(ctx, query, id, time.Now())
 
 	if res.RowsAffected() != 1 {
 		return fmt.Errorf("weird behaviour, total rows affected: %d", res.RowsAffected())
