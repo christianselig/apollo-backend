@@ -39,7 +39,7 @@ func validPrefix(value interface{}) error {
 
 func (sr *Subreddit) Validate() error {
 	return validation.ValidateStruct(sr,
-		validation.Field(&sr.Name, validation.Required, validation.Length(3, 32), validation.By(validPrefix), validation.Match(regexp.MustCompile(`^[a-zA-Z0-9]\w{1,19}$`))),
+		validation.Field(&sr.Name, validation.Required, validation.Length(2, 32), validation.By(validPrefix), validation.Match(regexp.MustCompile(`^[a-zA-Z0-9]\w{1,19}$`))),
 		validation.Field(&sr.SubredditID, validation.Required, validation.Length(4, 9)),
 	)
 }
