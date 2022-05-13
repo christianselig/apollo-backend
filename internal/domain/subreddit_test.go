@@ -22,6 +22,7 @@ func TestValidate(t *testing.T) {
 		"valid subreddit starting with u": {domain.Subreddit{Name: "urcool", SubredditID: "abcd"}, nil},
 		"valid subreddit with _":          {domain.Subreddit{Name: "p_i_x_a_r", SubredditID: "abcd"}, nil},
 		"valid subreddit with 2 letters":  {domain.Subreddit{Name: "de", SubredditID: "abcd"}, nil},
+		"valid subreddit with 21 letters": {domain.Subreddit{Name: "GamingLeaksAndRumours", SubredditID: "abcd"}, nil},
 	}
 
 	for scenario, tc := range tt {
