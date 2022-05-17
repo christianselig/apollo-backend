@@ -43,6 +43,8 @@ func NewRequest(opts ...RequestOption) *Request {
 		client:             nil,
 	}
 
+	req.query.Set("raw_json", "1")
+
 	for _, opt := range opts {
 		opt(req)
 	}
