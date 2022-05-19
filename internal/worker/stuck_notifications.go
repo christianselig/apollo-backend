@@ -179,7 +179,11 @@ func (snc *stuckNotificationsConsumer) Consume(delivery rmq.Delivery) {
 				break
 			}
 
-			things, err := rac.MessageInbox(snc, reddit.WithQuery("after", account.LastMessageID))
+			if kind == "t4" {
+				return
+			}
+
+			sthings, err := rac.MessageInbox(snc)
 			if err != nil {
 				snc.logger.WithFields(logrus.Fields{
 					"err": err,
@@ -187,7 +191,14 @@ func (snc *stuckNotificationsConsumer) Consume(delivery rmq.Delivery) {
 				return
 			}
 
-			if things.Count == 0 {
+			found := false
+			for _, sthing := range sthings.Children {
+				if sthing.FullName() == account.LastMessageID {
+					found = true
+				}
+			}
+
+			if !found {
 				snc.logger.WithFields(logrus.Fields{
 					"account#username": account.NormalizedUsername(),
 					"thing#id":         account.LastMessageID,
