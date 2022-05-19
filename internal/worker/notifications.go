@@ -255,7 +255,7 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 
 	if err != nil {
 		switch err {
-		case reddit.ErrTimeout: // Don't log timeouts
+		case reddit.ErrTimeout, reddit.ErrRateLimited: // Don't log timeouts or rate limits
 			break
 		case reddit.ErrOauthRevoked:
 			err = nc.deleteAccount(account)
