@@ -240,7 +240,7 @@ type watcherItem struct {
 	Type        string    `json:"type"`
 	Label       string    `json:"label"`
 	SourceLabel string    `json:"source_label"`
-	Upvotes     *int64    `json:"upvotes,omitempty"`
+	Upvotes     int64     `json:"upvotes,omitempty"`
 	Keyword     string    `json:"keyword,omitempty"`
 	Flair       string    `json:"flair,omitempty"`
 	Domain      string    `json:"domain,omitempty"`
@@ -274,10 +274,7 @@ func (a *api) listWatchersHandler(w http.ResponseWriter, r *http.Request) {
 			Domain:      watcher.Domain,
 			Hits:        watcher.Hits,
 			Author:      watcher.Author,
-		}
-
-		if watcher.Upvotes != 0 {
-			wi.Upvotes = &watcher.Upvotes
+			Upvotes:     watcher.Upvotes,
 		}
 
 		wis[i] = wi
