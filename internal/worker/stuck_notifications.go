@@ -175,13 +175,31 @@ func (snc *stuckNotificationsConsumer) Consume(delivery rmq.Delivery) {
 				continue
 			}
 
-			if !thing.IsDeleted() {
+			if thing.IsDeleted() {
+				break
+			}
+
+			things, err := rac.MessageInbox(snc, reddit.WithQuery("after", account.LastMessageID))
+			if err != nil {
+				snc.logger.WithFields(logrus.Fields{
+					"err": err,
+				}).Error("failed to check inbox")
+				return
+			}
+
+			if things.Count == 0 {
 				snc.logger.WithFields(logrus.Fields{
 					"account#username": account.NormalizedUsername(),
 					"thing#id":         account.LastMessageID,
-				}).Debug("thing exists, returning")
-				return
+				}).Debug("thing exists, but not in inbox, marking as deleted")
+				break
 			}
+
+			snc.logger.WithFields(logrus.Fields{
+				"account#username": account.NormalizedUsername(),
+				"thing#id":         account.LastMessageID,
+			}).Debug("thing exists, returning")
+			return
 		}
 	}
 
