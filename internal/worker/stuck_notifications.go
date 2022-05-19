@@ -152,9 +152,11 @@ func (snc *stuckNotificationsConsumer) Consume(delivery rmq.Delivery) {
 
 		things, err = rac.MessageInbox(snc)
 		if err != nil {
-			snc.logger.WithFields(logrus.Fields{
-				"err": err,
-			}).Error("failed to fetch last thing via inbox")
+			if err != reddit.ErrRateLimited {
+				snc.logger.WithFields(logrus.Fields{
+					"err": err,
+				}).Error("failed to fetch last thing via inbox")
+			}
 			return
 		}
 	} else {
