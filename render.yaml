@@ -4,6 +4,7 @@ databases:
     user: apollo
     databaseName: apollo
     postgresMajorVersion: 14
+    ipAllowList: [] # only allow internal connections
 
 services:
   # Redis
@@ -11,6 +12,7 @@ services:
     name: srv.redis
     plan: pro
     maxmemoryPolicy: noeviction
+    ipAllowList: [] # only allow internal connections
 
   # PGBouncer
   - type: worker
@@ -23,7 +25,7 @@ services:
         value: postgres,apollo
       - key: DATABASE_URL
         fromService:
-          type: database
+          type: postgres
           name: srv.postgres
           property: connectionString
       - key: DEFAULT_POOL_SIZE
