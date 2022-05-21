@@ -173,4 +173,3 @@ services:
     buildCommand: go install github.com/bugsnag/panic-monitor@latest && go build ./cmd/apollo
     startCommand: panic-monitor ./apollo worker --queue trending --multiplier 64
     autoDeploy: false
- #
