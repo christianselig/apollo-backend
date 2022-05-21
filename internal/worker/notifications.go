@@ -22,9 +22,9 @@ import (
 )
 
 const (
-	backoff      = 5 // How long we wait in between checking for notifications, in seconds
-	pollDuration = 5 * time.Millisecond
-	rate         = 0.1
+	checkInterval = 5 * time.Second // How long we wait in between checking for notifications, in seconds
+	pollDuration  = 5 * time.Millisecond
+	rate          = 0.1
 
 	postReplyNotificationTitleFormat       = "%s to %s"
 	commentReplyNotificationTitleFormat    = "%s in %s"
@@ -239,7 +239,7 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 	// Only update delay on accounts we can actually check, otherwise it skews
 	// the numbers too much.
 	if !newAccount {
-		latency := now.Sub(previousNextCheck) - backoff*time.Second
+		latency := now.Sub(previousNextCheck) - checkInterval
 		_ = nc.statsd.Histogram("apollo.queue.delay", float64(latency.Milliseconds()), []string{}, rate)
 	}
 

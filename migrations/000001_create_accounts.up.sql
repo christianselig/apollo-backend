@@ -2,19 +2,13 @@
 
 CREATE TABLE accounts (
     id SERIAL PRIMARY KEY,
+    reddit_account_id character varying(32) DEFAULT ''::character varying,
     username character varying(20) DEFAULT ''::character varying UNIQUE,
     access_token character varying(64) DEFAULT ''::character varying,
     refresh_token character varying(64) DEFAULT ''::character varying,
-    expires_at integer DEFAULT 0,
+    token_expires_at timestamp without time zone,
     last_message_id character varying(32) DEFAULT ''::character varying,
-    device_count integer DEFAULT 0,
-    last_checked_at double precision DEFAULT '0'::double precision,
-    last_enqueued_at double precision DEFAULT '0'::double precision,
-    account_id character varying(32) DEFAULT ''::character varying,
-    last_unstuck_at double precision DEFAULT '0'::double precision
+    next_notification_check_at timestamp without time zone,
+    next_stuck_notification_check_at timestamp without time zone,
+    check_count integer DEFAULT 0
 );
-
--- Indices -------------------------------------------------------
-
-CREATE INDEX accounts_last_checked_at_idx ON accounts(last_checked_at float8_ops);
-
