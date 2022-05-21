@@ -230,16 +230,16 @@ func enqueueUsers(ctx context.Context, logger *logrus.Logger, statsd *statsd.Cli
 
 	err := pool.BeginFunc(ctx, func(tx pgx.Tx) error {
 		stmt := `
-			WITH batch AS (
-			  SELECT id
+			UPDATE users
+			SET next_check_at = $2
+			WHERE id IN (
+				SELECT id
 				FROM users
 				WHERE next_check_at < $1
 				ORDER BY next_check_at
+				FOR UPDATE SKIP LOCKED
 				LIMIT 100
 			)
-			UPDATE users
-			SET next_check_at = $2
-			WHERE users.id IN(SELECT id FROM batch)
 			RETURNING users.id`
 		rows, err := tx.Query(ctx, stmt, now, next)
 		if err != nil {
@@ -296,16 +296,16 @@ func enqueueSubreddits(ctx context.Context, logger *logrus.Logger, statsd *stats
 
 	err := pool.BeginFunc(ctx, func(tx pgx.Tx) error {
 		stmt := `
-			WITH batch AS (
-			  SELECT id
+			UPDATE subreddits
+			SET next_check_at = $2
+			WHERE subreddits.id IN(
+				SELECT id
 				FROM subreddits
 				WHERE next_check_at < $1
 				ORDER BY next_check_at
+				FOR UPDATE SKIP LOCKED
 				LIMIT 100
 			)
-			UPDATE subreddits
-			SET next_check_at = $2
-			WHERE subreddits.id IN(SELECT id FROM batch)
 			RETURNING subreddits.id`
 		rows, err := tx.Query(ctx, stmt, now, next)
 		if err != nil {
@@ -366,17 +366,16 @@ func enqueueStuckAccounts(ctx context.Context, logger *logrus.Logger, statsd *st
 
 	err := pool.BeginFunc(ctx, func(tx pgx.Tx) error {
 		stmt := `
-			WITH batch AS (
-			  SELECT id
-				FROM accounts
-				WHERE
-					next_stuck_notification_check_at < $1
-				ORDER BY next_stuck_notification_check_at
-				LIMIT 500
-			)
 			UPDATE accounts
 			SET next_stuck_notification_check_at = $2
-			WHERE accounts.id IN(SELECT id FROM batch)
+			WHERE accounts.id IN(
+				SELECT id
+				FROM accounts
+				WHERE next_stuck_notification_check_at < $1
+				ORDER BY next_stuck_notification_check_at
+				FOR UPDATE SKIP LOCKED
+				LIMIT 500
+			)
 			RETURNING accounts.id`
 		rows, err := tx.Query(ctx, stmt, now, next)
 		if err != nil {
@@ -437,17 +436,16 @@ func enqueueAccounts(ctx context.Context, logger *logrus.Logger, statsd *statsd.
 
 	err := pool.BeginFunc(ctx, func(tx pgx.Tx) error {
 		stmt := `
-			WITH account AS (
-			  SELECT id
-				FROM accounts
-				WHERE
-					next_notification_check_at < $1
-				ORDER BY next_notification_check_at
-				LIMIT 2500
-			)
 			UPDATE accounts
 			SET next_notification_check_at = $2
-			WHERE accounts.id IN(SELECT id FROM account)
+			WHERE accounts.id IN(
+				SELECT id
+				FROM accounts
+				WHERE next_notification_check_at < $1
+				ORDER BY next_notification_check_at
+				FOR UPDATE SKIP LOCKED
+				LIMIT 2500
+			)
 			RETURNING accounts.id`
 		rows, err := tx.Query(ctx, stmt, now, next)
 		if err != nil {
