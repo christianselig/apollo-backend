@@ -1,0 +1,214 @@
+databases:
+- name: srv.postgres
+  plan: pro
+  user: apollo
+  databaseName: apollo
+  postgresMajorVersion: 14
+  ipAllowList: [] # only allow internal connections
+
+services:
+# Redis
+- type: redis
+  name: srv.redis
+  plan: pro
+  maxmemoryPolicy: noeviction
+  ipAllowList: [] # only allow internal connections
+
+# PGBouncer
+- type: worker
+  name: srv.pgbouncer
+  env: docker
+  plan: standard
+  repo: https://github.com/renderinc/docker-pgbouncer.git
+  envVars:
+  - key: ADMIN_USERS
+    value: postgres,apollo
+  - key: DATABASE_URL
+    fromDatabase:
+      name: srv.postgres
+      property: connectionString
+  - key: DEFAULT_POOL_SIZE
+    value: 128
+  - key: MAX_CLIENT_CONN
+    value: 1024
+  - key: MIN_POOL_SIZE
+    value: 8
+  - key: POOL_MODE
+    value: transaction
+  - key: RESERVE_POOL_TIMEOUT
+    value: 1
+  - key: SERVER_RESET_QUERY
+    value: DISCARD ALL
+
+# StatsD
+- type: worker
+  name: srv.statsd
+  env: docker
+  plan: standard
+  repo: https://github.com/andremedeiros/render-datadog.git
+  envVars:
+  - key: DD_API_KEY
+    sync: false
+  - key: DD_APM_ENABLED
+    value: false
+  - key: DD_LOG_LEVEL
+    value: ERROR
+
+# API
+- type: web
+  name: web.api
+  env: go
+  plan: standard
+  healthCheckPath: /v1/health
+  envVars:
+  - fromGroup: env-settings
+  - key: REDIS_URL
+    fromService:
+      type: redis
+      name: srv.redis
+      property: connectionString
+  scaling:
+    minInstances: 1
+    maxInstances: 3
+    targetCPUPercent: 60
+  buildCommand: go install github.com/bugsnag/panic-monitor@latest && go build ./cmd/apollo
+  startCommand: panic-monitor ./apollo api
+  autoDeploy: false
+
+# Notifications
+- type: worker
+  name: worker.notifications
+  env: go
+  plan: starter plus
+  envVars:
+  - fromGroup: env-settings
+  - key: REDIS_URL
+    fromService:
+      type: redis
+      name: srv.redis
+      property: connectionString
+  scaling:
+    minInstances: 1
+    maxInstances: 10
+    targetCPUPercent: 75
+  buildCommand: go install github.com/bugsnag/panic-monitor@latest && go build ./cmd/apollo
+  startCommand: panic-monitor ./apollo worker --queue notifications --multiplier 64
+  autoDeploy: false
+
+# Stuck Notifications Checker
+- type: worker
+  name: worker.notifications.stuck
+  env: go
+  plan: starter plus
+  envVars:
+  - fromGroup: env-settings
+  - key: REDIS_URL
+    fromService:
+      type: redis
+      name: srv.redis
+      property: connectionString
+  scaling:
+    minInstances: 1
+    maxInstances: 10
+    targetCPUPercent: 75
+  buildCommand: go install github.com/bugsnag/panic-monitor@latest && go build ./cmd/apollo
+  startCommand: panic-monitor ./apollo worker --queue stuck-notifications --multiplier 64
+  autoDeploy: false
+
+# Scheduler
+- type: worker
+  name: app.scheduler
+  env: go
+  plan: starter
+  envVars:
+  - fromGroup: env-settings
+  - key: REDIS_URL
+    fromService:
+      type: redis
+      name: srv.redis
+      property: connectionString
+  buildCommand: go install github.com/bugsnag/panic-monitor@latest && go build ./cmd/apollo
+  startCommand: panic-monitor ./apollo scheduler
+  autoDeploy: false
+
+# User Watcher
+- type: worker
+  name: worker.watcher.users
+  env: go
+  plan: starter
+  envVars:
+  - fromGroup: env-settings
+  - key: REDIS_URL
+    fromService:
+      type: redis
+      name: srv.redis
+      property: connectionString
+  buildCommand: go install github.com/bugsnag/panic-monitor@latest && go build ./cmd/apollo
+  startCommand: panic-monitor ./apollo worker --queue users --multiplier 16
+  autoDeploy: false
+
+# Subreddit Watcher
+- type: worker
+  name: worker.watcher.subreddits
+  env: go
+  plan: starter plus
+  envVars:
+  - fromGroup: env-settings
+  - key: REDIS_URL
+    fromService:
+      type: redis
+      name: srv.redis
+      property: connectionString
+  scaling:
+    minInstances: 1
+    maxInstances: 10
+    targetCPUPercent: 75
+  buildCommand: go install github.com/bugsnag/panic-monitor@latest && go build ./cmd/apollo
+  startCommand: panic-monitor ./apollo worker --queue subreddits --multiplier 64
+  autoDeploy: false
+
+# Trending Posts Watcher
+- type: worker
+  name: worker.watcher.trending
+  env: go
+  plan: starter plus
+  envVars:
+  - fromGroup: env-settings
+  - key: REDIS_URL
+    fromService:
+      type: redis
+      name: srv.redis
+      property: connectionString
+  scaling:
+    minInstances: 1
+    maxInstances: 10
+    targetCPUPercent: 75
+  buildCommand: go install github.com/bugsnag/panic-monitor@latest && go build ./cmd/apollo
+  startCommand: panic-monitor ./apollo worker --queue trending --multiplier 64
+  autoDeploy: false
+
+envVarGroups:
+# Environment
+- name: env-settings
+  envVars:
+  - key: APPLE_KEY_ID
+    sync: false
+  - key: APPLE_KEY_PATH
+    value: /etc/secrets/apple.p8
+  - key: APPLE_TEAM_ID
+    sync: false
+  - key: BUGSNAG_API_KEY
+    sync: false
+  - key: DATABASE_CONNECTION_POOL_URL
+    sync: false # TODO
+  - key: DD_API_KEY
+    sync: false
+  - key: ENV
+    sync: false
+  - key: REDDIT_CLIENT_ID
+    sync: false
+  - key: SMTP2GO_API_KEY
+    sync: false
+  - key: STATSD_URL
+    sync: false
+
