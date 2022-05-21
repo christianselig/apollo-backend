@@ -62,6 +62,8 @@ services:
   healthCheckPath: /v1/health
   envVars:
   - fromGroup: env-settings
+  - key: BUGSNAG_APP_TYPE
+    value: api
   - key: REDIS_URL
     fromService:
       type: redis
@@ -86,6 +88,10 @@ services:
   plan: starter plus
   envVars:
   - fromGroup: env-settings
+  - key: BUGSNAG_APP_TYPE
+    value: worker
+  - key: BUGSNAG_METADATA_QUEUE
+    value: notifications
   - key: REDIS_URL
     fromService:
       type: redis
@@ -110,6 +116,10 @@ services:
   plan: starter plus
   envVars:
   - fromGroup: env-settings
+  - key: BUGSNAG_APP_TYPE
+    value: worker
+  - key: BUGSNAG_METADATA_QUEUE
+    value: stuck
   - key: REDIS_URL
     fromService:
       type: redis
@@ -134,6 +144,8 @@ services:
   plan: starter
   envVars:
   - fromGroup: env-settings
+  - key: BUGSNAG_APP_TYPE
+    value: scheduler
   - key: REDIS_URL
     fromService:
       type: redis
@@ -154,6 +166,10 @@ services:
   plan: starter
   envVars:
   - fromGroup: env-settings
+  - key: BUGSNAG_APP_TYPE
+    value: worker
+  - key: BUGSNAG_METADATA_QUEUE
+    value: users
   - key: REDIS_URL
     fromService:
       type: redis
@@ -174,6 +190,10 @@ services:
   plan: starter plus
   envVars:
   - fromGroup: env-settings
+  - key: BUGSNAG_APP_TYPE
+    value: worker
+  - key: BUGSNAG_METADATA_QUEUE
+    value: subreddits
   - key: REDIS_URL
     fromService:
       type: redis
@@ -198,6 +218,10 @@ services:
   plan: starter plus
   envVars:
   - fromGroup: env-settings
+  - key: BUGSNAG_APP_TYPE
+    value: worker
+  - key: BUGSNAG_METADATA_QUEUE
+    value: trending
   - key: REDIS_URL
     fromService:
       type: redis
