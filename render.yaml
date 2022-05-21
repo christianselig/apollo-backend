@@ -24,8 +24,7 @@ services:
       - key: ADMIN_USERS
         value: postgres,apollo
       - key: DATABASE_URL
-        fromService:
-          type: postgres
+        fromDatabase:
           name: srv.postgres
           property: connectionString
       - key: DEFAULT_POOL_SIZE
