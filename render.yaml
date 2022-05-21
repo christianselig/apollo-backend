@@ -6,35 +6,6 @@ databases:
     postgresMajorVersion: 14
 
 services:
-  # Environmnet
-  - name: env-settings
-    envVars:
-      - key: APPLE_KEY_ID
-        sync: false
-      - key: APPLE_KEY_PATH
-        value: /etc/secrets/apple.p8
-      - key: APPLE_TEAM_ID
-        sync: false
-      - key: BUGSNAG_API_KEY
-        sync: false
-      - key: DATABASE_CONNECTION_POOL_URL
-        sync: false # TODO
-      - key: DD_API_KEY
-        sync: false
-      - key: ENV
-        sync: false
-      - key: REDDIT_CLIENT_ID
-        sync: false
-      - key: REDIS_URL
-        fromService:
-          type: redis
-          name: srv.redis
-          property: connectionString
-      - key: SMTP2GO_API_KEY
-        sync: false
-      - key: STATSD_URL
-        sync: false
-
   # Redis
   - type: redis
     name: srv.redis
@@ -173,3 +144,34 @@ services:
     buildCommand: go install github.com/bugsnag/panic-monitor@latest && go build ./cmd/apollo
     startCommand: panic-monitor ./apollo worker --queue trending --multiplier 64
     autoDeploy: false
+
+envVarGroups:
+  # Environmnet
+  - name: env-settings
+    envVars:
+      - key: APPLE_KEY_ID
+        sync: false
+      - key: APPLE_KEY_PATH
+        value: /etc/secrets/apple.p8
+      - key: APPLE_TEAM_ID
+        sync: false
+      - key: BUGSNAG_API_KEY
+        sync: false
+      - key: DATABASE_CONNECTION_POOL_URL
+        sync: false # TODO
+      - key: DD_API_KEY
+        sync: false
+      - key: ENV
+        sync: false
+      - key: REDDIT_CLIENT_ID
+        sync: false
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: srv.redis
+          property: connectionString
+      - key: SMTP2GO_API_KEY
+        sync: false
+      - key: STATSD_URL
+        sync: false
+
