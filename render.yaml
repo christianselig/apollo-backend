@@ -62,6 +62,11 @@ services:
   healthCheckPath: /v1/health
   envVars:
   - fromGroup: env-settings
+  - key: REDIS_URL
+    fromService:
+      type: redis
+      name: srv.redis
+      property: connectionString
   scaling:
     minInstances: 1
     maxInstances: 3
@@ -76,6 +81,11 @@ services:
   plan: starter plus
   envVars:
   - fromGroup: env-settings
+  - key: REDIS_URL
+    fromService:
+      type: redis
+      name: srv.redis
+      property: connectionString
   scaling:
     minInstances: 1
     maxInstances: 10
@@ -90,6 +100,11 @@ services:
   plan: starter plus
   envVars:
   - fromGroup: env-settings
+  - key: REDIS_URL
+    fromService:
+      type: redis
+      name: srv.redis
+      property: connectionString
   scaling:
     minInstances: 1
     maxInstances: 10
@@ -104,6 +119,11 @@ services:
   plan: starter
   envVars:
   - fromGroup: env-settings
+  - key: REDIS_URL
+    fromService:
+      type: redis
+      name: srv.redis
+      property: connectionString
   buildCommand: go install github.com/bugsnag/panic-monitor@latest && go build ./cmd/apollo
   startCommand: panic-monitor ./apollo scheduler
   autoDeploy: false
@@ -114,6 +134,11 @@ services:
   plan: starter
   envVars:
   - fromGroup: env-settings
+  - key: REDIS_URL
+    fromService:
+      type: redis
+      name: srv.redis
+      property: connectionString
   buildCommand: go install github.com/bugsnag/panic-monitor@latest && go build ./cmd/apollo
   startCommand: panic-monitor ./apollo worker --queue users --multiplier 16
   autoDeploy: false
@@ -124,6 +149,11 @@ services:
   plan: starter plus
   envVars:
   - fromGroup: env-settings
+  - key: REDIS_URL
+    fromService:
+      type: redis
+      name: srv.redis
+      property: connectionString
   scaling:
     minInstances: 1
     maxInstances: 10
@@ -138,6 +168,11 @@ services:
   plan: starter plus
   envVars:
   - fromGroup: env-settings
+  - key: REDIS_URL
+    fromService:
+      type: redis
+      name: srv.redis
+      property: connectionString
   scaling:
     minInstances: 1
     maxInstances: 10
@@ -166,11 +201,6 @@ envVarGroups:
     sync: false
   - key: REDDIT_CLIENT_ID
     sync: false
-  - key: REDIS_URL
-    fromService:
-      type: redis
-      name: srv.redis
-      property: connectionString
   - key: SMTP2GO_API_KEY
     sync: false
   - key: STATSD_URL
