@@ -128,7 +128,7 @@ func (a *api) Routes() *mux.Router {
 
 func (a *api) testBugsnagHandler(w http.ResponseWriter, r *http.Request) {
 	if err := bugsnag.Notify(fmt.Errorf("Test error")); err != nil {
-		a.errorResponse(w, r, 500, err.Error())
+		a.errorResponse(w, r, 500, err)
 		return
 	}
 	w.WriteHeader(http.StatusOK)

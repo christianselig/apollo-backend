@@ -34,7 +34,7 @@ func generateNotificationTester(a *api, fun notificationGenerator) func(w http.R
 			a.logger.WithFields(logrus.Fields{
 				"err": err,
 			}).Info("failed fetching device from database")
-			a.errorResponse(w, r, 500, err.Error())
+			a.errorResponse(w, r, 500, err)
 			return
 		}
 
@@ -59,7 +59,7 @@ func generateNotificationTester(a *api, fun notificationGenerator) func(w http.R
 			a.logger.WithFields(logrus.Fields{
 				"err": err,
 			}).Info("failed to send test notification")
-			a.errorResponse(w, r, 500, err.Error())
+			a.errorResponse(w, r, 500, err)
 			return
 		}
 		w.WriteHeader(http.StatusOK)

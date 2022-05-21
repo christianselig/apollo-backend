@@ -25,7 +25,7 @@ func (a *api) notificationsAccountHandler(w http.ResponseWriter, r *http.Request
 
 	anr := &accountNotificationsRequest{}
 	if err := json.NewDecoder(r.Body).Decode(anr); err != nil {
-		a.errorResponse(w, r, 500, err.Error())
+		a.errorResponse(w, r, 500, err)
 		return
 	}
 
@@ -35,18 +35,18 @@ func (a *api) notificationsAccountHandler(w http.ResponseWriter, r *http.Request
 
 	dev, err := a.deviceRepo.GetByAPNSToken(ctx, apns)
 	if err != nil {
-		a.errorResponse(w, r, 500, err.Error())
+		a.errorResponse(w, r, 500, err)
 		return
 	}
 
 	acct, err := a.accountRepo.GetByRedditID(ctx, rid)
 	if err != nil {
-		a.errorResponse(w, r, 500, err.Error())
+		a.errorResponse(w, r, 500, err)
 		return
 	}
 
 	if err := a.deviceRepo.SetNotifiable(ctx, &dev, &acct, anr.InboxNotifications, anr.WatcherNotifications, anr.GlobalMute); err != nil {
-		a.errorResponse(w, r, 500, err.Error())
+		a.errorResponse(w, r, 500, err)
 		return
 	}
 
@@ -62,19 +62,19 @@ func (a *api) getNotificationsAccountHandler(w http.ResponseWriter, r *http.Requ
 
 	dev, err := a.deviceRepo.GetByAPNSToken(ctx, apns)
 	if err != nil {
-		a.errorResponse(w, r, 500, err.Error())
+		a.errorResponse(w, r, 500, err)
 		return
 	}
 
 	acct, err := a.accountRepo.GetByRedditID(ctx, rid)
 	if err != nil {
-		a.errorResponse(w, r, 500, err.Error())
+		a.errorResponse(w, r, 500, err)
 		return
 	}
 
 	inbox, watchers, global, err := a.deviceRepo.GetNotifiable(ctx, &dev, &acct)
 	if err != nil {
-		a.errorResponse(w, r, 500, err.Error())
+		a.errorResponse(w, r, 500, err)
 		return
 	}
 
@@ -93,18 +93,18 @@ func (a *api) disassociateAccountHandler(w http.ResponseWriter, r *http.Request)
 
 	dev, err := a.deviceRepo.GetByAPNSToken(ctx, apns)
 	if err != nil {
-		a.errorResponse(w, r, 500, err.Error())
+		a.errorResponse(w, r, 500, err)
 		return
 	}
 
 	acct, err := a.accountRepo.GetByRedditID(ctx, rid)
 	if err != nil {
-		a.errorResponse(w, r, 500, err.Error())
+		a.errorResponse(w, r, 500, err)
 		return
 	}
 
 	if err := a.accountRepo.Disassociate(ctx, &acct, &dev); err != nil {
-		a.errorResponse(w, r, 500, err.Error())
+		a.errorResponse(w, r, 500, err)
 		return
 	}
 
@@ -119,13 +119,13 @@ func (a *api) upsertAccountsHandler(w http.ResponseWriter, r *http.Request) {
 
 	dev, err := a.deviceRepo.GetByAPNSToken(ctx, apns)
 	if err != nil {
-		a.errorResponse(w, r, 422, err.Error())
+		a.errorResponse(w, r, 422, err)
 		return
 	}
 
 	laccs, err := a.accountRepo.GetByAPNSToken(ctx, apns)
 	if err != nil {
-		a.errorResponse(w, r, 422, err.Error())
+		a.errorResponse(w, r, 422, err)
 		return
 	}
 
@@ -136,7 +136,7 @@ func (a *api) upsertAccountsHandler(w http.ResponseWriter, r *http.Request) {
 
 	var raccs []domain.Account
 	if err := json.NewDecoder(r.Body).Decode(&raccs); err != nil {
-		a.errorResponse(w, r, 422, err.Error())
+		a.errorResponse(w, r, 422, err)
 		return
 	}
 	for _, acc := range raccs {
@@ -145,7 +145,7 @@ func (a *api) upsertAccountsHandler(w http.ResponseWriter, r *http.Request) {
 		ac := a.reddit.NewAuthenticatedClient(reddit.SkipRateLimiting, acc.RefreshToken, acc.AccessToken)
 		tokens, err := ac.RefreshTokens(ctx)
 		if err != nil {
-			a.errorResponse(w, r, 422, err.Error())
+			a.errorResponse(w, r, 422, err)
 			return
 		}
 
@@ -158,12 +158,13 @@ func (a *api) upsertAccountsHandler(w http.ResponseWriter, r *http.Request) {
 		me, err := ac.Me(ctx)
 
 		if err != nil {
-			a.errorResponse(w, r, 422, err.Error())
+			a.errorResponse(w, r, 422, err)
 			return
 		}
 
 		if me.NormalizedUsername() != acc.NormalizedUsername() {
-			a.errorResponse(w, r, 422, "nice try")
+			err := fmt.Errorf("wrong user: expected %s, got %s", me.NormalizedUsername(), acc.NormalizedUsername())
+			a.errorResponse(w, r, 401, err)
 			return
 		}
 
@@ -171,12 +172,12 @@ func (a *api) upsertAccountsHandler(w http.ResponseWriter, r *http.Request) {
 		acc.AccountID = me.ID
 
 		if err := a.accountRepo.CreateOrUpdate(ctx, &acc); err != nil {
-			a.errorResponse(w, r, 422, err.Error())
+			a.errorResponse(w, r, 422, err)
 			return
 		}
 
 		if err := a.accountRepo.Associate(ctx, &acc, &dev); err != nil {
-			a.errorResponse(w, r, 422, err.Error())
+			a.errorResponse(w, r, 422, err)
 			return
 		}
 	}
@@ -218,7 +219,7 @@ func (a *api) upsertAccountHandler(w http.ResponseWriter, r *http.Request) {
 		a.logger.WithFields(logrus.Fields{
 			"err": err,
 		}).Info("failed to parse request json")
-		a.errorResponse(w, r, 422, err.Error())
+		a.errorResponse(w, r, 422, err)
 		return
 	}
 
@@ -229,7 +230,7 @@ func (a *api) upsertAccountHandler(w http.ResponseWriter, r *http.Request) {
 		a.logger.WithFields(logrus.Fields{
 			"err": err,
 		}).Info("failed to refresh token")
-		a.errorResponse(w, r, 422, err.Error())
+		a.errorResponse(w, r, 422, err)
 		return
 	}
 
@@ -245,15 +246,14 @@ func (a *api) upsertAccountHandler(w http.ResponseWriter, r *http.Request) {
 		a.logger.WithFields(logrus.Fields{
 			"err": err,
 		}).Info("failed to grab user details from Reddit")
-		a.errorResponse(w, r, 500, err.Error())
+		a.errorResponse(w, r, 500, err)
 		return
 	}
 
 	if me.NormalizedUsername() != acct.NormalizedUsername() {
-		a.logger.WithFields(logrus.Fields{
-			"err": err,
-		}).Info("user is not who they say they are")
-		a.errorResponse(w, r, 422, "nice try")
+		err := fmt.Errorf("wrong user: expected %s, got %s", me.NormalizedUsername(), acct.NormalizedUsername())
+		a.logger.WithFields(logrus.Fields{"err": err}).Warn("user is not who they say they are")
+		a.errorResponse(w, r, 401, err)
 		return
 	}
 
@@ -266,7 +266,7 @@ func (a *api) upsertAccountHandler(w http.ResponseWriter, r *http.Request) {
 		a.logger.WithFields(logrus.Fields{
 			"err": err,
 		}).Info("failed fetching device from database")
-		a.errorResponse(w, r, 500, err.Error())
+		a.errorResponse(w, r, 500, err)
 		return
 	}
 
@@ -275,7 +275,7 @@ func (a *api) upsertAccountHandler(w http.ResponseWriter, r *http.Request) {
 		a.logger.WithFields(logrus.Fields{
 			"err": err,
 		}).Info("failed updating account in database")
-		a.errorResponse(w, r, 500, err.Error())
+		a.errorResponse(w, r, 500, err)
 		return
 	}
 
@@ -283,7 +283,7 @@ func (a *api) upsertAccountHandler(w http.ResponseWriter, r *http.Request) {
 		a.logger.WithFields(logrus.Fields{
 			"err": err,
 		}).Info("failed associating account with device")
-		a.errorResponse(w, r, 500, err.Error())
+		a.errorResponse(w, r, 500, err)
 		return
 	}
 

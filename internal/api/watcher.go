@@ -2,6 +2,8 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -53,29 +55,30 @@ func (a *api) createWatcherHandler(w http.ResponseWriter, r *http.Request) {
 		Criteria: watcherCriteria{},
 	}
 	if err := json.NewDecoder(r.Body).Decode(cwr); err != nil {
-		a.errorResponse(w, r, 500, err.Error())
+		a.errorResponse(w, r, 500, err)
 		return
 	}
 
 	if err := cwr.Validate(); err != nil {
-		a.errorResponse(w, r, 422, err.Error())
+		a.errorResponse(w, r, 422, err)
 		return
 	}
 
 	dev, err := a.deviceRepo.GetByAPNSToken(ctx, apns)
 	if err != nil {
-		a.errorResponse(w, r, 422, err.Error())
+		a.errorResponse(w, r, 422, err)
 		return
 	}
 
 	accs, err := a.accountRepo.GetByAPNSToken(ctx, apns)
 	if err != nil {
-		a.errorResponse(w, r, 422, err.Error())
+		a.errorResponse(w, r, 422, err)
 		return
 	}
 
 	if len(accs) == 0 {
-		a.errorResponse(w, r, 422, "can't create watchers without accounts")
+		err := errors.New("cannot create watchers without account")
+		a.errorResponse(w, r, 422, err)
 		return
 	}
 
@@ -89,7 +92,8 @@ func (a *api) createWatcherHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !found {
-		a.errorResponse(w, r, 422, "yeah nice try")
+		err := errors.New("account not associated with device")
+		a.errorResponse(w, r, 401, err)
 		return
 	}
 
@@ -110,7 +114,7 @@ func (a *api) createWatcherHandler(w http.ResponseWriter, r *http.Request) {
 	if cwr.Type == "subreddit" || cwr.Type == "trending" {
 		srr, err := ac.SubredditAbout(ctx, cwr.Subreddit)
 		if err != nil {
-			a.errorResponse(w, r, 422, err.Error())
+			a.errorResponse(w, r, 422, err)
 			return
 		}
 
@@ -122,7 +126,7 @@ func (a *api) createWatcherHandler(w http.ResponseWriter, r *http.Request) {
 				sr = domain.Subreddit{SubredditID: srr.ID, Name: srr.Name}
 				_ = a.subredditRepo.CreateOrUpdate(ctx, &sr)
 			default:
-				a.errorResponse(w, r, 500, err.Error())
+				a.errorResponse(w, r, 500, err)
 				return
 			}
 		}
@@ -139,12 +143,13 @@ func (a *api) createWatcherHandler(w http.ResponseWriter, r *http.Request) {
 	} else if cwr.Type == "user" {
 		urr, err := ac.UserAbout(ctx, cwr.User)
 		if err != nil {
-			a.errorResponse(w, r, 500, err.Error())
+			a.errorResponse(w, r, 500, err)
 			return
 		}
 
 		if !urr.AcceptFollowers {
-			a.errorResponse(w, r, 422, "no followers accepted")
+			err := errors.New("user has followers disabled")
+			a.errorResponse(w, r, 403, err)
 			return
 		}
 
@@ -152,19 +157,20 @@ func (a *api) createWatcherHandler(w http.ResponseWriter, r *http.Request) {
 		err = a.userRepo.CreateOrUpdate(ctx, &u)
 
 		if err != nil {
-			a.errorResponse(w, r, 500, err.Error())
+			a.errorResponse(w, r, 500, err)
 			return
 		}
 
 		watcher.Type = domain.UserWatcher
 		watcher.WatcheeID = u.ID
 	} else {
-		a.errorResponse(w, r, 422, "unknown watcher type")
+		err := fmt.Errorf("unknown watcher type: %s", cwr.Type)
+		a.errorResponse(w, r, 422, err)
 		return
 	}
 
 	if err := a.watcherRepo.Create(ctx, &watcher); err != nil {
-		a.errorResponse(w, r, 422, err.Error())
+		a.errorResponse(w, r, 422, err)
 		return
 	}
 
@@ -179,13 +185,17 @@ func (a *api) editWatcherHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id, err := strconv.ParseInt(vars["watcherID"], 10, 64)
 	if err != nil {
-		a.errorResponse(w, r, 422, err.Error())
+		a.errorResponse(w, r, 422, err)
 		return
 	}
 
 	watcher, err := a.watcherRepo.GetByID(ctx, id)
-	if err != nil || watcher.Device.APNSToken != vars["apns"] {
-		a.errorResponse(w, r, 422, "nice try")
+	if err != nil {
+		a.errorResponse(w, r, 422, err)
+		return
+	} else if watcher.Device.APNSToken != vars["apns"] {
+		err := fmt.Errorf("wrong device for watcher %d", watcher.ID)
+		a.errorResponse(w, r, 422, err)
 		return
 	}
 
@@ -194,7 +204,7 @@ func (a *api) editWatcherHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(ewr); err != nil {
-		a.errorResponse(w, r, 500, err.Error())
+		a.errorResponse(w, r, 500, err)
 		return
 	}
 
@@ -207,7 +217,7 @@ func (a *api) editWatcherHandler(w http.ResponseWriter, r *http.Request) {
 	watcher.Domain = strings.ToLower(ewr.Criteria.Domain)
 
 	if err := a.watcherRepo.Update(ctx, &watcher); err != nil {
-		a.errorResponse(w, r, 500, err.Error())
+		a.errorResponse(w, r, 500, err)
 		return
 	}
 
@@ -220,13 +230,17 @@ func (a *api) deleteWatcherHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id, err := strconv.ParseInt(vars["watcherID"], 10, 64)
 	if err != nil {
-		a.errorResponse(w, r, 422, err.Error())
+		a.errorResponse(w, r, 422, err)
 		return
 	}
 
 	watcher, err := a.watcherRepo.GetByID(ctx, id)
-	if err != nil || watcher.Device.APNSToken != vars["apns"] {
-		a.errorResponse(w, r, 422, "nice try")
+	if err != nil {
+		a.errorResponse(w, r, 422, err)
+		return
+	} else if watcher.Device.APNSToken != vars["apns"] {
+		err := fmt.Errorf("wrong device for watcher %d", watcher.ID)
+		a.errorResponse(w, r, 422, err)
 		return
 	}
 
@@ -257,7 +271,7 @@ func (a *api) listWatchersHandler(w http.ResponseWriter, r *http.Request) {
 
 	watchers, err := a.watcherRepo.GetByDeviceAPNSTokenAndAccountRedditID(ctx, apns, redditID)
 	if err != nil {
-		a.errorResponse(w, r, 400, err.Error())
+		a.errorResponse(w, r, 400, err)
 		return
 	}
 

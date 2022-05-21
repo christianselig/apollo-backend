@@ -26,14 +26,14 @@ func (a *api) checkReceiptHandler(w http.ResponseWriter, r *http.Request) {
 		a.logger.WithFields(logrus.Fields{
 			"err": err,
 		}).Info("failed verifying receipt")
-		a.errorResponse(w, r, 500, err.Error())
+		a.errorResponse(w, r, 500, err)
 		return
 	}
 
 	if apns != "" {
 		dev, err := a.deviceRepo.GetByAPNSToken(ctx, apns)
 		if err != nil {
-			a.errorResponse(w, r, 500, err.Error())
+			a.errorResponse(w, r, 500, err)
 			return
 		}
 
@@ -45,7 +45,7 @@ func (a *api) checkReceiptHandler(w http.ResponseWriter, r *http.Request) {
 
 			accs, err := a.accountRepo.GetByAPNSToken(ctx, apns)
 			if err != nil {
-				a.errorResponse(w, r, 500, err.Error())
+				a.errorResponse(w, r, 500, err)
 				return
 			}
 

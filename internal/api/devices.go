@@ -23,7 +23,7 @@ func (a *api) upsertDeviceHandler(w http.ResponseWriter, r *http.Request) {
 
 	d := &domain.Device{}
 	if err := json.NewDecoder(r.Body).Decode(d); err != nil {
-		a.errorResponse(w, r, 500, err.Error())
+		a.errorResponse(w, r, 500, err)
 		return
 	}
 
@@ -31,7 +31,7 @@ func (a *api) upsertDeviceHandler(w http.ResponseWriter, r *http.Request) {
 	d.GracePeriodExpiresAt = d.ExpiresAt.Add(domain.DeviceGracePeriodAfterReceiptExpiry)
 
 	if err := a.deviceRepo.CreateOrUpdate(ctx, d); err != nil {
-		a.errorResponse(w, r, 500, err.Error())
+		a.errorResponse(w, r, 500, err)
 		return
 	}
 
@@ -49,13 +49,13 @@ func (a *api) testDeviceHandler(w http.ResponseWriter, r *http.Request) {
 		a.logger.WithFields(logrus.Fields{
 			"err": err,
 		}).Info("failed fetching device from database")
-		a.errorResponse(w, r, 500, err.Error())
+		a.errorResponse(w, r, 500, err)
 		return
 	}
 
 	accs, err := a.accountRepo.GetByAPNSToken(ctx, tok)
 	if err != nil {
-		a.errorResponse(w, r, 500, err.Error())
+		a.errorResponse(w, r, 500, err)
 		return
 	}
 
@@ -86,7 +86,7 @@ func (a *api) testDeviceHandler(w http.ResponseWriter, r *http.Request) {
 		a.logger.WithFields(logrus.Fields{
 			"err": err,
 		}).Info("failed to send test notification")
-		a.errorResponse(w, r, 500, err.Error())
+		a.errorResponse(w, r, 500, err)
 		return
 	}
 	w.WriteHeader(http.StatusOK)
@@ -99,13 +99,13 @@ func (a *api) deleteDeviceHandler(w http.ResponseWriter, r *http.Request) {
 
 	dev, err := a.deviceRepo.GetByAPNSToken(ctx, vars["apns"])
 	if err != nil {
-		a.errorResponse(w, r, 500, err.Error())
+		a.errorResponse(w, r, 500, err)
 		return
 	}
 
 	accs, err := a.accountRepo.GetByAPNSToken(ctx, vars["apns"])
 	if err != nil {
-		a.errorResponse(w, r, 500, err.Error())
+		a.errorResponse(w, r, 500, err)
 		return
 	}
 
