@@ -64,22 +64,6 @@ services:
   - fromGroup: env-settings
   - key: BUGSNAG_APP_TYPE
     value: api
-  - key: REDIS_URL
-    fromService:
-      type: redis
-      name: srv.redis
-      property: connectionString
-  - key: DATABASE_CONNECTION_POOL_URL # This is temporary and should be overwritten
-    sync: false
-    fromDatabase:
-      name: srv.postgres
-      property: connectionString
-  - key: STATSD_URL
-    sync: false
-    fromService:
-      type: pserv
-      name: srv.statsd
-      property: hostport
   scaling:
     minInstances: 1
     maxInstances: 3
@@ -98,22 +82,6 @@ services:
     value: worker
   - key: BUGSNAG_METADATA_QUEUE
     value: notifications
-  - key: REDIS_URL
-    fromService:
-      type: redis
-      name: srv.redis
-      property: connectionString
-  - key: DATABASE_CONNECTION_POOL_URL # This is temporary and should be overwritten
-    sync: false
-    fromDatabase:
-      name: srv.postgres
-      property: connectionString
-  - key: STATSD_URL
-    sync: false
-    fromService:
-      type: pserv
-      name: srv.statsd
-      property: hostport
   scaling:
     minInstances: 1
     maxInstances: 10
@@ -132,22 +100,6 @@ services:
     value: worker
   - key: BUGSNAG_METADATA_QUEUE
     value: stuck
-  - key: REDIS_URL
-    fromService:
-      type: redis
-      name: srv.redis
-      property: connectionString
-  - key: DATABASE_CONNECTION_POOL_URL # This is temporary and should be overwritten
-    sync: false
-    fromDatabase:
-      name: srv.postgres
-      property: connectionString
-  - key: STATSD_URL
-    sync: false
-    fromService:
-      type: pserv
-      name: srv.statsd
-      property: hostport
   scaling:
     minInstances: 1
     maxInstances: 10
@@ -164,22 +116,6 @@ services:
   - fromGroup: env-settings
   - key: BUGSNAG_APP_TYPE
     value: scheduler
-  - key: REDIS_URL
-    fromService:
-      type: redis
-      name: srv.redis
-      property: connectionString
-  - key: DATABASE_CONNECTION_POOL_URL # This is temporary and should be overwritten
-    sync: false
-    fromDatabase:
-      name: srv.postgres
-      property: connectionString
-  - key: STATSD_URL
-    sync: false
-    fromService:
-      type: pserv
-      name: srv.statsd
-      property: hostport
   buildCommand: go install github.com/bugsnag/panic-monitor@latest && go build ./cmd/apollo
   startCommand: panic-monitor ./apollo scheduler
 
@@ -194,22 +130,6 @@ services:
     value: worker
   - key: BUGSNAG_METADATA_QUEUE
     value: users
-  - key: REDIS_URL
-    fromService:
-      type: redis
-      name: srv.redis
-      property: connectionString
-  - key: DATABASE_CONNECTION_POOL_URL # This is temporary and should be overwritten
-    sync: false
-    fromDatabase:
-      name: srv.postgres
-      property: connectionString
-  - key: STATSD_URL
-    sync: false
-    fromService:
-      type: pserv
-      name: srv.statsd
-      property: hostport
   buildCommand: go install github.com/bugsnag/panic-monitor@latest && go build ./cmd/apollo
   startCommand: panic-monitor ./apollo worker --queue users --multiplier 16
 
@@ -224,22 +144,6 @@ services:
     value: worker
   - key: BUGSNAG_METADATA_QUEUE
     value: subreddits
-  - key: REDIS_URL
-    fromService:
-      type: redis
-      name: srv.redis
-      property: connectionString
-  - key: DATABASE_CONNECTION_POOL_URL # This is temporary and should be overwritten
-    sync: false
-    fromDatabase:
-      name: srv.postgres
-      property: connectionString
-  - key: STATSD_URL
-    sync: false
-    fromService:
-      type: pserv
-      name: srv.statsd
-      property: hostport
   scaling:
     minInstances: 1
     maxInstances: 10
@@ -258,22 +162,6 @@ services:
     value: worker
   - key: BUGSNAG_METADATA_QUEUE
     value: trending
-  - key: REDIS_URL
-    fromService:
-      type: redis
-      name: srv.redis
-      property: connectionString
-  - key: DATABASE_CONNECTION_POOL_URL # This is temporary and should be overwritten
-    sync: false
-    fromDatabase:
-      name: srv.postgres
-      property: connectionString
-  - key: STATSD_URL
-    sync: false
-    fromService:
-      type: pserv
-      name: srv.statsd
-      property: hostport
   scaling:
     minInstances: 1
     maxInstances: 10
@@ -303,4 +191,9 @@ envVarGroups:
     sync: false
   - key: STATSD_URL
     sync: false
-
+  - key: DATABASE_CONNECTION_POOL_URL # This is temporary and should be overwritten
+    sync: false
+  - key: STATSD_URL
+    sync: false
+  - key: REDIS_URL
+    sync: false
