@@ -69,7 +69,7 @@ services:
       property: connectionString
   - key: DATABASE_CONNECTION_POOL_URL # This is temporary and should be overwritten
     fromDatabase:
-      name: apollo
+      name: srv.postgres
       property: connectionString
   scaling:
     minInstances: 1
@@ -93,7 +93,7 @@ services:
       property: connectionString
   - key: DATABASE_CONNECTION_POOL_URL # This is temporary and should be overwritten
     fromDatabase:
-      name: apollo
+      name: srv.postgres
       property: connectionString
   scaling:
     minInstances: 1
@@ -117,7 +117,7 @@ services:
       property: connectionString
   - key: DATABASE_CONNECTION_POOL_URL # This is temporary and should be overwritten
     fromDatabase:
-      name: apollo
+      name: srv.postgres
       property: connectionString
   scaling:
     minInstances: 1
@@ -141,7 +141,7 @@ services:
       property: connectionString
   - key: DATABASE_CONNECTION_POOL_URL # This is temporary and should be overwritten
     fromDatabase:
-      name: apollo
+      name: srv.postgres
       property: connectionString
   buildCommand: go install github.com/bugsnag/panic-monitor@latest && go build ./cmd/apollo
   startCommand: panic-monitor ./apollo scheduler
@@ -161,7 +161,7 @@ services:
       property: connectionString
   - key: DATABASE_CONNECTION_POOL_URL # This is temporary and should be overwritten
     fromDatabase:
-      name: apollo
+      name: srv.postgres
       property: connectionString
   buildCommand: go install github.com/bugsnag/panic-monitor@latest && go build ./cmd/apollo
   startCommand: panic-monitor ./apollo worker --queue users --multiplier 16
@@ -181,7 +181,7 @@ services:
       property: connectionString
   - key: DATABASE_CONNECTION_POOL_URL # This is temporary and should be overwritten
     fromDatabase:
-      name: apollo
+      name: srv.postgres
       property: connectionString
   scaling:
     minInstances: 1
@@ -205,7 +205,7 @@ services:
       property: connectionString
   - key: DATABASE_CONNECTION_POOL_URL # This is temporary and should be overwritten
     fromDatabase:
-      name: apollo
+      name: srv.postgres
       property: connectionString
   scaling:
     minInstances: 1
