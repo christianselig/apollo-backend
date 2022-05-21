@@ -4,7 +4,7 @@ CREATE TABLE devices (
     id SERIAL PRIMARY KEY,
     apns_token character varying(100) UNIQUE,
     sandbox boolean,
-    active_until integer,
-    grace_period_until integer
+    expires_at timestamp without time zone,
+    grace_period_expires_at timestamp without time zone
 );
 
