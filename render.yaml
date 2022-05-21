@@ -10,7 +10,7 @@ services:
   - type: redis
     name: srv.redis
     plan: pro
-    maxMemoryPolicy: noeviction
+    maxmemoryPolicy: noeviction
 
   # PGBouncer
   - type: worker
