@@ -183,7 +183,11 @@ func (a *api) editWatcherHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	vars := mux.Vars(r)
-	id, err := strconv.ParseInt(vars["watcherID"], 10, 64)
+	apns := vars["apns"]
+	wid := vars["watcherID"]
+	rid := vars["redditID"]
+
+	id, err := strconv.ParseInt(wid, 10, 64)
 	if err != nil {
 		a.errorResponse(w, r, 422, err)
 		return
@@ -209,12 +213,67 @@ func (a *api) editWatcherHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	watcher.Label = ewr.Label
-	watcher.Author = strings.ToLower(ewr.Criteria.Author)
-	watcher.Subreddit = strings.ToLower(ewr.Criteria.Subreddit)
+	watcher.Author = strings.ToLower(ewr.User)
+	watcher.Subreddit = strings.ToLower(ewr.Subreddit)
 	watcher.Upvotes = ewr.Criteria.Upvotes
 	watcher.Keyword = strings.ToLower(ewr.Criteria.Keyword)
 	watcher.Flair = strings.ToLower(ewr.Criteria.Flair)
 	watcher.Domain = strings.ToLower(ewr.Criteria.Domain)
+
+	if watcher.Type == domain.SubredditWatcher {
+		lsr := strings.ToLower(watcher.Subreddit)
+		if watcher.WatcheeLabel != lsr {
+			accs, err := a.accountRepo.GetByAPNSToken(ctx, apns)
+			if err != nil {
+				a.errorResponse(w, r, 422, err)
+				return
+			}
+
+			if len(accs) == 0 {
+				err := errors.New("cannot create watchers without account")
+				a.errorResponse(w, r, 422, err)
+				return
+			}
+
+			account := accs[0]
+			found := false
+			for _, acc := range accs {
+				if acc.AccountID == rid {
+					found = true
+					account = acc
+				}
+			}
+
+			if !found {
+				err := errors.New("account not associated with device")
+				a.errorResponse(w, r, 401, err)
+				return
+			}
+
+			ac := a.reddit.NewAuthenticatedClient(account.AccountID, account.RefreshToken, account.AccessToken)
+
+			srr, err := ac.SubredditAbout(ctx, lsr)
+			if err != nil {
+				a.errorResponse(w, r, 422, err)
+				return
+			}
+
+			sr, err := a.subredditRepo.GetByName(ctx, lsr)
+			if err != nil {
+				switch err {
+				case domain.ErrNotFound:
+					// Might be that we don't know about that subreddit yet
+					sr = domain.Subreddit{SubredditID: srr.ID, Name: srr.Name}
+					_ = a.subredditRepo.CreateOrUpdate(ctx, &sr)
+				default:
+					a.errorResponse(w, r, 500, err)
+					return
+				}
+			}
+
+			watcher.WatcheeID = sr.ID
+		}
+	}
 
 	if err := a.watcherRepo.Update(ctx, &watcher); err != nil {
 		a.errorResponse(w, r, 500, err)

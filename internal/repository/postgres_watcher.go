@@ -245,19 +245,21 @@ func (p *postgresWatcherRepository) Update(ctx context.Context, watcher *domain.
 
 	query := `
 		UPDATE watchers
-		SET author = $2,
-			subreddit = $3,
-			upvotes = $4,
-			keyword = $5,
-			flair = $6,
-			domain = $7,
-			label = $8
+		SET watchee_id = $2,
+			author = $3,
+			subreddit = $4,
+			upvotes = $5,
+			keyword = $6,
+			flair = $7,
+			domain = $8,
+			label = $9
 		WHERE id = $1`
 
 	res, err := p.conn.Exec(
 		ctx,
 		query,
 		watcher.ID,
+		watcher.WatcheeID,
 		watcher.Author,
 		watcher.Subreddit,
 		watcher.Upvotes,
