@@ -73,7 +73,9 @@ func (a *api) testDeviceHandler(w http.ResponseWriter, r *http.Request) {
 		Category("test-notification").
 		Custom("test_accounts", strings.Join(users, ",")).
 		AlertTitle(notificationTitle).
-		AlertBody(body)
+		AlertBody(body).
+		MutableContent().
+		Sound("traloop.wav")
 
 	client := apns2.NewTokenClient(a.apns)
 	if !d.Sandbox {
