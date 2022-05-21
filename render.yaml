@@ -15,7 +15,7 @@ services:
   ipAllowList: [] # only allow internal connections
 
 # PGBouncer
-- type: worker
+- type: pserv
   name: srv.pgbouncer
   env: docker
   plan: standard
@@ -42,7 +42,7 @@ services:
 
 # StatsD
 - type: worker
-  name: srv.statsd
+  name: pserv
   env: docker
   plan: standard
   repo: https://github.com/andremedeiros/render-datadog.git
