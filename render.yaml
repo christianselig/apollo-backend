@@ -70,10 +70,12 @@ services:
       name: srv.redis
       property: connectionString
   - key: DATABASE_CONNECTION_POOL_URL # This is temporary and should be overwritten
+    sync: false
     fromDatabase:
       name: srv.postgres
       property: connectionString
   - key: STATSD_URL
+    sync: false
     fromService:
       type: pserv
       name: srv.statsd
@@ -84,7 +86,6 @@ services:
     targetCPUPercent: 60
   buildCommand: go install github.com/bugsnag/panic-monitor@latest && go build ./cmd/apollo
   startCommand: panic-monitor ./apollo api
-  autoDeploy: false
 
 # Notifications
 - type: worker
@@ -103,10 +104,12 @@ services:
       name: srv.redis
       property: connectionString
   - key: DATABASE_CONNECTION_POOL_URL # This is temporary and should be overwritten
+    sync: false
     fromDatabase:
       name: srv.postgres
       property: connectionString
   - key: STATSD_URL
+    sync: false
     fromService:
       type: pserv
       name: srv.statsd
@@ -117,7 +120,6 @@ services:
     targetCPUPercent: 75
   buildCommand: go install github.com/bugsnag/panic-monitor@latest && go build ./cmd/apollo
   startCommand: panic-monitor ./apollo worker --queue notifications --multiplier 64
-  autoDeploy: false
 
 # Stuck Notifications Checker
 - type: worker
@@ -136,10 +138,12 @@ services:
       name: srv.redis
       property: connectionString
   - key: DATABASE_CONNECTION_POOL_URL # This is temporary and should be overwritten
+    sync: false
     fromDatabase:
       name: srv.postgres
       property: connectionString
   - key: STATSD_URL
+    sync: false
     fromService:
       type: pserv
       name: srv.statsd
@@ -150,7 +154,6 @@ services:
     targetCPUPercent: 75
   buildCommand: go install github.com/bugsnag/panic-monitor@latest && go build ./cmd/apollo
   startCommand: panic-monitor ./apollo worker --queue stuck-notifications --multiplier 64
-  autoDeploy: false
 
 # Scheduler
 - type: worker
@@ -167,17 +170,18 @@ services:
       name: srv.redis
       property: connectionString
   - key: DATABASE_CONNECTION_POOL_URL # This is temporary and should be overwritten
+    sync: false
     fromDatabase:
       name: srv.postgres
       property: connectionString
   - key: STATSD_URL
+    sync: false
     fromService:
       type: pserv
       name: srv.statsd
       property: hostport
   buildCommand: go install github.com/bugsnag/panic-monitor@latest && go build ./cmd/apollo
   startCommand: panic-monitor ./apollo scheduler
-  autoDeploy: false
 
 # User Watcher
 - type: worker
@@ -196,17 +200,18 @@ services:
       name: srv.redis
       property: connectionString
   - key: DATABASE_CONNECTION_POOL_URL # This is temporary and should be overwritten
+    sync: false
     fromDatabase:
       name: srv.postgres
       property: connectionString
   - key: STATSD_URL
+    sync: false
     fromService:
       type: pserv
       name: srv.statsd
       property: hostport
   buildCommand: go install github.com/bugsnag/panic-monitor@latest && go build ./cmd/apollo
   startCommand: panic-monitor ./apollo worker --queue users --multiplier 16
-  autoDeploy: false
 
 # Subreddit Watcher
 - type: worker
@@ -225,10 +230,12 @@ services:
       name: srv.redis
       property: connectionString
   - key: DATABASE_CONNECTION_POOL_URL # This is temporary and should be overwritten
+    sync: false
     fromDatabase:
       name: srv.postgres
       property: connectionString
   - key: STATSD_URL
+    sync: false
     fromService:
       type: pserv
       name: srv.statsd
@@ -239,7 +246,6 @@ services:
     targetCPUPercent: 75
   buildCommand: go install github.com/bugsnag/panic-monitor@latest && go build ./cmd/apollo
   startCommand: panic-monitor ./apollo worker --queue subreddits --multiplier 64
-  autoDeploy: false
 
 # Trending Posts Watcher
 - type: worker
@@ -258,10 +264,12 @@ services:
       name: srv.redis
       property: connectionString
   - key: DATABASE_CONNECTION_POOL_URL # This is temporary and should be overwritten
+    sync: false
     fromDatabase:
       name: srv.postgres
       property: connectionString
   - key: STATSD_URL
+    sync: false
     fromService:
       type: pserv
       name: srv.statsd
@@ -272,7 +280,6 @@ services:
     targetCPUPercent: 75
   buildCommand: go install github.com/bugsnag/panic-monitor@latest && go build ./cmd/apollo
   startCommand: panic-monitor ./apollo worker --queue trending --multiplier 64
-  autoDeploy: false
 
 envVarGroups:
 # Environment
