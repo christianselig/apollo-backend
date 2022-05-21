@@ -78,6 +78,7 @@ services:
 # Notifications
 - type: worker
   name: worker.notifications
+  env: go
   plan: starter plus
   envVars:
   - fromGroup: env-settings
@@ -97,6 +98,7 @@ services:
 # Stuck Notifications Checker
 - type: worker
   name: worker.notifications.stuck
+  env: go
   plan: starter plus
   envVars:
   - fromGroup: env-settings
@@ -116,6 +118,7 @@ services:
 # Scheduler
 - type: worker
   name: app.scheduler
+  env: go
   plan: starter
   envVars:
   - fromGroup: env-settings
@@ -131,6 +134,7 @@ services:
 # User Watcher
 - type: worker
   name: worker.watcher.users
+  env: go
   plan: starter
   envVars:
   - fromGroup: env-settings
@@ -146,6 +150,7 @@ services:
 # Subreddit Watcher
 - type: worker
   name: worker.watcher.subreddits
+  env: go
   plan: starter plus
   envVars:
   - fromGroup: env-settings
@@ -165,6 +170,7 @@ services:
 # Trending Posts Watcher
 - type: worker
   name: worker.watcher.trending
+  env: go
   plan: starter plus
   envVars:
   - fromGroup: env-settings
@@ -182,7 +188,7 @@ services:
   autoDeploy: false
 
 envVarGroups:
-# Environmnet
+# Environment
 - name: env-settings
   envVars:
   - key: APPLE_KEY_ID
