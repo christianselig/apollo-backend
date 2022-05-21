@@ -41,8 +41,8 @@ services:
     value: DISCARD ALL
 
 # StatsD
-- type: worker
-  name: pserv
+- type: pserv
+  name: srv.statsd
   env: docker
   plan: standard
   repo: https://github.com/andremedeiros/render-datadog.git
