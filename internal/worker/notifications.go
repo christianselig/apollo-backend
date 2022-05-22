@@ -182,13 +182,14 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 	account.CheckCount++
 	account.NextNotificationCheckAt = time.Now().Add(domain.NotificationCheckInterval)
 
-	if err = nc.accountRepo.Update(nc, &account); err != nil {
-		nc.logger.WithFields(logrus.Fields{
-			"account#username": account.NormalizedUsername(),
-			"err":              err,
-		}).Error("failed to update next_notification_check_at for account")
-		return
-	}
+	defer func(acc *domain.Account) {
+		if err = nc.accountRepo.Update(nc, acc); err != nil {
+			nc.logger.WithFields(logrus.Fields{
+				"account#username": account.NormalizedUsername(),
+				"err":              err,
+			}).Error("failed to update account")
+		}
+	}(&account)
 
 	rac := nc.reddit.NewAuthenticatedClient(account.AccountID, account.RefreshToken, account.AccessToken)
 	if account.TokenExpiresAt.Before(now) {
@@ -224,14 +225,6 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 
 		// Refresh client
 		rac = nc.reddit.NewAuthenticatedClient(account.AccountID, tokens.RefreshToken, tokens.AccessToken)
-
-		if err = nc.accountRepo.Update(nc, &account); err != nil {
-			nc.logger.WithFields(logrus.Fields{
-				"account#username": account.NormalizedUsername(),
-				"err":              err,
-			}).Error("failed to update reddit tokens for account")
-			return
-		}
 	}
 
 	// Only update delay on accounts we can actually check, otherwise it skews
@@ -294,14 +287,6 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 			account.LastMessageID = msg.FullName()
 			break
 		}
-	}
-
-	if err = nc.accountRepo.Update(nc, &account); err != nil {
-		nc.logger.WithFields(logrus.Fields{
-			"account#username": account.NormalizedUsername(),
-			"err":              err,
-		}).Error("failed to update last_message_id for account")
-		return
 	}
 
 	// Let's populate this with the latest message so we don't flood users with stuff
