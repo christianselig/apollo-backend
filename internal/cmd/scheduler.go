@@ -115,13 +115,13 @@ func evalScript(ctx context.Context, redis *redis.Client) (string, error) {
 		for i=1, #ids do
 			local key = KEYS[1] .. ":" .. ids[i]
 			if redis.call("exists", key) == 0 then
-				redis.call("setex", key, %d, 1)
+				redis.call("setex", key, %.0f, 1)
 				retv[#retv + 1] = ids[i]
 			end
 		end
 
 		return retv
-	`, int64(domain.NotificationCheckTimeout.Seconds()))
+	`, domain.NotificationCheckTimeout.Seconds())
 
 	return redis.ScriptLoad(ctx, lua).Result()
 }
