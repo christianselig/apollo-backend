@@ -86,9 +86,9 @@ func SchedulerCmd(ctx context.Context) *cobra.Command {
 			}
 
 			s := gocron.NewScheduler(time.UTC)
-			_, _ = s.Every(200).Milliseconds().SingletonMode().Do(func() { enqueueAccounts(ctx, logger, statsd, db, redis, luaSha, notifQueue) })
-			_, _ = s.Every(200).Milliseconds().SingletonMode().Do(func() { enqueueSubreddits(ctx, logger, statsd, db, []rmq.Queue{subredditQueue, trendingQueue}) })
-			_, _ = s.Every(200).Milliseconds().SingletonMode().Do(func() { enqueueUsers(ctx, logger, statsd, db, userQueue) })
+			_, _ = s.Every(500).Milliseconds().SingletonMode().Do(func() { enqueueAccounts(ctx, logger, statsd, db, redis, luaSha, notifQueue) })
+			_, _ = s.Every(500).Milliseconds().SingletonMode().Do(func() { enqueueSubreddits(ctx, logger, statsd, db, []rmq.Queue{subredditQueue, trendingQueue}) })
+			_, _ = s.Every(500).Milliseconds().SingletonMode().Do(func() { enqueueUsers(ctx, logger, statsd, db, userQueue) })
 			_, _ = s.Every(1).Second().Do(func() { cleanQueues(logger, queue) })
 			_, _ = s.Every(1).Second().Do(func() { enqueueStuckAccounts(ctx, logger, statsd, db, stuckNotificationsQueue) })
 			_, _ = s.Every(1).Minute().Do(func() { reportStats(ctx, logger, statsd, db) })
@@ -444,7 +444,7 @@ func enqueueAccounts(ctx context.Context, logger *logrus.Logger, statsd *statsd.
 				WHERE next_notification_check_at < $1
 				ORDER BY next_notification_check_at
 				FOR UPDATE SKIP LOCKED
-				LIMIT 2500
+				LIMIT 5000
 			)
 			RETURNING accounts.id`
 		rows, err := tx.Query(ctx, stmt, now, next)
