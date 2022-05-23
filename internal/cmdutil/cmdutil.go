@@ -14,7 +14,7 @@ import (
 
 func NewLogger(debug bool) *zap.Logger {
 	logger, _ := zap.NewProduction()
-	if debug || os.Getenv("ENV") != "production" {
+	if debug || os.Getenv("ENV") == "" {
 		logger, _ = zap.NewDevelopment()
 	}
 
