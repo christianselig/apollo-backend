@@ -165,17 +165,16 @@ func (rc *Client) doRequest(ctx context.Context, r *Request) ([]byte, *RateLimit
 		rli.Timestamp = time.Now().String()
 	}
 
-	if resp.StatusCode != 200 {
+	switch resp.StatusCode {
+	case 200:
+		bb, err := ioutil.ReadAll(resp.Body)
+		return bb, rli, err
+	case 401, 403:
+		return nil, rli, ErrOauthRevoked
+	default:
 		_ = rc.statsd.Incr("reddit.api.errors", r.tags, 0.1)
 		return nil, rli, ServerError{resp.StatusCode}
 	}
-
-	bb, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		_ = rc.statsd.Incr("reddit.api.errors", r.tags, 0.1)
-		return nil, rli, err
-	}
-	return bb, rli, nil
 }
 
 func (rac *AuthenticatedClient) request(ctx context.Context, r *Request, rh ResponseHandler, empty interface{}) (interface{}, error) {
@@ -434,13 +433,6 @@ func (rac *AuthenticatedClient) MessageInbox(ctx context.Context, opts ...Reques
 
 	lr, err := rac.request(ctx, req, NewListingResponse, EmptyListingResponse)
 	if err != nil {
-		switch rerr := err.(type) {
-		case ServerError:
-			if rerr.StatusCode == 403 {
-				return nil, ErrOauthRevoked
-			}
-		}
-
 		return nil, err
 	}
 	return lr.(*ListingResponse), nil
@@ -460,13 +452,6 @@ func (rac *AuthenticatedClient) MessageUnread(ctx context.Context, opts ...Reque
 
 	lr, err := rac.request(ctx, req, NewListingResponse, EmptyListingResponse)
 	if err != nil {
-		switch rerr := err.(type) {
-		case ServerError:
-			if rerr.StatusCode == 403 {
-				return nil, ErrOauthRevoked
-			}
-		}
-
 		return nil, err
 	}
 	return lr.(*ListingResponse), nil
@@ -484,13 +469,6 @@ func (rac *AuthenticatedClient) Me(ctx context.Context, opts ...RequestOption) (
 	req := NewRequest(opts...)
 	mr, err := rac.request(ctx, req, NewMeResponse, nil)
 	if err != nil {
-		switch rerr := err.(type) {
-		case ServerError:
-			if rerr.StatusCode == 403 {
-				return nil, ErrOauthRevoked
-			}
-		}
-
 		return nil, err
 	}
 	return mr.(*MeResponse), nil
