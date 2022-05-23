@@ -29,7 +29,7 @@ func SchedulerCmd(ctx context.Context) *cobra.Command {
 		Args:  cobra.ExactArgs(0),
 		Short: "Schedules jobs and runs several maintenance tasks periodically.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			logger := cmdutil.NewLogger(false)
+			logger := cmdutil.NewLogger("scheduler")
 			defer func() { _ = logger.Sync() }()
 
 			statsd, err := cmdutil.NewStatsdClient()

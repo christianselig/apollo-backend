@@ -24,7 +24,7 @@ func APICmd(ctx context.Context) *cobra.Command {
 				port, _ = strconv.Atoi(os.Getenv("PORT"))
 			}
 
-			logger := cmdutil.NewLogger(false)
+			logger := cmdutil.NewLogger("api")
 			defer func() { _ = logger.Sync() }()
 
 			statsd, err := cmdutil.NewStatsdClient()
