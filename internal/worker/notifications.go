@@ -166,7 +166,6 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 	previousNextCheck := account.NextNotificationCheckAt
 
 	account.CheckCount++
-	account.NextNotificationCheckAt = time.Now().Add(domain.NotificationCheckInterval)
 
 	defer func(acc *domain.Account) {
 		if err = nc.accountRepo.Update(nc, acc); err != nil {
