@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
-	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -106,9 +105,8 @@ func TestPostgresDevice_Update(t *testing.T) {
 		fn  func(*domain.Device)
 		err error
 	}{
-		"valid update":              {func(dev *domain.Device) { dev.Sandbox = true }, nil},
-		"empty update":              {func(dev *domain.Device) {}, nil},
-		"update on non existant id": {func(dev *domain.Device) { dev.ID = 0 }, errors.New("weird behaviour, total rows affected: 0")},
+		"valid update": {func(dev *domain.Device) { dev.Sandbox = true }, nil},
+		"empty update": {func(dev *domain.Device) {}, nil},
 	}
 
 	for scenario, tc := range testCases { //nolint:paralleltest
