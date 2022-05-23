@@ -191,7 +191,7 @@ func (rac *AuthenticatedClient) request(ctx context.Context, r *Request, rh Resp
 
 	bb, rli, err := rac.doRequest(ctx, r)
 
-	if err != nil && r.retry {
+	if err != nil && err != ErrOauthRevoked && r.retry {
 		for _, backoff := range backoffSchedule {
 			done := make(chan struct{})
 
