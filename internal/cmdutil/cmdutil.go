@@ -9,19 +9,13 @@ import (
 	"github.com/adjust/rmq/v4"
 	"github.com/go-redis/redis/v8"
 	"github.com/jackc/pgx/v4/pgxpool"
-	"github.com/sirupsen/logrus"
+	"go.uber.org/zap"
 )
 
-func NewLogrusLogger(debug bool) *logrus.Logger {
-	logger := logrus.New()
-
-	if debug || os.Getenv("ENV") == "" {
-		logger.SetLevel(logrus.DebugLevel)
-	} else {
-		logger.SetFormatter(&logrus.TextFormatter{
-			DisableColors: true,
-			FullTimestamp: true,
-		})
+func NewLogger(debug bool) *zap.Logger {
+	logger, _ := zap.NewProduction()
+	if debug || os.Getenv("ENV") != "production" {
+		logger, _ = zap.NewDevelopment()
 	}
 
 	return logger
@@ -73,13 +67,11 @@ func NewDatabasePool(ctx context.Context, maxConns int) (*pgxpool.Pool, error) {
 	return pgxpool.ConnectConfig(ctx, config)
 }
 
-func NewQueueClient(logger *logrus.Logger, conn *redis.Client, identifier string) (rmq.Connection, error) {
+func NewQueueClient(logger *zap.Logger, conn *redis.Client, identifier string) (rmq.Connection, error) {
 	errChan := make(chan error, 10)
 	go func() {
 		for err := range errChan {
-			logger.WithFields(logrus.Fields{
-				"err": err,
-			}).Error("error occured with queue")
+			logger.Error("error occurred within queue", zap.Error(err))
 		}
 	}()
 

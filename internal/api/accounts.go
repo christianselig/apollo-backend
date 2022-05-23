@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
-	"github.com/sirupsen/logrus"
+	"go.uber.org/zap"
 
 	"github.com/christianselig/apollo-backend/internal/domain"
 	"github.com/christianselig/apollo-backend/internal/reddit"
@@ -142,8 +142,8 @@ func (a *api) upsertAccountsHandler(w http.ResponseWriter, r *http.Request) {
 	for _, acc := range raccs {
 		delete(accsMap, acc.NormalizedUsername())
 
-		ac := a.reddit.NewAuthenticatedClient(reddit.SkipRateLimiting, acc.RefreshToken, acc.AccessToken)
-		tokens, err := ac.RefreshTokens(ctx)
+		rac := a.reddit.NewAuthenticatedClient(reddit.SkipRateLimiting, acc.RefreshToken, acc.AccessToken)
+		tokens, err := rac.RefreshTokens(ctx)
 		if err != nil {
 			a.errorResponse(w, r, 422, err)
 			return
@@ -154,8 +154,8 @@ func (a *api) upsertAccountsHandler(w http.ResponseWriter, r *http.Request) {
 		acc.RefreshToken = tokens.RefreshToken
 		acc.AccessToken = tokens.AccessToken
 
-		ac = a.reddit.NewAuthenticatedClient(reddit.SkipRateLimiting, acc.RefreshToken, acc.AccessToken)
-		me, err := ac.Me(ctx)
+		rac = a.reddit.NewAuthenticatedClient(reddit.SkipRateLimiting, tokens.RefreshToken, tokens.AccessToken)
+		me, err := rac.Me(ctx)
 
 		if err != nil {
 			a.errorResponse(w, r, 422, err)
@@ -183,29 +183,26 @@ func (a *api) upsertAccountsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for _, acc := range accsMap {
-		fmt.Println(acc.NormalizedUsername())
 		_ = a.accountRepo.Disassociate(ctx, &acc, &dev)
 	}
 
 	body := fmt.Sprintf(`{"apns_token": "%s"}`, apns)
 	req, err := http.NewRequestWithContext(ctx, "POST", "https://apollopushserver.xyz/api/new-server-addition", strings.NewReader(body))
-	req.Header.Set("Authorization", "Bearer 98g5j89aurqwfcsp9khlnvgd38fa15")
-
 	if err != nil {
-		a.logger.WithFields(logrus.Fields{
-			"apns": apns,
-		}).Error(err)
+		a.logger.Error("could not setup request to disassociate from legacy api", zap.Error(err), zap.String("apns", apns))
+		w.WriteHeader(http.StatusOK)
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
-
+	req.Header.Set("Authorization", "Bearer 98g5j89aurqwfcsp9khlnvgd38fa15")
 	resp, _ := a.httpClient.Do(req)
 	if err != nil {
-		a.logger.WithFields(logrus.Fields{"err": err}).Error("failed to remove old client")
+		a.logger.Error("failed to remove from old notification server", zap.Error(err), zap.String("apns", apns))
 		return
 	}
 	resp.Body.Close()
+
+	w.WriteHeader(http.StatusOK)
 }
 
 func (a *api) upsertAccountHandler(w http.ResponseWriter, r *http.Request) {
@@ -216,9 +213,7 @@ func (a *api) upsertAccountHandler(w http.ResponseWriter, r *http.Request) {
 	var acct domain.Account
 
 	if err := json.NewDecoder(r.Body).Decode(&acct); err != nil {
-		a.logger.WithFields(logrus.Fields{
-			"err": err,
-		}).Info("failed to parse request json")
+		a.logger.Error("failed to parse request json", zap.Error(err))
 		a.errorResponse(w, r, 422, err)
 		return
 	}
@@ -227,9 +222,7 @@ func (a *api) upsertAccountHandler(w http.ResponseWriter, r *http.Request) {
 	ac := a.reddit.NewAuthenticatedClient(reddit.SkipRateLimiting, acct.RefreshToken, acct.AccessToken)
 	tokens, err := ac.RefreshTokens(ctx)
 	if err != nil {
-		a.logger.WithFields(logrus.Fields{
-			"err": err,
-		}).Info("failed to refresh token")
+		a.logger.Error("failed to refresh token", zap.Error(err))
 		a.errorResponse(w, r, 422, err)
 		return
 	}
@@ -243,16 +236,14 @@ func (a *api) upsertAccountHandler(w http.ResponseWriter, r *http.Request) {
 	me, err := ac.Me(ctx)
 
 	if err != nil {
-		a.logger.WithFields(logrus.Fields{
-			"err": err,
-		}).Info("failed to grab user details from Reddit")
+		a.logger.Error("failed to grab user details from reddit", zap.Error(err))
 		a.errorResponse(w, r, 500, err)
 		return
 	}
 
 	if me.NormalizedUsername() != acct.NormalizedUsername() {
 		err := fmt.Errorf("wrong user: expected %s, got %s", me.NormalizedUsername(), acct.NormalizedUsername())
-		a.logger.WithFields(logrus.Fields{"err": err}).Warn("user is not who they say they are")
+		a.logger.Warn("user is not who they say they are", zap.Error(err))
 		a.errorResponse(w, r, 401, err)
 		return
 	}
@@ -263,26 +254,20 @@ func (a *api) upsertAccountHandler(w http.ResponseWriter, r *http.Request) {
 	// Associate
 	dev, err := a.deviceRepo.GetByAPNSToken(ctx, vars["apns"])
 	if err != nil {
-		a.logger.WithFields(logrus.Fields{
-			"err": err,
-		}).Info("failed fetching device from database")
+		a.logger.Error("failed to fetch device from database", zap.Error(err))
 		a.errorResponse(w, r, 500, err)
 		return
 	}
 
 	// Upsert account
 	if err := a.accountRepo.CreateOrUpdate(ctx, &acct); err != nil {
-		a.logger.WithFields(logrus.Fields{
-			"err": err,
-		}).Info("failed updating account in database")
+		a.logger.Error("failed to update account", zap.Error(err))
 		a.errorResponse(w, r, 500, err)
 		return
 	}
 
 	if err := a.accountRepo.Associate(ctx, &acct, &dev); err != nil {
-		a.logger.WithFields(logrus.Fields{
-			"err": err,
-		}).Info("failed associating account with device")
+		a.logger.Error("failed to associate account with device", zap.Error(err))
 		a.errorResponse(w, r, 500, err)
 		return
 	}

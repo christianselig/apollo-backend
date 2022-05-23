@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
-	"github.com/sirupsen/logrus"
+	"go.uber.org/zap"
 
 	"github.com/christianselig/apollo-backend/internal/domain"
 	"github.com/christianselig/apollo-backend/internal/itunes"
@@ -23,9 +23,7 @@ func (a *api) checkReceiptHandler(w http.ResponseWriter, r *http.Request) {
 	iapr, err := itunes.NewIAPResponse(string(body), true)
 
 	if err != nil {
-		a.logger.WithFields(logrus.Fields{
-			"err": err,
-		}).Info("failed verifying receipt")
+		a.logger.Info("failed to verify receipt", zap.Error(err))
 		a.errorResponse(w, r, 500, err)
 		return
 	}

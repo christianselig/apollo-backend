@@ -16,7 +16,7 @@ import (
 	"github.com/sideshow/apns2"
 	"github.com/sideshow/apns2/payload"
 	"github.com/sideshow/apns2/token"
-	"github.com/sirupsen/logrus"
+	"go.uber.org/zap"
 
 	"github.com/christianselig/apollo-backend/internal/domain"
 	"github.com/christianselig/apollo-backend/internal/reddit"
@@ -26,7 +26,7 @@ import (
 type subredditsWorker struct {
 	context.Context
 
-	logger *logrus.Logger
+	logger *zap.Logger
 	statsd *statsd.Client
 	db     *pgxpool.Pool
 	redis  *redis.Client
@@ -47,7 +47,7 @@ const (
 	subredditNotificationBodyFormat  = "r/%s: \u201c%s\u201d"
 )
 
-func NewSubredditsWorker(ctx context.Context, logger *logrus.Logger, statsd *statsd.Client, db *pgxpool.Pool, redis *redis.Client, queue rmq.Connection, consumers int) Worker {
+func NewSubredditsWorker(ctx context.Context, logger *zap.Logger, statsd *statsd.Client, db *pgxpool.Pool, redis *redis.Client, queue rmq.Connection, consumers int) Worker {
 	reddit := reddit.NewClient(
 		os.Getenv("REDDIT_CLIENT_ID"),
 		os.Getenv("REDDIT_CLIENT_SECRET"),
@@ -94,9 +94,7 @@ func (sw *subredditsWorker) Start() error {
 		return err
 	}
 
-	sw.logger.WithFields(logrus.Fields{
-		"numConsumers": sw.consumers,
-	}).Info("starting up subreddits worker")
+	sw.logger.Info("starting up subreddits worker", zap.Int("consumers", sw.consumers))
 
 	prefetchLimit := int64(sw.consumers * 2)
 
@@ -140,44 +138,38 @@ func NewSubredditsConsumer(sw *subredditsWorker, tag int) *subredditsConsumer {
 }
 
 func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
-	sc.logger.WithFields(logrus.Fields{
-		"subreddit#id": delivery.Payload(),
-	}).Debug("starting job")
-
 	id, err := strconv.ParseInt(delivery.Payload(), 10, 64)
 	if err != nil {
-		sc.logger.WithFields(logrus.Fields{
-			"subreddit#id": delivery.Payload(),
-			"err":          err,
-		}).Error("failed to parse subreddit ID")
-
+		sc.logger.Error("failed to parse subreddit id from payload", zap.Error(err), zap.String("payload", delivery.Payload()))
 		_ = delivery.Reject()
 		return
 	}
+
+	sc.logger.Debug("starting job", zap.Int64("subreddit#id", id))
 
 	defer func() { _ = delivery.Ack() }()
 
 	subreddit, err := sc.subredditRepo.GetByID(sc, id)
 	if err != nil {
-		sc.logger.WithFields(logrus.Fields{
-			"err": err,
-		}).Error("failed to fetch subreddit from database")
+		sc.logger.Error("failed to fetch subreddit from database", zap.Error(err), zap.Int64("subreddit#id", id))
 		return
 	}
 
 	watchers, err := sc.watcherRepo.GetBySubredditID(sc, subreddit.ID)
 	if err != nil {
-		sc.logger.WithFields(logrus.Fields{
-			"subreddit#id": subreddit.ID,
-			"err":          err,
-		}).Error("failed to fetch watchers from database")
+		sc.logger.Error("failed to fetch watchers from database",
+			zap.Error(err),
+			zap.Int64("subreddit#id", id),
+			zap.String("subreddit#name", subreddit.NormalizedName()),
+		)
 		return
 	}
 
 	if len(watchers) == 0 {
-		sc.logger.WithFields(logrus.Fields{
-			"subreddit#id": subreddit.ID,
-		}).Debug("no watchers for subreddit, finishing job")
+		sc.logger.Debug("no watchers for subreddit, bailing early",
+			zap.Int64("subreddit#id", id),
+			zap.String("subreddit#name", subreddit.NormalizedName()),
+		)
 		return
 	}
 
@@ -188,17 +180,17 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 	seenPosts := map[string]bool{}
 
 	// Load 500 newest posts
-	sc.logger.WithFields(logrus.Fields{
-		"subreddit#id":   subreddit.ID,
-		"subreddit#name": subreddit.Name,
-	}).Debug("loading up to 500 new posts")
+	sc.logger.Debug("loading up to 500 new posts",
+		zap.Int64("subreddit#id", id),
+		zap.String("subreddit#name", subreddit.NormalizedName()),
+	)
 
 	for page := 0; page < 5; page++ {
-		sc.logger.WithFields(logrus.Fields{
-			"subreddit#id":   subreddit.ID,
-			"subreddit#name": subreddit.Name,
-			"page":           page,
-		}).Debug("loading new posts")
+		sc.logger.Debug("loading new posts",
+			zap.Int64("subreddit#id", id),
+			zap.String("subreddit#name", subreddit.NormalizedName()),
+			zap.Int("page", page),
+		)
 
 		i := rand.Intn(len(watchers))
 		watcher := watchers[i]
@@ -213,19 +205,21 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 		)
 
 		if err != nil {
-			sc.logger.WithFields(logrus.Fields{
-				"subreddit#id": subreddit.ID,
-				"err":          err,
-			}).Error("failed to fetch new posts")
+			sc.logger.Error("failed fetchint new posts",
+				zap.Error(err),
+				zap.Int64("subreddit#id", id),
+				zap.String("subreddit#name", subreddit.NormalizedName()),
+				zap.Int("page", page),
+			)
 			continue
 		}
 
-		sc.logger.WithFields(logrus.Fields{
-			"subreddit#id":   subreddit.ID,
-			"subreddit#name": subreddit.Name,
-			"count":          sps.Count,
-			"page":           page,
-		}).Debug("loaded new posts for page")
+		sc.logger.Debug("loaded new posts",
+			zap.Int64("subreddit#id", id),
+			zap.String("subreddit#name", subreddit.NormalizedName()),
+			zap.Int("page", page),
+			zap.Int("count", sps.Count),
+		)
 
 		// If it's empty, we're done
 		if sps.Count == 0 {
@@ -250,20 +244,20 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 		}
 
 		if finished {
-			sc.logger.WithFields(logrus.Fields{
-				"subreddit#id":   subreddit.ID,
-				"subreddit#name": subreddit.Name,
-				"page":           page,
-			}).Debug("reached date threshold")
+			sc.logger.Debug("reached date threshold",
+				zap.Int64("subreddit#id", id),
+				zap.String("subreddit#name", subreddit.NormalizedName()),
+				zap.Int("page", page),
+			)
 			break
 		}
 	}
 
 	// Load hot posts
-	sc.logger.WithFields(logrus.Fields{
-		"subreddit#id":   subreddit.ID,
-		"subreddit#name": subreddit.Name,
-	}).Debug("loading hot posts")
+	sc.logger.Debug("loading hot posts",
+		zap.Int64("subreddit#id", id),
+		zap.String("subreddit#name", subreddit.NormalizedName()),
+	)
 	{
 		i := rand.Intn(len(watchers))
 		watcher := watchers[i]
@@ -276,16 +270,17 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 		)
 
 		if err != nil {
-			sc.logger.WithFields(logrus.Fields{
-				"subreddit#id": subreddit.ID,
-				"err":          err,
-			}).Error("failed to fetch hot posts")
+			sc.logger.Error("failed to fetch hot posts",
+				zap.Error(err),
+				zap.Int64("subreddit#id", id),
+				zap.String("subreddit#name", subreddit.NormalizedName()),
+			)
 		} else {
-			sc.logger.WithFields(logrus.Fields{
-				"subreddit#id":   subreddit.ID,
-				"subreddit#name": subreddit.Name,
-				"count":          sps.Count,
-			}).Debug("loaded hot posts")
+			sc.logger.Debug("loaded hot posts",
+				zap.Int64("subreddit#id", id),
+				zap.String("subreddit#name", subreddit.NormalizedName()),
+				zap.Int("count", sps.Count),
+			)
 
 			for _, post := range sps.Children {
 				if post.CreatedAt.Before(threshold) {
@@ -299,11 +294,11 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 		}
 	}
 
-	sc.logger.WithFields(logrus.Fields{
-		"subreddit#id":   subreddit.ID,
-		"subreddit#name": subreddit.Name,
-		"count":          len(posts),
-	}).Debug("checking posts for hits")
+	sc.logger.Debug("checking posts for watcher hits",
+		zap.Int64("subreddit#id", id),
+		zap.String("subreddit#name", subreddit.NormalizedName()),
+		zap.Int("count", len(posts)),
+	)
 	for _, post := range posts {
 		lowcaseAuthor := strings.ToLower(post.Author)
 		lowcaseTitle := strings.ToLower(post.Title)
@@ -344,31 +339,30 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 			notified, _ := sc.redis.Get(sc, lockKey).Bool()
 
 			if notified {
-				sc.logger.WithFields(logrus.Fields{
-					"subreddit#id":   subreddit.ID,
-					"subreddit#name": subreddit.Name,
-					"watcher#id":     watcher.ID,
-					"post#id":        post.ID,
-				}).Debug("already notified, skipping")
-
+				sc.logger.Debug("already notified, skipping",
+					zap.Int64("subreddit#id", id),
+					zap.String("subreddit#name", subreddit.NormalizedName()),
+					zap.Int64("watcher#id", watcher.ID),
+					zap.String("post#id", post.ID),
+				)
 				continue
 			}
 
 			if err := sc.watcherRepo.IncrementHits(sc, watcher.ID); err != nil {
-				sc.logger.WithFields(logrus.Fields{
-					"subreddit#id": subreddit.ID,
-					"watcher#id":   watcher.ID,
-					"err":          err,
-				}).Error("could not increment hits")
+				sc.logger.Error("could not increment hits",
+					zap.Error(err),
+					zap.Int64("subreddit#id", id),
+					zap.String("subreddit#name", subreddit.NormalizedName()),
+					zap.Int64("watcher#id", watcher.ID),
+				)
 				return
 			}
-
-			sc.logger.WithFields(logrus.Fields{
-				"subreddit#id":   subreddit.ID,
-				"subreddit#name": subreddit.Name,
-				"watcher#id":     watcher.ID,
-				"post#id":        post.ID,
-			}).Debug("got a hit")
+			sc.logger.Debug("got a hit",
+				zap.Int64("subreddit#id", id),
+				zap.String("subreddit#name", subreddit.NormalizedName()),
+				zap.Int64("watcher#id", watcher.ID),
+				zap.String("post#id", post.ID),
+			)
 
 			sc.redis.SetEX(sc, lockKey, true, 24*time.Hour)
 			notifs = append(notifs, watcher)
@@ -377,13 +371,12 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 		if len(notifs) == 0 {
 			continue
 		}
-
-		sc.logger.WithFields(logrus.Fields{
-			"subreddit#id":   subreddit.ID,
-			"subreddit#name": subreddit.Name,
-			"post#id":        post.ID,
-			"count":          len(notifs),
-		}).Debug("got hits for post")
+		sc.logger.Debug("got hits for post",
+			zap.Int64("subreddit#id", id),
+			zap.String("subreddit#name", subreddit.NormalizedName()),
+			zap.String("post#id", post.ID),
+			zap.Int("count", len(notifs)),
+		)
 
 		payload := payloadFromPost(post)
 
@@ -407,28 +400,31 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 			res, err := client.Push(notification)
 			if err != nil || !res.Sent() {
 				_ = sc.statsd.Incr("apns.notification.errors", []string{}, 1)
-				sc.logger.WithFields(logrus.Fields{
-					"subreddit#id": subreddit.ID,
-					"device#id":    watcher.Device.ID,
-					"err":          err,
-					"status":       res.StatusCode,
-					"reason":       res.Reason,
-				}).Error("failed to send notification")
+				sc.logger.Error("failed to send notification",
+					zap.Error(err),
+					zap.Int64("subreddit#id", id),
+					zap.String("subreddit#name", subreddit.NormalizedName()),
+					zap.String("post#id", post.ID),
+					zap.String("apns", watcher.Device.APNSToken),
+					zap.Int("response#status", res.StatusCode),
+					zap.String("response#reason", res.Reason),
+				)
 			} else {
 				_ = sc.statsd.Incr("apns.notification.sent", []string{}, 1)
-				sc.logger.WithFields(logrus.Fields{
-					"subreddit#id": subreddit.ID,
-					"device#id":    watcher.Device.ID,
-					"device#token": watcher.Device.APNSToken,
-				}).Info("sent notification")
+				sc.logger.Info("sent notification",
+					zap.Int64("subreddit#id", id),
+					zap.String("subreddit#name", subreddit.NormalizedName()),
+					zap.String("post#id", post.ID),
+					zap.String("device#token", watcher.Device.APNSToken),
+				)
 			}
 		}
 	}
 
-	sc.logger.WithFields(logrus.Fields{
-		"subreddit#id":   subreddit.ID,
-		"subreddit#name": subreddit.Name,
-	}).Debug("finishing job")
+	sc.logger.Debug("finishing job",
+		zap.Int64("subreddit#id", id),
+		zap.String("subreddit#name", subreddit.NormalizedName()),
+	)
 }
 
 func payloadFromPost(post *reddit.Thing) *payload.Payload {
