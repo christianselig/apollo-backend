@@ -165,15 +165,18 @@ func (rc *Client) doRequest(ctx context.Context, r *Request) ([]byte, *RateLimit
 		rli.Timestamp = time.Now().String()
 	}
 
+	bb, err := ioutil.ReadAll(resp.Body)
+
 	switch resp.StatusCode {
 	case 200:
-		bb, err := ioutil.ReadAll(resp.Body)
 		return bb, rli, err
-	case 401, 403:
+	case 401:
+		return nil, rli, ErrInvalidBasicAuth
+	case 403:
 		return nil, rli, ErrOauthRevoked
 	default:
 		_ = rc.statsd.Incr("reddit.api.errors", r.tags, 0.1)
-		return nil, rli, ServerError{resp.StatusCode}
+		return nil, rli, ServerError{string(bb), resp.StatusCode}
 	}
 }
 
@@ -299,13 +302,6 @@ func (rac *AuthenticatedClient) RefreshTokens(ctx context.Context, opts ...Reque
 
 	rtr, err := rac.request(ctx, req, NewRefreshTokenResponse, nil)
 	if err != nil {
-		switch rerr := err.(type) {
-		case ServerError:
-			if rerr.StatusCode == 400 {
-				return nil, ErrOauthRevoked
-			}
-		}
-
 		return nil, err
 	}
 
