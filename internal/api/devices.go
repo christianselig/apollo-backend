@@ -11,7 +11,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/sideshow/apns2"
 	"github.com/sideshow/apns2/payload"
-	"github.com/sirupsen/logrus"
+	"go.uber.org/zap"
 
 	"github.com/christianselig/apollo-backend/internal/domain"
 )
@@ -46,9 +46,7 @@ func (a *api) testDeviceHandler(w http.ResponseWriter, r *http.Request) {
 
 	d, err := a.deviceRepo.GetByAPNSToken(ctx, tok)
 	if err != nil {
-		a.logger.WithFields(logrus.Fields{
-			"err": err,
-		}).Info("failed fetching device from database")
+		a.logger.Error("failed fetching device from database", zap.Error(err))
 		a.errorResponse(w, r, 500, err)
 		return
 	}
@@ -83,9 +81,7 @@ func (a *api) testDeviceHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if _, err := client.Push(notification); err != nil {
-		a.logger.WithFields(logrus.Fields{
-			"err": err,
-		}).Info("failed to send test notification")
+		a.logger.Info("failed to send test notification", zap.Error(err))
 		a.errorResponse(w, r, 500, err)
 		return
 	}

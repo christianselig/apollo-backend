@@ -7,7 +7,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/sideshow/apns2"
 	"github.com/sideshow/apns2/payload"
-	"github.com/sirupsen/logrus"
+	"go.uber.org/zap"
 )
 
 const (
@@ -31,9 +31,7 @@ func generateNotificationTester(a *api, fun notificationGenerator) func(w http.R
 
 		d, err := a.deviceRepo.GetByAPNSToken(ctx, tok)
 		if err != nil {
-			a.logger.WithFields(logrus.Fields{
-				"err": err,
-			}).Info("failed fetching device from database")
+			a.logger.Info("failed fetching device from database", zap.Error(err))
 			a.errorResponse(w, r, 500, err)
 			return
 		}
@@ -56,9 +54,7 @@ func generateNotificationTester(a *api, fun notificationGenerator) func(w http.R
 		}
 
 		if _, err := client.Push(notification); err != nil {
-			a.logger.WithFields(logrus.Fields{
-				"err": err,
-			}).Info("failed to send test notification")
+			a.logger.Info("failed to send test notification", zap.Error(err))
 			a.errorResponse(w, r, 500, err)
 			return
 		}

@@ -14,7 +14,7 @@ import (
 	"github.com/sideshow/apns2"
 	"github.com/sideshow/apns2/payload"
 	"github.com/sideshow/apns2/token"
-	"github.com/sirupsen/logrus"
+	"go.uber.org/zap"
 
 	"github.com/christianselig/apollo-backend/internal/domain"
 	"github.com/christianselig/apollo-backend/internal/reddit"
@@ -33,7 +33,7 @@ const (
 type notificationsWorker struct {
 	context.Context
 
-	logger *logrus.Logger
+	logger *zap.Logger
 	statsd *statsd.Client
 	db     *pgxpool.Pool
 	redis  *redis.Client
@@ -47,7 +47,7 @@ type notificationsWorker struct {
 	deviceRepo  domain.DeviceRepository
 }
 
-func NewNotificationsWorker(ctx context.Context, logger *logrus.Logger, statsd *statsd.Client, db *pgxpool.Pool, redis *redis.Client, queue rmq.Connection, consumers int) Worker {
+func NewNotificationsWorker(ctx context.Context, logger *zap.Logger, statsd *statsd.Client, db *pgxpool.Pool, redis *redis.Client, queue rmq.Connection, consumers int) Worker {
 	reddit := reddit.NewClient(
 		os.Getenv("REDDIT_CLIENT_ID"),
 		os.Getenv("REDDIT_CLIENT_SECRET"),
@@ -92,9 +92,7 @@ func (nw *notificationsWorker) Start() error {
 		return err
 	}
 
-	nw.logger.WithFields(logrus.Fields{
-		"numConsumers": nw.consumers,
-	}).Info("starting up notifications worker")
+	nw.logger.Info("starting up notifications worker", zap.Int("consumers", nw.consumers))
 
 	prefetchLimit := int64(nw.consumers * 2)
 
@@ -139,29 +137,20 @@ func NewNotificationsConsumer(nw *notificationsWorker, tag int) *notificationsCo
 
 func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 	defer func() {
-		lockKey := fmt.Sprintf("locks:accounts:%s", delivery.Payload())
-		if err := nc.redis.Del(nc, lockKey).Err(); err != nil {
-			nc.logger.WithFields(logrus.Fields{
-				"lockKey": lockKey,
-				"err":     err,
-			}).Error("failed to remove lock")
+		key := fmt.Sprintf("locks:accounts:%s", delivery.Payload())
+		if err := nc.redis.Del(nc, key).Err(); err != nil {
+			nc.logger.Error("failed to remove account lock", zap.Error(err), zap.String("key", key))
 		}
 	}()
 
-	nc.logger.WithFields(logrus.Fields{
-		"account#id": delivery.Payload(),
-	}).Debug("starting job")
-
 	id, err := strconv.ParseInt(delivery.Payload(), 10, 64)
 	if err != nil {
-		nc.logger.WithFields(logrus.Fields{
-			"account#id": delivery.Payload(),
-			"err":        err,
-		}).Error("failed to parse account ID")
-
+		nc.logger.Error("failed to parse account id from payload", zap.Error(err), zap.String("payload", delivery.Payload()))
 		_ = delivery.Reject()
 		return
 	}
+
+	nc.logger.Debug("starting job", zap.Int64("account#id", id))
 
 	defer func() { _ = delivery.Ack() }()
 
@@ -169,10 +158,7 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 
 	account, err := nc.accountRepo.GetByID(nc, id)
 	if err != nil {
-		nc.logger.WithFields(logrus.Fields{
-			"account#id": id,
-			"err":        err,
-		}).Error("failed to fetch account from database")
+		nc.logger.Error("failed to fetch account from database", zap.Error(err), zap.Int64("account#id", id))
 		return
 	}
 
@@ -184,35 +170,39 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 
 	defer func(acc *domain.Account) {
 		if err = nc.accountRepo.Update(nc, acc); err != nil {
-			nc.logger.WithFields(logrus.Fields{
-				"account#username": account.NormalizedUsername(),
-				"err":              err,
-			}).Error("failed to update account")
+			nc.logger.Error("failed to update account",
+				zap.Error(err),
+				zap.Int64("account#id", id),
+				zap.String("account#username", account.NormalizedUsername()),
+			)
 		}
 	}(&account)
 
 	rac := nc.reddit.NewAuthenticatedClient(account.AccountID, account.RefreshToken, account.AccessToken)
 	if account.TokenExpiresAt.Before(now) {
-		nc.logger.WithFields(logrus.Fields{
-			"account#username": account.NormalizedUsername(),
-		}).Debug("refreshing reddit token")
+		nc.logger.Debug("refreshing reddit token",
+			zap.Int64("account#id", id),
+			zap.String("account#username", account.NormalizedUsername()),
+		)
 
 		tokens, err := rac.RefreshTokens(nc)
 		if err != nil {
 			if err != reddit.ErrOauthRevoked {
-				nc.logger.WithFields(logrus.Fields{
-					"account#username": account.NormalizedUsername(),
-					"err":              err,
-				}).Error("failed to refresh reddit tokens")
+				nc.logger.Error("failed to refresh reddit tokens",
+					zap.Error(err),
+					zap.Int64("account#id", id),
+					zap.String("account#username", account.NormalizedUsername()),
+				)
 				return
 			}
 
 			err = nc.deleteAccount(account)
 			if err != nil {
-				nc.logger.WithFields(logrus.Fields{
-					"account#username": account.NormalizedUsername(),
-					"err":              err,
-				}).Error("failed to remove revoked account")
+				nc.logger.Error("failed to remove revoked account",
+					zap.Error(err),
+					zap.Int64("account#id", id),
+					zap.String("account#username", account.NormalizedUsername()),
+				)
 			}
 
 			return
@@ -234,9 +224,7 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 		_ = nc.statsd.Histogram("apollo.queue.delay", float64(latency.Milliseconds()), []string{}, rate)
 	}
 
-	nc.logger.WithFields(logrus.Fields{
-		"account#username": account.NormalizedUsername(),
-	}).Debug("fetching message inbox")
+	nc.logger.Debug("fetching message inbox", zap.Int64("account#id", id), zap.String("account#username", account.NormalizedUsername()))
 
 	opts := []reddit.RequestOption{reddit.WithQuery("limit", "10")}
 	if account.LastMessageID != "" {
@@ -249,38 +237,42 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 		case reddit.ErrTimeout, reddit.ErrRateLimited: // Don't log timeouts or rate limits
 			break
 		case reddit.ErrOauthRevoked:
-			err = nc.deleteAccount(account)
-			if err != nil {
-				nc.logger.WithFields(logrus.Fields{
-					"account#username": account.NormalizedUsername(),
-					"err":              err,
-				}).Error("failed to remove revoked account")
-				return
+			if err = nc.deleteAccount(account); err != nil {
+				nc.logger.Error("failed to remove revoked account",
+					zap.Error(err),
+					zap.Int64("account#id", id),
+					zap.String("account#username", account.NormalizedUsername()),
+				)
+			} else {
+				nc.logger.Info("removed revoked account",
+					zap.Int64("account#id", id),
+					zap.String("account#username", account.NormalizedUsername()),
+				)
 			}
-			nc.logger.WithFields(logrus.Fields{
-				"account#username": account.NormalizedUsername(),
-			}).Info("removed revoked account")
 		default:
-			nc.logger.WithFields(logrus.Fields{
-				"account#username": account.NormalizedUsername(),
-				"err":              err,
-			}).Error("failed to fetch message inbox")
+			nc.logger.Error("failed to fetch message inbox",
+				zap.Error(err),
+				zap.Int64("account#id", id),
+				zap.String("account#username", account.NormalizedUsername()),
+			)
 		}
 		return
 	}
 
 	// Figure out where we stand
 	if msgs.Count == 0 {
-		nc.logger.WithFields(logrus.Fields{
-			"account#username": account.NormalizedUsername(),
-		}).Debug("no new messages, bailing early")
+		nc.logger.Debug("no new messages, bailing early",
+			zap.Int64("account#id", id),
+			zap.String("account#username", account.NormalizedUsername()),
+		)
 		return
 	}
 
-	nc.logger.WithFields(logrus.Fields{
-		"account#username": account.NormalizedUsername(),
-		"count":            msgs.Count,
-	}).Debug("fetched messages")
+	nc.logger.Debug("fetched messages",
+		zap.Int64("account#id", id),
+		zap.String("account#username", account.NormalizedUsername()),
+		zap.Int("count", msgs.Count),
+	)
 
 	for _, msg := range msgs.Children {
 		if !msg.IsDeleted() {
@@ -291,25 +283,28 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 
 	// Let's populate this with the latest message so we don't flood users with stuff
 	if newAccount {
-		nc.logger.WithFields(logrus.Fields{
-			"account#username": account.NormalizedUsername(),
-		}).Debug("populating first message ID to prevent spamming")
+		nc.logger.Debug("populating first message id to prevent spamming",
+			zap.Int64("account#id", id),
+			zap.String("account#username", account.NormalizedUsername()),
+		)
 		return
 	}
 
 	devices, err := nc.deviceRepo.GetInboxNotifiableByAccountID(nc, account.ID)
 	if err != nil {
-		nc.logger.WithFields(logrus.Fields{
-			"account#username": account.NormalizedUsername(),
-			"err":              err,
-		}).Error("failed to fetch account devices")
+		nc.logger.Error("failed to fetch account devices",
+			zap.Error(err),
+			zap.Int64("account#id", id),
+			zap.String("account#username", account.NormalizedUsername()),
+		)
 		return
 	}
 
 	if len(devices) == 0 {
-		nc.logger.WithFields(logrus.Fields{
-			"account#username": account.NormalizedUsername(),
-		}).Debug("no notifiable devices, finishing job")
+		nc.logger.Debug("no notifiable devices, bailing early",
+			zap.Int64("account#id", id),
+			zap.String("account#username", account.NormalizedUsername()),
+		)
 		return
 	}
 
@@ -335,21 +330,24 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 			res, err := client.Push(notification)
 			if err != nil || !res.Sent() {
 				_ = nc.statsd.Incr("apns.notification.errors", []string{}, 1)
-				nc.logger.WithFields(logrus.Fields{
-					"account#username": account.NormalizedUsername(),
-					"err":              err,
-					"status":           res.StatusCode,
-					"reason":           res.Reason,
-				}).Error("failed to send notification")
+				nc.logger.Error("failed to send notification",
+					zap.Error(err),
+					zap.Int64("account#id", id),
+					zap.String("account#username", account.NormalizedUsername()),
+					zap.String("device#token", device.APNSToken),
+					zap.Int("response#status", res.StatusCode),
+					zap.String("response#reason", res.Reason),
+				)
 
 				// Delete device as notifications might have been disabled here
 				_ = nc.deviceRepo.Delete(nc, device.APNSToken)
 			} else {
 				_ = nc.statsd.Incr("apns.notification.sent", []string{}, 1)
-				nc.logger.WithFields(logrus.Fields{
-					"account#username": account.NormalizedUsername(),
-					"token":            device.APNSToken,
-				}).Info("sent notification")
+				nc.logger.Info("sent notification",
+					zap.Int64("account#id", id),
+					zap.String("account#username", account.NormalizedUsername()),
+					zap.String("device#token", device.APNSToken),
+				)
 			}
 		}
 	}
@@ -357,9 +355,10 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 	ev := fmt.Sprintf("Sent notification to /u/%s (x%d)", account.Username, msgs.Count)
 	_ = nc.statsd.SimpleEvent(ev, "")
 
-	nc.logger.WithFields(logrus.Fields{
-		"account#username": account.NormalizedUsername(),
-	}).Debug("finishing job")
+	nc.logger.Debug("finishing job",
+		zap.Int64("account#id", id),
+		zap.String("account#username", account.NormalizedUsername()),
+	)
 }
 
 func (nc *notificationsConsumer) deleteAccount(account domain.Account) error {
