@@ -387,7 +387,7 @@ func enqueueAccounts(ctx context.Context, logger *zap.Logger, statsd *statsd.Cli
 	next := now.Add(domain.NotificationCheckInterval)
 
 	ids := make([]int64, maxNotificationChecks)
-	numids := 0
+	idslen := 0
 	enqueued := 0
 	skipped := 0
 
@@ -420,7 +420,7 @@ func enqueueAccounts(ctx context.Context, logger *zap.Logger, statsd *statsd.Cli
 			var id int64
 			_ = rows.Scan(&id)
 			ids[i] = id
-			numids = i
+			idslen = i
 		}
 		return nil
 	})
@@ -430,17 +430,17 @@ func enqueueAccounts(ctx context.Context, logger *zap.Logger, statsd *statsd.Cli
 		return
 	}
 
-	if numids == 0 {
+	if idslen == 0 {
 		return
 	}
 
 	logger.Debug("enqueueing account batch", zap.Int("count", len(ids)), zap.Time("start", now))
 
 	// Split ids in batches
-	for i := 0; i < numids; i += batchSize {
+	for i := 0; i < idslen; i += batchSize {
 		j := i + batchSize
-		if j > numids {
-			j = numids
+		if j > idslen {
+			j = idslen
 		}
 		batch := Int64Slice(ids[i:j])
 
