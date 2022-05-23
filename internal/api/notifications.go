@@ -31,7 +31,7 @@ func generateNotificationTester(a *api, fun notificationGenerator) func(w http.R
 
 		d, err := a.deviceRepo.GetByAPNSToken(ctx, tok)
 		if err != nil {
-			a.logger.Info("failed fetching device from database", zap.Error(err))
+			a.logger.Info("failed to fetch device from database", zap.Error(err))
 			a.errorResponse(w, r, 500, err)
 			return
 		}

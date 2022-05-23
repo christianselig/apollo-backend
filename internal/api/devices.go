@@ -46,7 +46,7 @@ func (a *api) testDeviceHandler(w http.ResponseWriter, r *http.Request) {
 
 	d, err := a.deviceRepo.GetByAPNSToken(ctx, tok)
 	if err != nil {
-		a.logger.Error("failed fetching device from database", zap.Error(err))
+		a.logger.Error("failed to fetch device from database", zap.Error(err))
 		a.errorResponse(w, r, 500, err)
 		return
 	}
