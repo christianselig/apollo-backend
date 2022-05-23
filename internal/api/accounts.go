@@ -145,6 +145,7 @@ func (a *api) upsertAccountsHandler(w http.ResponseWriter, r *http.Request) {
 		rac := a.reddit.NewAuthenticatedClient(reddit.SkipRateLimiting, acc.RefreshToken, acc.AccessToken)
 		tokens, err := rac.RefreshTokens(ctx)
 		if err != nil {
+			err := fmt.Errorf("failed to refresh tokens: %w", err)
 			a.errorResponse(w, r, 422, err)
 			return
 		}
@@ -158,6 +159,7 @@ func (a *api) upsertAccountsHandler(w http.ResponseWriter, r *http.Request) {
 		me, err := rac.Me(ctx)
 
 		if err != nil {
+			err := fmt.Errorf("failed to fetch user info: %w", err)
 			a.errorResponse(w, r, 422, err)
 			return
 		}
