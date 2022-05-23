@@ -2,7 +2,6 @@ package repository
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/christianselig/apollo-backend/internal/domain"
@@ -141,7 +140,7 @@ func (p *postgresAccountRepository) Update(ctx context.Context, acc *domain.Acco
 			check_count = $10
 		WHERE id = $1`
 
-	res, err := p.conn.Exec(
+	_, err := p.conn.Exec(
 		ctx,
 		query,
 		acc.ID,
@@ -156,19 +155,12 @@ func (p *postgresAccountRepository) Update(ctx context.Context, acc *domain.Acco
 		acc.CheckCount,
 	)
 
-	if res.RowsAffected() != 1 {
-		return fmt.Errorf("weird behaviour, total rows affected: %d", res.RowsAffected())
-	}
 	return err
 }
 
 func (p *postgresAccountRepository) Delete(ctx context.Context, id int64) error {
 	query := `DELETE FROM accounts WHERE id = $1`
-	res, err := p.conn.Exec(ctx, query, id)
-
-	if res.RowsAffected() != 1 {
-		return fmt.Errorf("weird behaviour, total rows affected: %d", res.RowsAffected())
-	}
+	_, err := p.conn.Exec(ctx, query, id)
 	return err
 }
 
@@ -184,11 +176,7 @@ func (p *postgresAccountRepository) Associate(ctx context.Context, acc *domain.A
 
 func (p *postgresAccountRepository) Disassociate(ctx context.Context, acc *domain.Account, dev *domain.Device) error {
 	query := `DELETE FROM devices_accounts WHERE account_id = $1 AND device_id = $2`
-	res, err := p.conn.Exec(ctx, query, acc.ID, dev.ID)
-
-	if res.RowsAffected() != 1 {
-		return fmt.Errorf("weird behaviour, total rows affected: %d", res.RowsAffected())
-	}
+	_, err := p.conn.Exec(ctx, query, acc.ID, dev.ID)
 	return err
 }
 

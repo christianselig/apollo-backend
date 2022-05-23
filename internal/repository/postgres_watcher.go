@@ -2,7 +2,6 @@ package repository
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/christianselig/apollo-backend/internal/domain"
@@ -255,7 +254,7 @@ func (p *postgresWatcherRepository) Update(ctx context.Context, watcher *domain.
 			label = $9
 		WHERE id = $1`
 
-	res, err := p.conn.Exec(
+	_, err := p.conn.Exec(
 		ctx,
 		query,
 		watcher.ID,
@@ -269,38 +268,23 @@ func (p *postgresWatcherRepository) Update(ctx context.Context, watcher *domain.
 		watcher.Label,
 	)
 
-	if res.RowsAffected() != 1 {
-		return fmt.Errorf("weird behaviour, total rows affected: %d", res.RowsAffected())
-	}
 	return err
 }
 
 func (p *postgresWatcherRepository) IncrementHits(ctx context.Context, id int64) error {
 	query := `UPDATE watchers SET hits = hits + 1, last_notified_at = $2 WHERE id = $1`
-	res, err := p.conn.Exec(ctx, query, id, time.Now())
-
-	if res.RowsAffected() != 1 {
-		return fmt.Errorf("weird behaviour, total rows affected: %d", res.RowsAffected())
-	}
+	_, err := p.conn.Exec(ctx, query, id, time.Now())
 	return err
 }
 
 func (p *postgresWatcherRepository) Delete(ctx context.Context, id int64) error {
 	query := `DELETE FROM watchers WHERE id = $1`
-	res, err := p.conn.Exec(ctx, query, id)
-
-	if res.RowsAffected() != 1 {
-		return fmt.Errorf("weird behaviour, total rows affected: %d", res.RowsAffected())
-	}
+	_, err := p.conn.Exec(ctx, query, id)
 	return err
 }
 
 func (p *postgresWatcherRepository) DeleteByTypeAndWatcheeID(ctx context.Context, typ domain.WatcherType, id int64) error {
 	query := `DELETE FROM watchers WHERE type = $1 AND watchee_id = $2`
-	res, err := p.conn.Exec(ctx, query, typ, id)
-
-	if res.RowsAffected() == 0 {
-		return fmt.Errorf("weird behaviour, total rows affected: %d", res.RowsAffected())
-	}
+	_, err := p.conn.Exec(ctx, query, typ, id)
 	return err
 }

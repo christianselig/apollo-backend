@@ -2,7 +2,6 @@ package repository
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/christianselig/apollo-backend/internal/domain"
@@ -157,22 +156,14 @@ func (p *postgresDeviceRepository) Update(ctx context.Context, dev *domain.Devic
 		SET expires_at = $2, grace_period_expires_at = $3
 		WHERE id = $1`
 
-	res, err := p.conn.Exec(ctx, query, dev.ID, dev.ExpiresAt, dev.GracePeriodExpiresAt)
-
-	if res.RowsAffected() != 1 {
-		return fmt.Errorf("weird behaviour, total rows affected: %d", res.RowsAffected())
-	}
+	_, err := p.conn.Exec(ctx, query, dev.ID, dev.ExpiresAt, dev.GracePeriodExpiresAt)
 	return err
 }
 
 func (p *postgresDeviceRepository) Delete(ctx context.Context, token string) error {
 	query := `DELETE FROM devices WHERE apns_token = $1`
 
-	res, err := p.conn.Exec(ctx, query, token)
-
-	if res.RowsAffected() != 1 {
-		return fmt.Errorf("weird behaviour, total rows affected: %d", res.RowsAffected())
-	}
+	_, err := p.conn.Exec(ctx, query, token)
 	return err
 }
 
@@ -185,11 +176,7 @@ func (p *postgresDeviceRepository) SetNotifiable(ctx context.Context, dev *domai
 			global_mute = $3
 		WHERE device_id = $4 AND account_id = $5`
 
-	res, err := p.conn.Exec(ctx, query, inbox, watcher, global, dev.ID, acct.ID)
-
-	if res.RowsAffected() != 1 {
-		return fmt.Errorf("weird behaviour, total rows affected: %d", res.RowsAffected())
-	}
+	_, err := p.conn.Exec(ctx, query, inbox, watcher, global, dev.ID, acct.ID)
 	return err
 
 }
