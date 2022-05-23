@@ -205,7 +205,7 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 		)
 
 		if err != nil {
-			sc.logger.Error("failed fetchint new posts",
+			sc.logger.Error("failed to fetch new posts",
 				zap.Error(err),
 				zap.Int64("subreddit#id", id),
 				zap.String("subreddit#name", subreddit.NormalizedName()),
