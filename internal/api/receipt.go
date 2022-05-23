@@ -36,22 +36,19 @@ func (a *api) checkReceiptHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if iapr.DeleteDevice {
-			if dev.GracePeriodExpiresAt.After(time.Now()) {
-				w.WriteHeader(http.StatusOK)
-				return
-			}
+			if dev.GracePeriodExpiresAt.Before(time.Now()) {
+				accs, err := a.accountRepo.GetByAPNSToken(ctx, apns)
+				if err != nil {
+					a.errorResponse(w, r, 500, err)
+					return
+				}
 
-			accs, err := a.accountRepo.GetByAPNSToken(ctx, apns)
-			if err != nil {
-				a.errorResponse(w, r, 500, err)
-				return
-			}
+				for _, acc := range accs {
+					_ = a.accountRepo.Disassociate(ctx, &acc, &dev)
+				}
 
-			for _, acc := range accs {
-				_ = a.accountRepo.Disassociate(ctx, &acc, &dev)
+				_ = a.deviceRepo.Delete(ctx, apns)
 			}
-
-			_ = a.deviceRepo.Delete(ctx, apns)
 		} else {
 			dev.ExpiresAt = time.Now().Add(domain.DeviceActiveAfterReceitCheckDuration)
 			dev.GracePeriodExpiresAt = dev.ExpiresAt.Add(domain.DeviceGracePeriodAfterReceiptExpiry)
