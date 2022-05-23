@@ -220,7 +220,7 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 	// Only update delay on accounts we can actually check, otherwise it skews
 	// the numbers too much.
 	if !newAccount {
-		latency := now.Sub(previousNextCheck) - domain.NotificationCheckInterval
+		latency := now.Sub(previousNextCheck)
 		_ = nc.statsd.Histogram("apollo.queue.delay", float64(latency.Milliseconds()), []string{}, rate)
 	}
 
