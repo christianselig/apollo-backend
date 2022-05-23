@@ -13,8 +13,8 @@ import (
 	"github.com/go-redis/redis/v8"
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
-	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"go.uber.org/zap"
 
 	"github.com/christianselig/apollo-backend/internal/cmdutil"
 	"github.com/christianselig/apollo-backend/internal/domain"
@@ -29,7 +29,8 @@ func SchedulerCmd(ctx context.Context) *cobra.Command {
 		Args:  cobra.ExactArgs(0),
 		Short: "Schedules jobs and runs several maintenance tasks periodically.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			logger := cmdutil.NewLogrusLogger(false)
+			logger := cmdutil.NewLogger(false)
+			defer func() { _ = logger.Sync() }()
 
 			statsd, err := cmdutil.NewStatsdClient()
 			if err != nil {
@@ -126,71 +127,56 @@ func evalScript(ctx context.Context, redis *redis.Client) (string, error) {
 	return redis.ScriptLoad(ctx, lua).Result()
 }
 
-func pruneAccounts(ctx context.Context, logger *logrus.Logger, pool *pgxpool.Pool) {
+func pruneAccounts(ctx context.Context, logger *zap.Logger, pool *pgxpool.Pool) {
 	expiry := time.Now().Add(-domain.StaleTokenThreshold)
 	ar := repository.NewPostgresAccount(pool)
 
 	stale, err := ar.PruneStale(ctx, expiry)
 	if err != nil {
-		logger.WithFields(logrus.Fields{
-			"err": err,
-		}).Error("failed cleaning stale accounts")
+		logger.Error("failed to clean stale accounts", zap.Error(err))
 		return
 	}
 
 	orphaned, err := ar.PruneOrphaned(ctx)
 	if err != nil {
-		logger.WithFields(logrus.Fields{
-			"err": err,
-		}).Error("failed cleaning orphaned accounts")
+		logger.Error("failed to clean orphaned accounts", zap.Error(err))
 		return
 	}
 
 	if count := stale + orphaned; count > 0 {
-		logger.WithFields(logrus.Fields{
-			"stale":    stale,
-			"orphaned": orphaned,
-		}).Info("pruned accounts")
+		logger.Info("pruned accounts", zap.Int64("stale", stale), zap.Int64("orphaned", orphaned))
 	}
 }
 
-func pruneDevices(ctx context.Context, logger *logrus.Logger, pool *pgxpool.Pool) {
+func pruneDevices(ctx context.Context, logger *zap.Logger, pool *pgxpool.Pool) {
 	now := time.Now()
 	dr := repository.NewPostgresDevice(pool)
 
 	count, err := dr.PruneStale(ctx, now)
 	if err != nil {
-		logger.WithFields(logrus.Fields{
-			"err": err,
-		}).Error("failed cleaning stale devices")
+		logger.Error("failed to clean stale devices", zap.Error(err))
 		return
 	}
 
 	if count > 0 {
-		logger.WithFields(logrus.Fields{
-			"count": count,
-		}).Info("pruned devices")
+		logger.Info("pruned devices", zap.Int64("count", count))
 	}
 }
 
-func cleanQueues(logger *logrus.Logger, jobsConn rmq.Connection) {
+func cleanQueues(logger *zap.Logger, jobsConn rmq.Connection) {
 	cleaner := rmq.NewCleaner(jobsConn)
 	count, err := cleaner.Clean()
 	if err != nil {
-		logger.WithFields(logrus.Fields{
-			"err": err,
-		}).Error("failed cleaning jobs from queues")
+		logger.Error("failed to clean jobs from queues", zap.Error(err))
 		return
 	}
 
 	if count > 0 {
-		logger.WithFields(logrus.Fields{
-			"count": count,
-		}).Info("returned jobs to queues")
+		logger.Info("returned jobs to queues", zap.Int64("count", count))
 	}
 }
 
-func reportStats(ctx context.Context, logger *logrus.Logger, statsd *statsd.Client, pool *pgxpool.Pool) {
+func reportStats(ctx context.Context, logger *zap.Logger, statsd *statsd.Client, pool *pgxpool.Pool) {
 	var (
 		count int64
 
@@ -209,14 +195,11 @@ func reportStats(ctx context.Context, logger *logrus.Logger, statsd *statsd.Clie
 		_ = pool.QueryRow(ctx, metric.query).Scan(&count)
 		_ = statsd.Gauge(metric.name, float64(count), []string{}, 1)
 
-		logger.WithFields(logrus.Fields{
-			"count":  count,
-			"metric": metric.name,
-		}).Debug("fetched metrics")
+		logger.Debug("fetched metrics", zap.String("metric", metric.name), zap.Int64("count", count))
 	}
 }
 
-func enqueueUsers(ctx context.Context, logger *logrus.Logger, statsd *statsd.Client, pool *pgxpool.Pool, queue rmq.Queue) {
+func enqueueUsers(ctx context.Context, logger *zap.Logger, statsd *statsd.Client, pool *pgxpool.Pool, queue rmq.Queue) {
 	now := time.Now()
 	next := now.Add(domain.NotificationCheckInterval)
 
@@ -255,9 +238,7 @@ func enqueueUsers(ctx context.Context, logger *logrus.Logger, statsd *statsd.Cli
 	})
 
 	if err != nil {
-		logger.WithFields(logrus.Fields{
-			"err": err,
-		}).Error("failed to fetch batch of users")
+		logger.Error("failed to fetch batch of users", zap.Error(err))
 		return
 	}
 
@@ -265,10 +246,7 @@ func enqueueUsers(ctx context.Context, logger *logrus.Logger, statsd *statsd.Cli
 		return
 	}
 
-	logger.WithFields(logrus.Fields{
-		"count": len(ids),
-		"start": now,
-	}).Debug("enqueueing user batch")
+	logger.Debug("enqueueing user batch", zap.Int("count", len(ids)), zap.Time("start", now))
 
 	batchIds := make([]string, len(ids))
 	for i, id := range ids {
@@ -276,13 +254,11 @@ func enqueueUsers(ctx context.Context, logger *logrus.Logger, statsd *statsd.Cli
 	}
 
 	if err = queue.Publish(batchIds...); err != nil {
-		logger.WithFields(logrus.Fields{
-			"err": err,
-		}).Error("failed to enqueue user")
+		logger.Error("failed to enqueue user batch", zap.Error(err))
 	}
 }
 
-func enqueueSubreddits(ctx context.Context, logger *logrus.Logger, statsd *statsd.Client, pool *pgxpool.Pool, queues []rmq.Queue) {
+func enqueueSubreddits(ctx context.Context, logger *zap.Logger, statsd *statsd.Client, pool *pgxpool.Pool, queues []rmq.Queue) {
 	now := time.Now()
 	next := now.Add(domain.SubredditCheckInterval)
 
@@ -321,9 +297,7 @@ func enqueueSubreddits(ctx context.Context, logger *logrus.Logger, statsd *stats
 	})
 
 	if err != nil {
-		logger.WithFields(logrus.Fields{
-			"err": err,
-		}).Error("failed to fetch batch of subreddits")
+		logger.Error("failed to fetch batch of subreddits", zap.Error(err))
 		return
 	}
 
@@ -331,10 +305,7 @@ func enqueueSubreddits(ctx context.Context, logger *logrus.Logger, statsd *stats
 		return
 	}
 
-	logger.WithFields(logrus.Fields{
-		"count": len(ids),
-		"start": now,
-	}).Debug("enqueueing subreddit batch")
+	logger.Debug("enqueueing subreddit batch", zap.Int("count", len(ids)), zap.Time("start", now))
 
 	batchIds := make([]string, len(ids))
 	for i, id := range ids {
@@ -343,16 +314,13 @@ func enqueueSubreddits(ctx context.Context, logger *logrus.Logger, statsd *stats
 
 	for _, queue := range queues {
 		if err = queue.Publish(batchIds...); err != nil {
-			logger.WithFields(logrus.Fields{
-				"queue": queue,
-				"err":   err,
-			}).Error("failed to enqueue subreddit")
+			logger.Error("failed to enqueue subreddit batch", zap.Error(err))
 		}
 	}
 
 }
 
-func enqueueStuckAccounts(ctx context.Context, logger *logrus.Logger, statsd *statsd.Client, pool *pgxpool.Pool, queue rmq.Queue) {
+func enqueueStuckAccounts(ctx context.Context, logger *zap.Logger, statsd *statsd.Client, pool *pgxpool.Pool, queue rmq.Queue) {
 	now := time.Now()
 	next := now.Add(domain.StuckNotificationCheckInterval)
 
@@ -391,9 +359,7 @@ func enqueueStuckAccounts(ctx context.Context, logger *logrus.Logger, statsd *st
 	})
 
 	if err != nil {
-		logger.WithFields(logrus.Fields{
-			"err": err,
-		}).Error("failed to fetch possible stuck accounts")
+		logger.Error("failed to fetch accounts", zap.Error(err))
 		return
 	}
 
@@ -401,10 +367,7 @@ func enqueueStuckAccounts(ctx context.Context, logger *logrus.Logger, statsd *st
 		return
 	}
 
-	logger.WithFields(logrus.Fields{
-		"count": len(ids),
-		"start": now,
-	}).Debug("enqueueing stuck account batch")
+	logger.Debug("enqueueing stuck account batch", zap.Int("count", len(ids)), zap.Time("start", now))
 
 	batchIds := make([]string, len(ids))
 	for i, id := range ids {
@@ -412,14 +375,11 @@ func enqueueStuckAccounts(ctx context.Context, logger *logrus.Logger, statsd *st
 	}
 
 	if err = queue.Publish(batchIds...); err != nil {
-		logger.WithFields(logrus.Fields{
-			"queue": queue,
-			"err":   err,
-		}).Error("failed to enqueue stuck accounts")
+		logger.Error("failed to enqueue stuck account batch", zap.Error(err))
 	}
 }
 
-func enqueueAccounts(ctx context.Context, logger *logrus.Logger, statsd *statsd.Client, pool *pgxpool.Pool, redisConn *redis.Client, luaSha string, queue rmq.Queue) {
+func enqueueAccounts(ctx context.Context, logger *zap.Logger, statsd *statsd.Client, pool *pgxpool.Pool, redisConn *redis.Client, luaSha string, queue rmq.Queue) {
 	now := time.Now()
 	next := now.Add(domain.NotificationCheckInterval)
 
@@ -461,9 +421,7 @@ func enqueueAccounts(ctx context.Context, logger *logrus.Logger, statsd *statsd.
 	})
 
 	if err != nil {
-		logger.WithFields(logrus.Fields{
-			"err": err,
-		}).Error("failed to fetch batch of accounts")
+		logger.Error("failed to fetch batch of accounts", zap.Error(err))
 		return
 	}
 
@@ -471,10 +429,8 @@ func enqueueAccounts(ctx context.Context, logger *logrus.Logger, statsd *statsd.
 		return
 	}
 
-	logger.WithFields(logrus.Fields{
-		"count": len(ids),
-		"start": now,
-	}).Debug("enqueueing account batch")
+	logger.Debug("enqueueing account batch", zap.Int("count", len(ids)), zap.Time("start", now))
+
 	// Split ids in batches
 	for i := 0; i < len(ids); i += batchSize {
 		j := i + batchSize
@@ -483,16 +439,11 @@ func enqueueAccounts(ctx context.Context, logger *logrus.Logger, statsd *statsd.
 		}
 		batch := Int64Slice(ids[i:j])
 
-		logger.WithFields(logrus.Fields{
-			"len": len(batch),
-		}).Debug("enqueueing batch")
+		logger.Debug("enqueueing batch", zap.Int("len", len(batch)))
 
 		res, err := redisConn.EvalSha(ctx, luaSha, []string{"locks:accounts"}, batch).Result()
 		if err != nil {
-			logger.WithFields(logrus.Fields{
-				"err": err,
-			}).Error("failed to check for locked accounts")
-
+			logger.Error("failed to check for locked accounts", zap.Error(err))
 		}
 
 		vals := res.([]interface{})
@@ -509,17 +460,11 @@ func enqueueAccounts(ctx context.Context, logger *logrus.Logger, statsd *statsd.
 		}
 
 		if err = queue.Publish(batchIds...); err != nil {
-			logger.WithFields(logrus.Fields{
-				"err": err,
-			}).Error("failed to enqueue account")
+			logger.Error("failed to enqueue account batch", zap.Error(err))
 		}
 	}
 
-	logger.WithFields(logrus.Fields{
-		"count":   enqueued,
-		"skipped": skipped,
-		"start":   now,
-	}).Debug("done enqueueing account batch")
+	logger.Debug("done enqueueing account batch", zap.Int("count", enqueued), zap.Int("skipped", skipped), zap.Time("start", now))
 }
 
 type Int64Slice []int64

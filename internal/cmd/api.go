@@ -7,8 +7,8 @@ import (
 
 	"github.com/christianselig/apollo-backend/internal/api"
 	"github.com/christianselig/apollo-backend/internal/cmdutil"
-	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"go.uber.org/zap"
 )
 
 func APICmd(ctx context.Context) *cobra.Command {
@@ -24,7 +24,8 @@ func APICmd(ctx context.Context) *cobra.Command {
 				port, _ = strconv.Atoi(os.Getenv("PORT"))
 			}
 
-			logger := cmdutil.NewLogrusLogger(false)
+			logger := cmdutil.NewLogger(false)
+			defer func() { _ = logger.Sync() }()
 
 			statsd, err := cmdutil.NewStatsdClient()
 			if err != nil {
@@ -49,9 +50,7 @@ func APICmd(ctx context.Context) *cobra.Command {
 
 			go func() { _ = srv.ListenAndServe() }()
 
-			logger.WithFields(logrus.Fields{
-				"port": port,
-			}).Info("started api")
+			logger.Info("started api", zap.Int("port", port))
 
 			<-ctx.Done()
 

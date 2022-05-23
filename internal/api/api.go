@@ -14,7 +14,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/sideshow/apns2/token"
-	"github.com/sirupsen/logrus"
+	"go.uber.org/zap"
 
 	"github.com/christianselig/apollo-backend/internal/domain"
 	"github.com/christianselig/apollo-backend/internal/reddit"
@@ -22,7 +22,7 @@ import (
 )
 
 type api struct {
-	logger     *logrus.Logger
+	logger     *zap.Logger
 	statsd     *statsd.Client
 	reddit     *reddit.Client
 	apns       *token.Token
@@ -35,7 +35,7 @@ type api struct {
 	userRepo      domain.UserRepository
 }
 
-func NewAPI(ctx context.Context, logger *logrus.Logger, statsd *statsd.Client, redis *redis.Client, pool *pgxpool.Pool) *api {
+func NewAPI(ctx context.Context, logger *zap.Logger, statsd *statsd.Client, redis *redis.Client, pool *pgxpool.Pool) *api {
 	reddit := reddit.NewClient(
 		os.Getenv("REDDIT_CLIENT_ID"),
 		os.Getenv("REDDIT_CLIENT_SECRET"),
@@ -178,20 +178,20 @@ func (a *api) loggingMiddleware(next http.Handler) http.Handler {
 			}
 		}
 
-		logEntry := a.logger.WithFields(logrus.Fields{
-			"duration":       time.Since(start).Milliseconds(),
-			"method":         r.Method,
-			"remote#addr":    remoteAddr,
-			"response#bytes": lrw.bytes,
-			"status":         lrw.statusCode,
-			"uri":            r.RequestURI,
-		})
+		fields := []zap.Field{
+			zap.Int64("duration", time.Since(start).Milliseconds()),
+			zap.String("method", r.Method),
+			zap.String("remote#addr", remoteAddr),
+			zap.Int("response#bytes", lrw.bytes),
+			zap.Int("status", lrw.statusCode),
+			zap.String("uri", r.RequestURI),
+		}
 
 		if lrw.statusCode == 200 {
-			logEntry.Info()
+			a.logger.Info("", fields...)
 		} else {
 			err := lrw.Header().Get("X-Apollo-Error")
-			logEntry.Error(err)
+			a.logger.Error(err, fields...)
 		}
 	})
 }

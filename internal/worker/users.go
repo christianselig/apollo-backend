@@ -15,7 +15,7 @@ import (
 	"github.com/sideshow/apns2"
 	"github.com/sideshow/apns2/payload"
 	"github.com/sideshow/apns2/token"
-	"github.com/sirupsen/logrus"
+	"go.uber.org/zap"
 
 	"github.com/christianselig/apollo-backend/internal/domain"
 	"github.com/christianselig/apollo-backend/internal/reddit"
@@ -25,7 +25,7 @@ import (
 type usersWorker struct {
 	context.Context
 
-	logger *logrus.Logger
+	logger *zap.Logger
 	statsd *statsd.Client
 	db     *pgxpool.Pool
 	redis  *redis.Client
@@ -43,7 +43,7 @@ type usersWorker struct {
 
 const userNotificationTitleFormat = "👨\u200d🚀 %s"
 
-func NewUsersWorker(ctx context.Context, logger *logrus.Logger, statsd *statsd.Client, db *pgxpool.Pool, redis *redis.Client, queue rmq.Connection, consumers int) Worker {
+func NewUsersWorker(ctx context.Context, logger *zap.Logger, statsd *statsd.Client, db *pgxpool.Pool, redis *redis.Client, queue rmq.Connection, consumers int) Worker {
 	reddit := reddit.NewClient(
 		os.Getenv("REDDIT_CLIENT_ID"),
 		os.Getenv("REDDIT_CLIENT_SECRET"),
@@ -90,9 +90,7 @@ func (uw *usersWorker) Start() error {
 		return err
 	}
 
-	uw.logger.WithFields(logrus.Fields{
-		"numConsumers": uw.consumers,
-	}).Info("starting up users worker")
+	uw.logger.Info("starting up subreddits worker", zap.Int("consumers", uw.consumers))
 
 	prefetchLimit := int64(uw.consumers * 2)
 
@@ -136,44 +134,38 @@ func NewUsersConsumer(uw *usersWorker, tag int) *usersConsumer {
 }
 
 func (uc *usersConsumer) Consume(delivery rmq.Delivery) {
-	uc.logger.WithFields(logrus.Fields{
-		"user#id": delivery.Payload(),
-	}).Debug("starting job")
-
 	id, err := strconv.ParseInt(delivery.Payload(), 10, 64)
 	if err != nil {
-		uc.logger.WithFields(logrus.Fields{
-			"user#id": delivery.Payload(),
-			"err":     err,
-		}).Error("failed to parse user ID")
-
+		uc.logger.Error("failed to parse subreddit id from payload", zap.Error(err), zap.String("payload", delivery.Payload()))
 		_ = delivery.Reject()
 		return
 	}
+
+	uc.logger.Debug("starting job", zap.Int64("subreddit#id", id))
 
 	defer func() { _ = delivery.Ack() }()
 
 	user, err := uc.userRepo.GetByID(uc, id)
 	if err != nil {
-		uc.logger.WithFields(logrus.Fields{
-			"err": err,
-		}).Error("failed to fetch user from database")
+		uc.logger.Error("failed to fetch user from database", zap.Error(err), zap.Int64("subreddit#id", id))
 		return
 	}
 
 	watchers, err := uc.watcherRepo.GetByUserID(uc, user.ID)
 	if err != nil {
-		uc.logger.WithFields(logrus.Fields{
-			"user#id": user.ID,
-			"err":     err,
-		}).Error("failed to fetch watchers from database")
+		uc.logger.Error("failed to fetch watchers from database",
+			zap.Error(err),
+			zap.Int64("user#id", id),
+			zap.String("user#name", user.NormalizedName()),
+		)
 		return
 	}
 
 	if len(watchers) == 0 {
-		uc.logger.WithFields(logrus.Fields{
-			"user#id": user.ID,
-		}).Info("no watchers for user, skipping")
+		uc.logger.Debug("no watchers for user, bailing early",
+			zap.Int64("user#id", id),
+			zap.String("user#name", user.NormalizedName()),
+		)
 		return
 	}
 
@@ -186,41 +178,46 @@ func (uc *usersConsumer) Consume(delivery rmq.Delivery) {
 
 	ru, err := rac.UserAbout(uc, user.Name)
 	if err != nil {
-		uc.logger.WithFields(logrus.Fields{
-			"user#id": user.ID,
-			"err":     err,
-		}).Error("failed to fetch user details")
+		uc.logger.Error("failed to fetch user details",
+			zap.Error(err),
+			zap.Int64("user#id", id),
+			zap.String("user#name", user.NormalizedName()),
+		)
 		return
 	}
 
 	if !ru.AcceptFollowers {
-		uc.logger.WithFields(logrus.Fields{
-			"user#id": user.ID,
-		}).Info("user disabled followers, removing")
+		uc.logger.Info("user disabled followers, removing",
+			zap.Int64("user#id", id),
+			zap.String("user#name", user.NormalizedName()),
+		)
 
 		if err := uc.watcherRepo.DeleteByTypeAndWatcheeID(uc, domain.UserWatcher, user.ID); err != nil {
-			uc.logger.WithFields(logrus.Fields{
-				"user#id": user.ID,
-				"err":     err,
-			}).Error("failed to delete watchers for user who does not allow followers")
+			uc.logger.Error("failed to remove watchers for user who disallows followers",
+				zap.Error(err),
+				zap.Int64("user#id", id),
+				zap.String("user#name", user.NormalizedName()),
+			)
 			return
 		}
 
 		if err := uc.userRepo.Delete(uc, user.ID); err != nil {
-			uc.logger.WithFields(logrus.Fields{
-				"user#id": user.ID,
-				"err":     err,
-			}).Error("failed to delete user")
+			uc.logger.Error("failed to remove user",
+				zap.Error(err),
+				zap.Int64("user#id", id),
+				zap.String("user#name", user.NormalizedName()),
+			)
 			return
 		}
 	}
 
 	posts, err := rac.UserPosts(uc, user.Name)
 	if err != nil {
-		uc.logger.WithFields(logrus.Fields{
-			"user#id": user.ID,
-			"err":     err,
-		}).Error("failed to fetch user activity")
+		uc.logger.Error("failed to fetch user activity",
+			zap.Error(err),
+			zap.Int64("user#id", id),
+			zap.String("user#name", user.NormalizedName()),
+		)
 		return
 	}
 
@@ -261,11 +258,12 @@ func (uc *usersConsumer) Consume(delivery rmq.Delivery) {
 
 		for _, watcher := range notifs {
 			if err := uc.watcherRepo.IncrementHits(uc, watcher.ID); err != nil {
-				uc.logger.WithFields(logrus.Fields{
-					"user#id":    user.ID,
-					"watcher#id": watcher.ID,
-					"err":        err,
-				}).Error("could not increment hits")
+				uc.logger.Error("failed to increment watcher hits",
+					zap.Error(err),
+					zap.Int64("user#id", id),
+					zap.String("user#name", user.NormalizedName()),
+					zap.Int64("watcher#id", watcher.ID),
+				)
 				return
 			}
 
@@ -285,28 +283,31 @@ func (uc *usersConsumer) Consume(delivery rmq.Delivery) {
 			res, err := client.Push(notification)
 			if err != nil || !res.Sent() {
 				_ = uc.statsd.Incr("apns.notification.errors", []string{}, 1)
-				uc.logger.WithFields(logrus.Fields{
-					"user#id":   user.ID,
-					"device#id": device.ID,
-					"err":       err,
-					"status":    res.StatusCode,
-					"reason":    res.Reason,
-				}).Error("failed to send notification")
+				uc.logger.Error("failed to send notification",
+					zap.Error(err),
+					zap.Int64("user#id", id),
+					zap.String("user#name", user.NormalizedName()),
+					zap.String("post#id", post.ID),
+					zap.String("apns", watcher.Device.APNSToken),
+					zap.Int("response#status", res.StatusCode),
+					zap.String("response#reason", res.Reason),
+				)
 			} else {
 				_ = uc.statsd.Incr("apns.notification.sent", []string{}, 1)
-				uc.logger.WithFields(logrus.Fields{
-					"user#id":      user.ID,
-					"device#id":    device.ID,
-					"device#token": device.APNSToken,
-				}).Info("sent notification")
+				uc.logger.Info("sent notification",
+					zap.Int64("user#id", id),
+					zap.String("user#name", user.NormalizedName()),
+					zap.String("post#id", post.ID),
+					zap.String("device#token", watcher.Device.APNSToken),
+				)
 			}
 		}
 	}
 
-	uc.logger.WithFields(logrus.Fields{
-		"user#id":   user.ID,
-		"user#name": user.Name,
-	}).Debug("finishing job")
+	uc.logger.Debug("finishing job",
+		zap.Int64("user#id", id),
+		zap.String("user#name", user.NormalizedName()),
+	)
 }
 
 func payloadFromUserPost(post *reddit.Thing) *payload.Payload {

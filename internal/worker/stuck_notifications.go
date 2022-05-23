@@ -10,7 +10,7 @@ import (
 	"github.com/adjust/rmq/v4"
 	"github.com/go-redis/redis/v8"
 	"github.com/jackc/pgx/v4/pgxpool"
-	"github.com/sirupsen/logrus"
+	"go.uber.org/zap"
 
 	"github.com/christianselig/apollo-backend/internal/domain"
 	"github.com/christianselig/apollo-backend/internal/reddit"
@@ -20,7 +20,7 @@ import (
 type stuckNotificationsWorker struct {
 	context.Context
 
-	logger *logrus.Logger
+	logger *zap.Logger
 	statsd *statsd.Client
 	db     *pgxpool.Pool
 	redis  *redis.Client
@@ -32,7 +32,7 @@ type stuckNotificationsWorker struct {
 	accountRepo domain.AccountRepository
 }
 
-func NewStuckNotificationsWorker(ctx context.Context, logger *logrus.Logger, statsd *statsd.Client, db *pgxpool.Pool, redis *redis.Client, queue rmq.Connection, consumers int) Worker {
+func NewStuckNotificationsWorker(ctx context.Context, logger *zap.Logger, statsd *statsd.Client, db *pgxpool.Pool, redis *redis.Client, queue rmq.Connection, consumers int) Worker {
 	reddit := reddit.NewClient(
 		os.Getenv("REDDIT_CLIENT_ID"),
 		os.Getenv("REDDIT_CLIENT_SECRET"),
@@ -61,9 +61,7 @@ func (snw *stuckNotificationsWorker) Start() error {
 		return err
 	}
 
-	snw.logger.WithFields(logrus.Fields{
-		"numConsumers": snw.consumers,
-	}).Info("starting up stuck notifications worker")
+	snw.logger.Info("starting up stuck notifications worker", zap.Int("consumers", snw.consumers))
 
 	prefetchLimit := int64(snw.consumers * 2)
 
@@ -102,69 +100,67 @@ func NewStuckNotificationsConsumer(snw *stuckNotificationsWorker, tag int) *stuc
 }
 
 func (snc *stuckNotificationsConsumer) Consume(delivery rmq.Delivery) {
-	snc.logger.WithFields(logrus.Fields{
-		"account#id": delivery.Payload(),
-	}).Debug("starting job")
-
 	id, err := strconv.ParseInt(delivery.Payload(), 10, 64)
 	if err != nil {
-		snc.logger.WithFields(logrus.Fields{
-			"account#id": delivery.Payload(),
-			"err":        err,
-		}).Error("failed to parse account ID")
+		snc.logger.Error("failed to parse account id from payload", zap.Error(err), zap.String("payload", delivery.Payload()))
 
 		_ = delivery.Reject()
 		return
 	}
 
+	snc.logger.Debug("starting job", zap.Int64("account#id", id))
+
 	defer func() { _ = delivery.Ack() }()
 
 	account, err := snc.accountRepo.GetByID(snc, id)
 	if err != nil {
-		snc.logger.WithFields(logrus.Fields{
-			"err": err,
-		}).Error("failed to fetch account from database")
+		snc.logger.Error("failed to fetch account from database", zap.Error(err), zap.Int64("account#id", id))
 		return
 	}
 
 	if account.LastMessageID == "" {
-		snc.logger.WithFields(logrus.Fields{
-			"account#username": account.NormalizedUsername(),
-		}).Debug("account has no messages, returning")
+		snc.logger.Debug("account has no messages, bailing early",
+			zap.Int64("account#id", id),
+			zap.String("account#username", account.NormalizedUsername()),
+		)
 		return
 	}
 
 	rac := snc.reddit.NewAuthenticatedClient(account.AccountID, account.RefreshToken, account.AccessToken)
 
-	snc.logger.WithFields(logrus.Fields{
-		"account#username": account.NormalizedUsername(),
-		"thing#id":         account.LastMessageID,
-	}).Debug("fetching last thing")
+	snc.logger.Debug("fetching last thing",
+		zap.Int64("account#id", id),
+		zap.String("account#username", account.NormalizedUsername()),
+	)
 
 	kind := account.LastMessageID[:2]
 
 	var things *reddit.ListingResponse
 	if kind == "t4" {
-		snc.logger.WithFields(logrus.Fields{
-			"account#username": account.NormalizedUsername(),
-			"thing#id":         account.LastMessageID,
-		}).Debug("checking last thing via inbox")
+		snc.logger.Debug("checking last thing via inbox",
+			zap.Int64("account#id", id),
+			zap.String("account#username", account.NormalizedUsername()),
+		)
 
 		things, err = rac.MessageInbox(snc)
 		if err != nil {
 			if err != reddit.ErrRateLimited {
-				snc.logger.WithFields(logrus.Fields{
-					"err": err,
-				}).Error("failed to fetch last thing via inbox")
+				snc.logger.Error("failed to fetch last thing via inbox",
+					zap.Error(err),
+					zap.Int64("account#id", id),
+					zap.String("account#username", account.NormalizedUsername()),
+				)
 			}
 			return
 		}
 	} else {
 		things, err = rac.AboutInfo(snc, account.LastMessageID)
 		if err != nil {
-			snc.logger.WithFields(logrus.Fields{
-				"err": err,
-			}).Error("failed to fetch last thing")
+			snc.logger.Error("failed to fetch last thing",
+				zap.Error(err),
+				zap.Int64("account#id", id),
+				zap.String("account#username", account.NormalizedUsername()),
+			)
 			return
 		}
 	}
@@ -185,9 +181,11 @@ func (snc *stuckNotificationsConsumer) Consume(delivery rmq.Delivery) {
 
 			sthings, err := rac.MessageInbox(snc)
 			if err != nil {
-				snc.logger.WithFields(logrus.Fields{
-					"err": err,
-				}).Error("failed to check inbox")
+				snc.logger.Error("failed to check inbox",
+					zap.Error(err),
+					zap.Int64("account#id", id),
+					zap.String("account#username", account.NormalizedUsername()),
+				)
 				return
 			}
 
@@ -199,52 +197,59 @@ func (snc *stuckNotificationsConsumer) Consume(delivery rmq.Delivery) {
 			}
 
 			if !found {
-				snc.logger.WithFields(logrus.Fields{
-					"account#username": account.NormalizedUsername(),
-					"thing#id":         account.LastMessageID,
-				}).Debug("thing exists, but not in inbox, marking as deleted")
+				snc.logger.Debug("thing exists, but not on inbox, marking as deleted",
+					zap.Int64("account#id", id),
+					zap.String("account#username", account.NormalizedUsername()),
+					zap.String("thing#id", account.LastMessageID),
+				)
 				break
 			}
 
-			snc.logger.WithFields(logrus.Fields{
-				"account#username": account.NormalizedUsername(),
-				"thing#id":         account.LastMessageID,
-			}).Debug("thing exists, returning")
+			snc.logger.Debug("thing exists, bailing early",
+				zap.Int64("account#id", id),
+				zap.String("account#username", account.NormalizedUsername()),
+				zap.String("thing#id", account.LastMessageID),
+			)
 			return
 		}
 	}
 
-	snc.logger.WithFields(logrus.Fields{
-		"account#username": account.NormalizedUsername(),
-		"thing#id":         account.LastMessageID,
-	}).Info("thing got deleted, resetting")
+	snc.logger.Info("thing got deleted, resetting",
+		zap.Int64("account#id", id),
+		zap.String("account#username", account.NormalizedUsername()),
+		zap.String("thing#id", account.LastMessageID),
+	)
 
 	if kind != "t4" {
-		snc.logger.WithFields(logrus.Fields{
-			"account#username": account.NormalizedUsername(),
-		}).Debug("getting message inbox to determine last good thing")
+		snc.logger.Debug("getting message inbox to find last good thing",
+			zap.Int64("account#id", id),
+			zap.String("account#username", account.NormalizedUsername()),
+		)
 
 		things, err = rac.MessageInbox(snc)
 		if err != nil {
-			snc.logger.WithFields(logrus.Fields{
-				"account#username": account.NormalizedUsername(),
-				"err":              err,
-			}).Error("failed to get message inbox")
+			snc.logger.Error("failed to check inbox",
+				zap.Error(err),
+				zap.Int64("account#id", id),
+				zap.String("account#username", account.NormalizedUsername()),
+			)
 			return
 		}
 	}
 
 	account.LastMessageID = ""
 
-	snc.logger.WithFields(logrus.Fields{
-		"account#username": account.NormalizedUsername(),
-	}).Debug("calculating last good thing")
+	snc.logger.Debug("calculating last good thing",
+		zap.Int64("account#id", id),
+		zap.String("account#username", account.NormalizedUsername()),
+	)
 	for _, thing := range things.Children {
 		if thing.IsDeleted() {
-			snc.logger.WithFields(logrus.Fields{
-				"account#username": account.NormalizedUsername(),
-				"thing#id":         thing.FullName(),
-			}).Debug("thing deleted, next")
+			snc.logger.Debug("thing got deleted, checking next",
+				zap.Int64("account#id", id),
+				zap.String("account#username", account.NormalizedUsername()),
+				zap.String("thing#id", thing.FullName()),
+			)
 			continue
 		}
 
@@ -252,15 +257,17 @@ func (snc *stuckNotificationsConsumer) Consume(delivery rmq.Delivery) {
 		break
 	}
 
-	snc.logger.WithFields(logrus.Fields{
-		"account#username": account.NormalizedUsername(),
-		"thing#id":         account.LastMessageID,
-	}).Debug("updating last good thing")
+	snc.logger.Debug("updating last good thing",
+		zap.Int64("account#id", id),
+		zap.String("account#username", account.NormalizedUsername()),
+		zap.String("thing#id", account.LastMessageID),
+	)
 
 	if err := snc.accountRepo.Update(snc, &account); err != nil {
-		snc.logger.WithFields(logrus.Fields{
-			"account#username": account.NormalizedUsername(),
-			"err":              err,
-		}).Error("failed to update account's message id")
+		snc.logger.Error("failed to update account's last message id",
+			zap.Error(err),
+			zap.Int64("account#id", id),
+			zap.String("account#username", account.NormalizedUsername()),
+		)
 	}
 }

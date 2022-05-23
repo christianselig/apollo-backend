@@ -34,7 +34,8 @@ func WorkerCmd(ctx context.Context) *cobra.Command {
 				return fmt.Errorf("need a queue to work on")
 			}
 
-			logger := cmdutil.NewLogrusLogger(false)
+			logger := cmdutil.NewLogger(false)
+			defer func() { _ = logger.Sync() }()
 
 			tag := fmt.Sprintf("worker:%s", queueID)
 			statsd, err := cmdutil.NewStatsdClient(tag)
