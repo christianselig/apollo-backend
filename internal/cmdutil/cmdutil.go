@@ -12,9 +12,14 @@ import (
 	"go.uber.org/zap"
 )
 
-func NewLogger(debug bool) *zap.Logger {
-	logger, _ := zap.NewProduction()
-	if debug || os.Getenv("ENV") == "" {
+func NewLogger(service string) *zap.Logger {
+	env := os.Getenv("ENV")
+	logger, _ := zap.NewProduction(zap.Fields(
+		zap.String("env", env),
+		zap.String("service", service),
+	))
+
+	if env == "" || env == "development" {
 		logger, _ = zap.NewDevelopment()
 	}
 
