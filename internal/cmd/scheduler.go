@@ -21,7 +21,7 @@ import (
 	"github.com/christianselig/apollo-backend/internal/repository"
 )
 
-const batchSize = 250
+const batchSize = 1000
 
 func SchedulerCmd(ctx context.Context) *cobra.Command {
 	cmd := &cobra.Command{
@@ -203,7 +203,7 @@ func enqueueUsers(ctx context.Context, logger *zap.Logger, statsd *statsd.Client
 	now := time.Now()
 	next := now.Add(domain.NotificationCheckInterval)
 
-	ids := []int64{}
+	var ids []int64
 
 	defer func() {
 		tags := []string{"queue:users"}
@@ -229,11 +229,16 @@ func enqueueUsers(ctx context.Context, logger *zap.Logger, statsd *statsd.Client
 			return err
 		}
 		defer rows.Close()
-		for rows.Next() {
-			var id int64
+
+		affected := rows.CommandTag().RowsAffected()
+		ids = make([]int64, affected)
+
+		var id int64
+		for i := 0; rows.Next(); i++ {
 			_ = rows.Scan(&id)
-			ids = append(ids, id)
+			ids[i] = id
 		}
+
 		return nil
 	})
 
@@ -383,7 +388,7 @@ func enqueueAccounts(ctx context.Context, logger *zap.Logger, statsd *statsd.Cli
 	now := time.Now()
 	next := now.Add(domain.NotificationCheckInterval)
 
-	ids := []int64{}
+	var ids []int64
 	enqueued := 0
 	skipped := 0
 
@@ -412,10 +417,15 @@ func enqueueAccounts(ctx context.Context, logger *zap.Logger, statsd *statsd.Cli
 			return err
 		}
 		defer rows.Close()
-		for rows.Next() {
-			var id int64
+
+		affected := rows.CommandTag().RowsAffected()
+		ids = make([]int64, affected)
+
+		var id int64
+		for i := 0; rows.Next(); i++ {
 			_ = rows.Scan(&id)
-			ids = append(ids, id)
+			ids[i] = id
+			i++
 		}
 		return nil
 	})
