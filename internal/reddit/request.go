@@ -59,10 +59,6 @@ func (r *Request) HTTPRequest(ctx context.Context) (*http.Request, error) {
 	req.Header.Add("Accept", "application/json")
 	req.Header.Add("User-Agent", userAgent)
 
-	if len(r.body) > 0 {
-		req.Header.Add("Content-Type", "multipart/form-data")
-	}
-
 	if r.token != "" {
 		req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", r.token))
 	}
