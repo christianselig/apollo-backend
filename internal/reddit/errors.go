@@ -6,11 +6,12 @@ import (
 )
 
 type ServerError struct {
+	Body       string
 	StatusCode int
 }
 
 func (se ServerError) Error() string {
-	return fmt.Sprintf("error from reddit: %d", se.StatusCode)
+	return fmt.Sprintf("error from reddit: %d (%s)", se.StatusCode, se.Body)
 }
 
 var (
@@ -22,4 +23,6 @@ var (
 	ErrRateLimited = errors.New("rate limited")
 	// ErrRequiresRedditId .
 	ErrRequiresRedditId = errors.New("requires reddit id")
+	// ErrInvalidBasicAuth .
+	ErrInvalidBasicAuth = errors.New("invalid basic auth")
 )
