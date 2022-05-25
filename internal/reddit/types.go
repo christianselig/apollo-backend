@@ -147,8 +147,7 @@ func NewListingResponse(val *fastjson.Value) interface{} {
 
 	lr.Children = make([]*Thing, lr.Count)
 	for i := 0; i < lr.Count; i++ {
-		t := NewThing(children[i])
-		lr.Children[i] = t
+		lr.Children[i] = NewThing(children[i])
 	}
 
 	return lr
