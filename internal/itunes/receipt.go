@@ -533,7 +533,7 @@ func (iapr *IAPResponse) currentlyActiveTimedSubscription() string {
 	timedStatus := ""
 
 	for _, info := range iapr.PendingRenewalInfo {
-		if info.SubscriptionExpirationIntent != "" || info.SubscriptionAutoRenewStatus == "0" {
+		if info.SubscriptionExpirationIntent != "" {
 			timedStatus = ""
 		} else if info.SubscriptionAutoRenewProductID == "com.christianselig.apollo.sub.monthly" {
 			timedStatus = SubscriptionMonthly
