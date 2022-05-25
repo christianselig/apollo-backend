@@ -128,6 +128,10 @@ func (rc *Client) NewAuthenticatedClient(redditId, refreshToken, accessToken str
 		panic("requires an access token")
 	}
 
+	if refreshToken == "" {
+		panic("requires a refresh token")
+	}
+
 	return &AuthenticatedClient{rc, redditId, refreshToken, accessToken}
 }
 
