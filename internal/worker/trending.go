@@ -303,6 +303,7 @@ func (tc *trendingConsumer) Consume(delivery rmq.Delivery) {
 					zap.Int64("subreddit#id", id),
 					zap.String("subreddit#name", subreddit.NormalizedName()),
 					zap.String("post#id", post.ID),
+					zap.Int64("post#score", post.Score),
 					zap.String("device#token", watcher.Device.APNSToken),
 				)
 			}
