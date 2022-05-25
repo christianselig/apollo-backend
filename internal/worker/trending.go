@@ -207,7 +207,7 @@ func (tc *trendingConsumer) Consume(delivery rmq.Delivery) {
 
 	middlePost := tps.Count / 2
 	medianScore := tps.Children[middlePost].Score
-	tc.logger.Debug("calculated median score",
+	tc.logger.Info("calculated median score",
 		zap.Int64("subreddit#id", id),
 		zap.String("subreddit#name", subreddit.NormalizedName()),
 		zap.Int64("score", medianScore),
