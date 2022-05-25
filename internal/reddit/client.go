@@ -112,7 +112,7 @@ func NewClient(id, secret string, statsd statsd.ClientInterface, redis *redis.Cl
 }
 
 type AuthenticatedClient struct {
-	*Client
+	client *Client
 
 	redditId     string
 	refreshToken string
@@ -189,21 +189,21 @@ func (rac *AuthenticatedClient) request(ctx context.Context, r *Request, rh Resp
 		return nil, err
 	}
 
-	bb, rli, err := rac.doRequest(ctx, r)
+	bb, rli, err := rac.client.doRequest(ctx, r)
 
 	if err != nil && err != ErrOauthRevoked && r.retry {
 		for _, backoff := range backoffSchedule {
 			done := make(chan struct{})
 
 			time.AfterFunc(backoff, func() {
-				_ = rac.statsd.Incr("reddit.api.retries", r.tags, 0.1)
+				_ = rac.client.statsd.Incr("reddit.api.retries", r.tags, 0.1)
 
 				if err = rac.logRequest(); err != nil {
 					done <- struct{}{}
 					return
 				}
 
-				bb, rli, err = rac.doRequest(ctx, r)
+				bb, rli, err = rac.client.doRequest(ctx, r)
 				done <- struct{}{}
 			})
 
@@ -216,7 +216,7 @@ func (rac *AuthenticatedClient) request(ctx context.Context, r *Request, rh Resp
 	}
 
 	if err != nil {
-		_ = rac.statsd.Incr("reddit.api.errors", r.tags, 0.1)
+		_ = rac.client.statsd.Incr("reddit.api.errors", r.tags, 0.1)
 		if strings.Contains(err.Error(), "http2: timeout awaiting response headers") {
 			return nil, ErrTimeout
 		}
@@ -229,8 +229,8 @@ func (rac *AuthenticatedClient) request(ctx context.Context, r *Request, rh Resp
 		return empty, nil
 	}
 
-	parser := rac.pool.Get()
-	defer rac.pool.Put(parser)
+	parser := rac.client.pool.Get()
+	defer rac.client.pool.Put(parser)
 
 	val, err := parser.ParseBytes(bb)
 	if err != nil {
@@ -245,7 +245,7 @@ func (rac *AuthenticatedClient) logRequest() error {
 		return nil
 	}
 
-	return rac.redis.HIncrBy(context.Background(), "reddit:requests", rac.redditId, 1).Err()
+	return rac.client.redis.HIncrBy(context.Background(), "reddit:requests", rac.redditId, 1).Err()
 }
 
 func (rac *AuthenticatedClient) isRateLimited() bool {
@@ -254,7 +254,7 @@ func (rac *AuthenticatedClient) isRateLimited() bool {
 	}
 
 	key := fmt.Sprintf("reddit:%s:ratelimited", rac.redditId)
-	_, err := rac.redis.Get(context.Background(), key).Result()
+	_, err := rac.client.redis.Get(context.Background(), key).Result()
 	return err != redis.Nil
 }
 
@@ -271,32 +271,32 @@ func (rac *AuthenticatedClient) markRateLimited(rli *RateLimitingInfo) error {
 		return nil
 	}
 
-	_ = rac.statsd.Incr("reddit.api.ratelimit", nil, 1.0)
+	_ = rac.client.statsd.Incr("reddit.api.ratelimit", nil, 1.0)
 
 	key := fmt.Sprintf("reddit:%s:ratelimited", rac.redditId)
 	duration := time.Duration(rli.Reset) * time.Second
 	info := fmt.Sprintf("%+v", *rli)
 
 	if rli.Used > 2000 {
-		_, err := rac.redis.HSet(context.Background(), "reddit:ratelimited:crazy", rac.redditId, info).Result()
+		_, err := rac.client.redis.HSet(context.Background(), "reddit:ratelimited:crazy", rac.redditId, info).Result()
 		if err != nil {
 			return err
 		}
 	}
 
-	_, err := rac.redis.SetEX(context.Background(), key, info, duration).Result()
+	_, err := rac.client.redis.SetEX(context.Background(), key, info, duration).Result()
 	return err
 }
 
 func (rac *AuthenticatedClient) RefreshTokens(ctx context.Context, opts ...RequestOption) (*RefreshTokenResponse, error) {
-	opts = append(rac.defaultOpts, opts...)
+	opts = append(rac.client.defaultOpts, opts...)
 	opts = append(opts, []RequestOption{
 		WithTags([]string{"url:/api/v1/access_token"}),
 		WithMethod("POST"),
 		WithURL("https://www.reddit.com/api/v1/access_token"),
 		WithBody("grant_type", "refresh_token"),
 		WithBody("refresh_token", rac.refreshToken),
-		WithBasicAuth(rac.id, rac.secret),
+		WithBasicAuth(rac.client.id, rac.client.secret),
 	}...)
 	req := NewRequest(opts...)
 
@@ -314,7 +314,7 @@ func (rac *AuthenticatedClient) RefreshTokens(ctx context.Context, opts ...Reque
 }
 
 func (rac *AuthenticatedClient) AboutInfo(ctx context.Context, fullname string, opts ...RequestOption) (*ListingResponse, error) {
-	opts = append(rac.defaultOpts, opts...)
+	opts = append(rac.client.defaultOpts, opts...)
 	opts = append(opts, []RequestOption{
 		WithMethod("GET"),
 		WithToken(rac.accessToken),
@@ -333,7 +333,7 @@ func (rac *AuthenticatedClient) AboutInfo(ctx context.Context, fullname string, 
 
 func (rac *AuthenticatedClient) UserPosts(ctx context.Context, user string, opts ...RequestOption) (*ListingResponse, error) {
 	url := fmt.Sprintf("https://oauth.reddit.com/u/%s/submitted", user)
-	opts = append(rac.defaultOpts, opts...)
+	opts = append(rac.client.defaultOpts, opts...)
 	opts = append(opts, []RequestOption{
 		WithMethod("GET"),
 		WithToken(rac.accessToken),
@@ -351,7 +351,7 @@ func (rac *AuthenticatedClient) UserPosts(ctx context.Context, user string, opts
 
 func (rac *AuthenticatedClient) UserAbout(ctx context.Context, user string, opts ...RequestOption) (*UserResponse, error) {
 	url := fmt.Sprintf("https://oauth.reddit.com/u/%s/about", user)
-	opts = append(rac.defaultOpts, opts...)
+	opts = append(rac.client.defaultOpts, opts...)
 	opts = append(opts, []RequestOption{
 		WithMethod("GET"),
 		WithToken(rac.accessToken),
@@ -370,7 +370,7 @@ func (rac *AuthenticatedClient) UserAbout(ctx context.Context, user string, opts
 
 func (rac *AuthenticatedClient) SubredditAbout(ctx context.Context, subreddit string, opts ...RequestOption) (*SubredditResponse, error) {
 	url := fmt.Sprintf("https://oauth.reddit.com/r/%s/about", subreddit)
-	opts = append(rac.defaultOpts, opts...)
+	opts = append(rac.client.defaultOpts, opts...)
 	opts = append(opts, []RequestOption{
 		WithMethod("GET"),
 		WithToken(rac.accessToken),
@@ -388,7 +388,7 @@ func (rac *AuthenticatedClient) SubredditAbout(ctx context.Context, subreddit st
 
 func (rac *AuthenticatedClient) subredditPosts(ctx context.Context, subreddit string, sort string, opts ...RequestOption) (*ListingResponse, error) {
 	url := fmt.Sprintf("https://oauth.reddit.com/r/%s/%s", subreddit, sort)
-	opts = append(rac.defaultOpts, opts...)
+	opts = append(rac.client.defaultOpts, opts...)
 	opts = append(opts, []RequestOption{
 		WithMethod("GET"),
 		WithToken(rac.accessToken),
@@ -417,7 +417,7 @@ func (rac *AuthenticatedClient) SubredditNew(ctx context.Context, subreddit stri
 }
 
 func (rac *AuthenticatedClient) MessageInbox(ctx context.Context, opts ...RequestOption) (*ListingResponse, error) {
-	opts = append(rac.defaultOpts, opts...)
+	opts = append(rac.client.defaultOpts, opts...)
 	opts = append(opts, []RequestOption{
 		WithTags([]string{"url:/api/v1/message/inbox"}),
 		WithMethod("GET"),
@@ -435,7 +435,7 @@ func (rac *AuthenticatedClient) MessageInbox(ctx context.Context, opts ...Reques
 }
 
 func (rac *AuthenticatedClient) MessageUnread(ctx context.Context, opts ...RequestOption) (*ListingResponse, error) {
-	opts = append(rac.defaultOpts, opts...)
+	opts = append(rac.client.defaultOpts, opts...)
 	opts = append(opts, []RequestOption{
 		WithTags([]string{"url:/api/v1/message/unread"}),
 		WithMethod("GET"),
@@ -454,7 +454,7 @@ func (rac *AuthenticatedClient) MessageUnread(ctx context.Context, opts ...Reque
 }
 
 func (rac *AuthenticatedClient) Me(ctx context.Context, opts ...RequestOption) (*MeResponse, error) {
-	opts = append(rac.defaultOpts, opts...)
+	opts = append(rac.client.defaultOpts, opts...)
 	opts = append(opts, []RequestOption{
 		WithTags([]string{"url:/api/v1/me"}),
 		WithMethod("GET"),
