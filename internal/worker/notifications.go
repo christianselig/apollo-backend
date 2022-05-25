@@ -178,7 +178,7 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 	}(&account)
 
 	rac := nc.reddit.NewAuthenticatedClient(account.AccountID, account.RefreshToken, account.AccessToken)
-	if account.TokenExpiresAt.Before(now) {
+	if account.TokenExpiresAt.Before(now.Add(1 * time.Minute)) {
 		nc.logger.Debug("refreshing reddit token",
 			zap.Int64("account#id", id),
 			zap.String("account#username", account.NormalizedUsername()),
