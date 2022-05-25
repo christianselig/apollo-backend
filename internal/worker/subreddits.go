@@ -335,6 +335,17 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 				continue
 			}
 
+			sc.logger.Info("matched post",
+				zap.Int64("subreddit#id", id),
+				zap.String("subreddit#name", subreddit.NormalizedName()),
+				zap.Int64("watcher#id", watcher.ID),
+				zap.String("watcher#keywords", watcher.Keyword),
+				zap.Int64("watcher#upvotes", watcher.Upvotes),
+				zap.String("post#id", post.ID),
+				zap.String("post#title", post.Title),
+				zap.Int64("post#score", post.Score),
+			)
+
 			lockKey := fmt.Sprintf("watcher:%d:%s", watcher.DeviceID, post.ID)
 			notified, _ := sc.redis.Get(sc, lockKey).Bool()
 
