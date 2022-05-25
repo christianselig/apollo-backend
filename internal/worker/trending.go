@@ -174,7 +174,7 @@ func (tc *trendingConsumer) Consume(delivery rmq.Delivery) {
 
 	tps, err := rac.SubredditTop(tc, subreddit.Name, reddit.WithQuery("t", "week"))
 	if err != nil {
-		tc.logger.Error("failed to fetch month's top posts",
+		tc.logger.Error("failed to fetch weeks's top posts",
 			zap.Error(err),
 			zap.Int64("subreddit#id", id),
 			zap.String("subreddit#name", subreddit.NormalizedName()),
@@ -182,7 +182,7 @@ func (tc *trendingConsumer) Consume(delivery rmq.Delivery) {
 		return
 	}
 
-	tc.logger.Debug("loaded month's top posts",
+	tc.logger.Debug("loaded weeks's top posts",
 		zap.Int64("subreddit#id", id),
 		zap.String("subreddit#name", subreddit.NormalizedName()),
 		zap.Int("count", tps.Count),
@@ -205,11 +205,17 @@ func (tc *trendingConsumer) Consume(delivery rmq.Delivery) {
 		return
 	}
 
+	posts := make([]string, tps.Count)
+	for i, post := range tps.Children {
+		posts[i] = fmt.Sprintf("%s: %d", post.Title, post.Score)
+	}
+
 	middlePost := tps.Count / 2
 	medianScore := tps.Children[middlePost].Score
 	tc.logger.Info("calculated median score",
 		zap.Int64("subreddit#id", id),
 		zap.String("subreddit#name", subreddit.NormalizedName()),
+		zap.Strings("subreddit#posts", posts),
 		zap.Int64("score", medianScore),
 	)
 
