@@ -7,7 +7,6 @@ import (
 	"os"
 	"sort"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-go/statsd"
@@ -211,17 +210,11 @@ func (tc *trendingConsumer) Consume(delivery rmq.Delivery) {
 		return tps.Children[i].Score > tps.Children[j].Score
 	})
 
-	posts := make([]string, tps.Count)
-	for i, post := range tps.Children {
-		posts[i] = fmt.Sprintf("%s: %d", post.Title, post.Score)
-	}
-
 	middlePost := tps.Count / 2
 	medianScore := tps.Children[middlePost].Score
 	tc.logger.Info("calculated median score",
 		zap.Int64("subreddit#id", id),
 		zap.String("subreddit#name", subreddit.NormalizedName()),
-		zap.String("subreddit#posts", strings.Join(posts, "\n")),
 		zap.Int64("score", medianScore),
 	)
 
