@@ -25,4 +25,6 @@ var (
 	ErrRequiresRedditId = errors.New("requires reddit id")
 	// ErrInvalidBasicAuth .
 	ErrInvalidBasicAuth = errors.New("invalid basic auth")
+	// ErrTokenAlreadyRefreshed .
+	ErrTokenAlreadyRefreshed = errors.New("token already refreshed")
 )

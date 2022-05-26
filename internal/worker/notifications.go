@@ -167,7 +167,12 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 
 	account.CheckCount++
 
-	defer func(acc *domain.Account) {
+	rac := nc.reddit.NewAuthenticatedClient(account.AccountID, account.RefreshToken, account.AccessToken)
+
+	defer func(acc *domain.Account, rac *reddit.AuthenticatedClient) {
+		account.AccessToken = rac.AccessToken
+		account.RefreshToken = rac.RefreshToken
+
 		if err = nc.accountRepo.Update(nc, acc); err != nil {
 			nc.logger.Error("failed to update account",
 				zap.Error(err),
@@ -175,46 +180,7 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 				zap.String("account#username", account.NormalizedUsername()),
 			)
 		}
-	}(&account)
-
-	rac := nc.reddit.NewAuthenticatedClient(account.AccountID, account.RefreshToken, account.AccessToken)
-	if account.TokenExpiresAt.Before(now.Add(5 * time.Minute)) {
-		nc.logger.Debug("refreshing reddit token",
-			zap.Int64("account#id", id),
-			zap.String("account#username", account.NormalizedUsername()),
-		)
-
-		tokens, err := rac.RefreshTokens(nc)
-		if err != nil {
-			if err != reddit.ErrOauthRevoked {
-				nc.logger.Error("failed to refresh reddit tokens",
-					zap.Error(err),
-					zap.Int64("account#id", id),
-					zap.String("account#username", account.NormalizedUsername()),
-				)
-				return
-			}
-
-			err = nc.deleteAccount(account)
-			if err != nil {
-				nc.logger.Error("failed to remove revoked account",
-					zap.Error(err),
-					zap.Int64("account#id", id),
-					zap.String("account#username", account.NormalizedUsername()),
-				)
-			}
-
-			return
-		}
-
-		// Update account
-		account.AccessToken = tokens.AccessToken
-		account.RefreshToken = tokens.RefreshToken
-		account.TokenExpiresAt = now.Add(tokens.Expiry)
-
-		// Refresh client
-		rac = nc.reddit.NewAuthenticatedClient(account.AccountID, tokens.RefreshToken, tokens.AccessToken)
-	}
+	}(&account, rac)
 
 	// Only update delay on accounts we can actually check, otherwise it skews
 	// the numbers too much.
