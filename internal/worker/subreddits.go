@@ -440,7 +440,7 @@ func payloadFromPost(post *reddit.Thing) *payload.Payload {
 		MutableContent().
 		Sound("traloop.wav")
 
-	if post.Thumbnail != "" {
+	if post.Thumbnail != "" && !post.Over18 {
 		payload.Custom("thumbnail", post.Thumbnail)
 	}
 
