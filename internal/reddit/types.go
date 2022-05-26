@@ -156,7 +156,8 @@ func NewListingResponse(val *fastjson.Value) interface{} {
 type SubredditResponse struct {
 	Thing
 
-	Name string
+	Name        string
+	Quarantined bool
 }
 
 func NewSubredditResponse(val *fastjson.Value) interface{} {
@@ -167,6 +168,7 @@ func NewSubredditResponse(val *fastjson.Value) interface{} {
 	data := val.Get("data")
 	sr.ID = string(data.GetStringBytes("id"))
 	sr.Name = string(data.GetStringBytes("display_name"))
+	sr.Quarantined = data.GetBool("quarantined")
 
 	return sr
 }

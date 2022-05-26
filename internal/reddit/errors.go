@@ -25,4 +25,10 @@ var (
 	ErrRequiresRedditId = errors.New("requires reddit id")
 	// ErrInvalidBasicAuth .
 	ErrInvalidBasicAuth = errors.New("invalid basic auth")
+	// ErrSubredditIsPrivate .
+	ErrSubredditIsPrivate = errors.New("subreddit is private")
+	// ErrSubredditIsQuarantined .
+	ErrSubredditIsQuarantined = errors.New("subreddit is quarantined")
+	// ErrSubredditNotFound .
+	ErrSubredditNotFound = errors.New("subreddit not found")
 )

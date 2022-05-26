@@ -13,6 +13,7 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/christianselig/apollo-backend/internal/domain"
+	"github.com/christianselig/apollo-backend/internal/reddit"
 )
 
 type watcherCriteria struct {
@@ -97,8 +98,6 @@ func (a *api) createWatcherHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ac := a.reddit.NewAuthenticatedClient(account.AccountID, account.RefreshToken, account.AccessToken)
-
 	watcher := domain.Watcher{
 		Label:     cwr.Label,
 		DeviceID:  dev.ID,
@@ -112,9 +111,14 @@ func (a *api) createWatcherHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if cwr.Type == "subreddit" || cwr.Type == "trending" {
-		srr, err := ac.SubredditAbout(ctx, cwr.Subreddit)
+		srr, err := a.reddit.SubredditAbout(ctx, cwr.Subreddit)
 		if err != nil {
-			a.errorResponse(w, r, 422, err)
+			switch err {
+			case reddit.ErrSubredditIsPrivate, reddit.ErrSubredditIsQuarantined:
+				a.errorResponse(w, r, 403, err)
+			default:
+				a.errorResponse(w, r, 422, err)
+			}
 			return
 		}
 
@@ -141,6 +145,7 @@ func (a *api) createWatcherHandler(w http.ResponseWriter, r *http.Request) {
 
 		watcher.WatcheeID = sr.ID
 	} else if cwr.Type == "user" {
+		ac := a.reddit.NewAuthenticatedClient(account.AccountID, account.RefreshToken, account.AccessToken)
 		urr, err := ac.UserAbout(ctx, cwr.User)
 		if err != nil {
 			a.errorResponse(w, r, 500, err)
@@ -235,12 +240,10 @@ func (a *api) editWatcherHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			account := accs[0]
 			found := false
 			for _, acc := range accs {
 				if acc.AccountID == rid {
 					found = true
-					account = acc
 				}
 			}
 
@@ -250,11 +253,14 @@ func (a *api) editWatcherHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			ac := a.reddit.NewAuthenticatedClient(account.AccountID, account.RefreshToken, account.AccessToken)
-
-			srr, err := ac.SubredditAbout(ctx, lsr)
+			srr, err := a.reddit.SubredditAbout(ctx, lsr)
 			if err != nil {
-				a.errorResponse(w, r, 422, err)
+				switch err {
+				case reddit.ErrSubredditIsPrivate, reddit.ErrSubredditIsQuarantined:
+					a.errorResponse(w, r, 403, err)
+				default:
+					a.errorResponse(w, r, 422, err)
+				}
 				return
 			}
 
