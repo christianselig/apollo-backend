@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"sort"
 	"strconv"
 	"time"
 
@@ -198,6 +199,10 @@ func (tc *trendingConsumer) Consume(delivery rmq.Delivery) {
 		)
 		return
 	}
+
+	sort.SliceStable(tps.Children, func(i, j int) bool {
+		return tps.Children[i].Score > tps.Children[j].Score
+	})
 
 	posts := make([]string, tps.Count)
 	for i, post := range tps.Children {
