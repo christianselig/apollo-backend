@@ -3,6 +3,7 @@ package worker
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"os"
 	"strconv"
 	"strings"
@@ -191,10 +192,16 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 			zap.Int("page", page),
 		)
 
-		sps, err := sc.reddit.SubredditNew(sc,
+		i := rand.Intn(len(watchers))
+		watcher := watchers[i]
+
+		acc, _ := sc.accountRepo.GetByID(sc, watcher.AccountID)
+		rac := sc.reddit.NewAuthenticatedClient(acc.AccountID, acc.RefreshToken, acc.AccessToken)
+		sps, err := rac.SubredditNew(sc,
 			subreddit.Name,
 			reddit.WithQuery("before", before),
 			reddit.WithQuery("limit", "100"),
+			reddit.WithQuery("show", "all"),
 		)
 
 		if err != nil {
@@ -252,9 +259,15 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 		zap.String("subreddit#name", subreddit.NormalizedName()),
 	)
 	{
-		sps, err := sc.reddit.SubredditHot(sc,
+		i := rand.Intn(len(watchers))
+		watcher := watchers[i]
+
+		acc, _ := sc.accountRepo.GetByID(sc, watcher.AccountID)
+		rac := sc.reddit.NewAuthenticatedClient(acc.AccountID, acc.RefreshToken, acc.AccessToken)
+		sps, err := rac.SubredditHot(sc,
 			subreddit.Name,
 			reddit.WithQuery("limit", "100"),
+			reddit.WithQuery("show", "all"),
 		)
 
 		if err != nil {
