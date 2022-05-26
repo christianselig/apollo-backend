@@ -188,6 +188,108 @@ func (rc *Client) doRequest(ctx context.Context, r *Request) ([]byte, *RateLimit
 	}
 }
 
+func (rc *Client) request(ctx context.Context, r *Request, rh ResponseHandler, empty interface{}) (interface{}, error) {
+	bb, _, err := rc.doRequest(ctx, r)
+
+	if err != nil && err != ErrOauthRevoked && r.retry {
+		for _, backoff := range backoffSchedule {
+			done := make(chan struct{})
+
+			time.AfterFunc(backoff, func() {
+				_ = rc.statsd.Incr("reddit.api.retries", r.tags, 0.1)
+				bb, _, err = rc.doRequest(ctx, r)
+				done <- struct{}{}
+			})
+
+			<-done
+
+			if err == nil {
+				break
+			}
+		}
+	}
+
+	if err != nil {
+		_ = rc.statsd.Incr("reddit.api.errors", r.tags, 0.1)
+		if strings.Contains(err.Error(), "http2: timeout awaiting response headers") {
+			return nil, ErrTimeout
+		}
+		return nil, err
+	}
+
+	if r.emptyResponseBytes > 0 && len(bb) == r.emptyResponseBytes {
+		return empty, nil
+	}
+
+	parser := rc.pool.Get()
+	defer rc.pool.Put(parser)
+
+	val, err := parser.ParseBytes(bb)
+	if err != nil {
+		return nil, err
+	}
+
+	return rh(val), nil
+}
+
+func (rc *Client) subredditPosts(ctx context.Context, subreddit string, sort string, opts ...RequestOption) (*ListingResponse, error) {
+	url := fmt.Sprintf("https://www.reddit.com/r/%s/%s.json", subreddit, sort)
+	opts = append(rc.defaultOpts, opts...)
+	opts = append(opts, []RequestOption{
+		WithMethod("GET"),
+		WithURL(url),
+	}...)
+	req := NewRequest(opts...)
+
+	lr, err := rc.request(ctx, req, NewListingResponse, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return lr.(*ListingResponse), nil
+}
+
+func (rc *Client) SubredditHot(ctx context.Context, subreddit string, opts ...RequestOption) (*ListingResponse, error) {
+	return rc.subredditPosts(ctx, subreddit, "hot", opts...)
+}
+
+func (rc *Client) SubredditTop(ctx context.Context, subreddit string, opts ...RequestOption) (*ListingResponse, error) {
+	return rc.subredditPosts(ctx, subreddit, "top", opts...)
+}
+
+func (rc *Client) SubredditNew(ctx context.Context, subreddit string, opts ...RequestOption) (*ListingResponse, error) {
+	return rc.subredditPosts(ctx, subreddit, "new", opts...)
+}
+
+func (rc *Client) SubredditAbout(ctx context.Context, subreddit string, opts ...RequestOption) (*SubredditResponse, error) {
+	url := fmt.Sprintf("https://www.reddit.com/r/%s/about.json", subreddit)
+	opts = append(rc.defaultOpts, opts...)
+	opts = append(opts, []RequestOption{
+		WithMethod("GET"),
+		WithURL(url),
+	}...)
+	req := NewRequest(opts...)
+	srr, err := rc.request(ctx, req, NewSubredditResponse, nil)
+
+	if err != nil {
+		if err == ErrOauthRevoked {
+			return nil, ErrSubredditIsPrivate
+		} else if serr, ok := err.(ServerError); ok {
+			if serr.StatusCode == 404 {
+				return nil, ErrSubredditNotFound
+			}
+		}
+		return nil, err
+	}
+
+	sr := srr.(*SubredditResponse)
+	if sr.Quarantined {
+		return nil, ErrSubredditIsQuarantined
+	}
+
+	return sr, nil
+}
+
 func (rac *AuthenticatedClient) request(ctx context.Context, r *Request, rh ResponseHandler, empty interface{}) (interface{}, error) {
 	if rac.isRateLimited() {
 		return nil, ErrRateLimited
@@ -385,13 +487,25 @@ func (rac *AuthenticatedClient) SubredditAbout(ctx context.Context, subreddit st
 		WithURL(url),
 	}...)
 	req := NewRequest(opts...)
-	sr, err := rac.request(ctx, req, NewSubredditResponse, nil)
+	srr, err := rac.request(ctx, req, NewSubredditResponse, nil)
 
 	if err != nil {
+		if err == ErrOauthRevoked {
+			return nil, ErrSubredditIsPrivate
+		} else if serr, ok := err.(ServerError); ok {
+			if serr.StatusCode == 404 {
+				return nil, ErrSubredditNotFound
+			}
+		}
 		return nil, err
 	}
 
-	return sr.(*SubredditResponse), nil
+	sr := srr.(*SubredditResponse)
+	if sr.Quarantined {
+		return nil, ErrSubredditIsQuarantined
+	}
+
+	return sr, nil
 }
 
 func (rac *AuthenticatedClient) subredditPosts(ctx context.Context, subreddit string, sort string, opts ...RequestOption) (*ListingResponse, error) {

@@ -83,6 +83,7 @@ type Thing struct {
 	URL           string    `json:"url"`
 	Flair         string    `json:"flair"`
 	Thumbnail     string    `json:"thumbnail"`
+	Over18        bool      `json:"over_18"`
 }
 
 func (t *Thing) FullName() string {
@@ -120,6 +121,7 @@ func NewThing(val *fastjson.Value) *Thing {
 	t.URL = string(data.GetStringBytes("url"))
 	t.Flair = string(data.GetStringBytes("link_flair_text"))
 	t.Thumbnail = string(data.GetStringBytes("thumbnail"))
+	t.Over18 = data.GetBool("over_18")
 
 	return t
 }
@@ -156,7 +158,8 @@ func NewListingResponse(val *fastjson.Value) interface{} {
 type SubredditResponse struct {
 	Thing
 
-	Name string
+	Name        string
+	Quarantined bool
 }
 
 func NewSubredditResponse(val *fastjson.Value) interface{} {
@@ -167,6 +170,7 @@ func NewSubredditResponse(val *fastjson.Value) interface{} {
 	data := val.Get("data")
 	sr.ID = string(data.GetStringBytes("id"))
 	sr.Name = string(data.GetStringBytes("display_name"))
+	sr.Quarantined = data.GetBool("quarantined")
 
 	return sr
 }
