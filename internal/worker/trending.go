@@ -3,6 +3,7 @@ package worker
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"os"
 	"sort"
 	"strconv"
@@ -168,7 +169,12 @@ func (tc *trendingConsumer) Consume(delivery rmq.Delivery) {
 		return
 	}
 
-	tps, err := tc.reddit.SubredditTop(tc, subreddit.Name, reddit.WithQuery("t", "week"))
+	// Grab last month's top posts so we calculate a trending average
+	i := rand.Intn(len(watchers))
+	watcher := watchers[i]
+	rac := tc.reddit.NewAuthenticatedClient(watcher.Account.AccountID, watcher.Account.RefreshToken, watcher.Account.AccessToken)
+
+	tps, err := rac.SubredditTop(tc, subreddit.Name, reddit.WithQuery("t", "week"), reddit.WithQuery("show", "all"))
 	if err != nil {
 		tc.logger.Error("failed to fetch weeks's top posts",
 			zap.Error(err),
@@ -219,7 +225,11 @@ func (tc *trendingConsumer) Consume(delivery rmq.Delivery) {
 		zap.Int64("score", medianScore),
 	)
 
-	hps, err := tc.reddit.SubredditHot(tc, subreddit.Name)
+	// Grab hot posts and filter out anything that's > 2 days old
+	i = rand.Intn(len(watchers))
+	watcher = watchers[i]
+	rac = tc.reddit.NewAuthenticatedClient(watcher.Account.AccountID, watcher.Account.RefreshToken, watcher.Account.AccessToken)
+	hps, err := tc.reddit.SubredditHot(tc, subreddit.Name, reddit.WithQuery("show", "all"))
 	if err != nil {
 		tc.logger.Error("failed to fetch hot posts",
 			zap.Error(err),
