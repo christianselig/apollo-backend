@@ -6,6 +6,7 @@ import (
 	"os"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-go/statsd"
@@ -214,7 +215,7 @@ func (tc *trendingConsumer) Consume(delivery rmq.Delivery) {
 	tc.logger.Info("calculated median score",
 		zap.Int64("subreddit#id", id),
 		zap.String("subreddit#name", subreddit.NormalizedName()),
-		zap.Strings("subreddit#posts", posts),
+		zap.String("subreddit#posts", strings.Join(posts, "\n")),
 		zap.Int64("score", medianScore),
 	)
 
