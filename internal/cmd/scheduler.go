@@ -95,7 +95,7 @@ func SchedulerCmd(ctx context.Context) *cobra.Command {
 			go func() {
 				for {
 					enqueueAccounts(ctx, logger, statsd, db, redis, luaSha, notifQueue)
-					time.Sleep(100 * time.Millisecond)
+					time.Sleep(5 * time.Second)
 				}
 			}()
 			//_, _ = s.Every(100).Milliseconds().SingletonMode().Do(func() { enqueueAccounts(ctx, logger, statsd, db, redis, luaSha, notifQueue) })
@@ -394,6 +394,63 @@ func enqueueStuckAccounts(ctx context.Context, logger *zap.Logger, statsd *stats
 }
 
 func enqueueAccounts(ctx context.Context, logger *zap.Logger, statsd *statsd.Client, pool *pgxpool.Pool, redisConn *redis.Client, luaSha string, queue rmq.Queue) {
+	ids := []int64{}
+	now := time.Now()
+
+	rows, err := pool.Query(ctx, "SELECT id FROM accounts")
+	if err != nil {
+		logger.Error("failed to fetch accounts", zap.Error(err))
+		return
+	}
+	defer rows.Close()
+
+	var id int64
+	for i := 0; rows.Next(); i++ {
+		_ = rows.Scan(&id)
+		ids = append(ids, id)
+	}
+
+	logger.Debug("enqueueing account batch", zap.Int("count", len(ids)), zap.Time("start", now))
+
+	// Split ids in batches
+	enqueued := 0
+	skipped := 0
+	for i := 0; i < len(ids); i += batchSize {
+		j := i + batchSize
+		if j > len(ids) {
+			j = len(ids)
+		}
+		batch := Int64Slice(ids[i:j])
+
+		logger.Debug("enqueueing batch", zap.Int("len", len(batch)))
+
+		res, err := redisConn.EvalSha(ctx, luaSha, []string{"locks:accounts"}, batch).Result()
+		if err != nil {
+			logger.Error("failed to check for locked accounts", zap.Error(err))
+		}
+
+		vals := res.([]interface{})
+		skipped += len(batch) - len(vals)
+		enqueued += len(vals)
+
+		if len(vals) == 0 {
+			continue
+		}
+
+		batchIds := make([]string, len(vals))
+		for k, v := range vals {
+			batchIds[k] = strconv.FormatInt(v.(int64), 10)
+		}
+
+		if err = queue.Publish(batchIds...); err != nil {
+			logger.Error("failed to enqueue account batch", zap.Error(err))
+		}
+	}
+
+	logger.Debug("done enqueueing account batch", zap.Int("count", enqueued), zap.Int("skipped", skipped), zap.Time("start", now))
+}
+
+func enqueueAccounts2(ctx context.Context, logger *zap.Logger, statsd *statsd.Client, pool *pgxpool.Pool, redisConn *redis.Client, luaSha string, queue rmq.Queue) {
 	now := time.Now()
 	next := now.Add(domain.NotificationCheckInterval)
 
