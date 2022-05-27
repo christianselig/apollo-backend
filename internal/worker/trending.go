@@ -174,7 +174,7 @@ func (tc *trendingConsumer) Consume(delivery rmq.Delivery) {
 	watcher := watchers[i]
 	rac := tc.reddit.NewAuthenticatedClient(watcher.Account.AccountID, watcher.Account.RefreshToken, watcher.Account.AccessToken)
 
-	tps, err := rac.SubredditTop(tc, subreddit.Name, reddit.WithQuery("t", "week"), reddit.WithQuery("show", "all"))
+	tps, err := rac.SubredditTop(tc, subreddit.Name, reddit.WithQuery("t", "week"), reddit.WithQuery("show", "all"), reddit.WithQuery("limit", "25"))
 	if err != nil {
 		tc.logger.Error("failed to fetch weeks's top posts",
 			zap.Error(err),
