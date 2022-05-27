@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	_ "net/http/pprof"
 	"strconv"
 	"time"
 
@@ -99,6 +101,9 @@ func SchedulerCmd(ctx context.Context) *cobra.Command {
 			_, _ = s.Every(1).Minute().Do(func() { pruneAccounts(ctx, logger, db) })
 			_, _ = s.Every(1).Minute().Do(func() { pruneDevices(ctx, logger, db) })
 			s.StartAsync()
+
+			srv := &http.Server{Addr: ":8080"}
+			go func() { _ = srv.ListenAndServe() }()
 
 			<-ctx.Done()
 
