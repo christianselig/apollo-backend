@@ -164,7 +164,6 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 
 	newAccount := account.CheckCount == 0
 	previousNextCheck := account.NextNotificationCheckAt
-	account.NextNotificationCheckAt = now
 
 	account.CheckCount++
 
