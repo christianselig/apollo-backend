@@ -202,6 +202,7 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 			reddit.WithQuery("before", before),
 			reddit.WithQuery("limit", "100"),
 			reddit.WithQuery("show", "all"),
+			reddit.WithQuery("always_show_media", "1"),
 		)
 
 		if err != nil {
@@ -268,6 +269,7 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 			subreddit.Name,
 			reddit.WithQuery("limit", "100"),
 			reddit.WithQuery("show", "all"),
+			reddit.WithQuery("always_show_media", "1"),
 		)
 
 		if err != nil {
