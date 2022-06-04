@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -187,22 +186,6 @@ func (a *api) upsertAccountsHandler(w http.ResponseWriter, r *http.Request) {
 	for _, acc := range accsMap {
 		_ = a.accountRepo.Disassociate(ctx, &acc, &dev)
 	}
-
-	body := fmt.Sprintf(`{"apns_token": "%s"}`, apns)
-	req, err := http.NewRequestWithContext(ctx, "POST", "https://apollopushserver.xyz/api/new-server-addition", strings.NewReader(body))
-	if err != nil {
-		a.logger.Error("could not setup request to disassociate from legacy api", zap.Error(err), zap.String("apns", apns))
-		w.WriteHeader(http.StatusOK)
-		return
-	}
-
-	req.Header.Set("Authorization", "Bearer 98g5j89aurqwfcsp9khlnvgd38fa15")
-	resp, _ := a.httpClient.Do(req)
-	if err != nil {
-		a.logger.Error("failed to remove from old notification server", zap.Error(err), zap.String("apns", apns))
-		return
-	}
-	resp.Body.Close()
 
 	w.WriteHeader(http.StatusOK)
 }
