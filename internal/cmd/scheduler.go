@@ -442,12 +442,10 @@ func enqueueAccounts(ctx context.Context, logger *zap.Logger, statsd *statsd.Cli
 
 	logger.Debug("enqueueing account batch", zap.Int("count", len(ids)), zap.Time("start", now))
 
-	batches := (idslen / batchSize) + 1
-	wg := sync.WaitGroup{}
-	wg.Add(batches)
-
 	// Split ids in batches
+	wg := sync.WaitGroup{}
 	for i := 0; i < idslen; i += batchSize {
+		wg.Add(1)
 		go func(offset int) {
 			defer wg.Done()
 
