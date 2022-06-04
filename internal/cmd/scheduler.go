@@ -480,7 +480,7 @@ func enqueueAccounts(ctx context.Context, logger *zap.Logger, statsd *statsd.Cli
 			if err = queue.Publish(batchIds...); err != nil {
 				logger.Error("failed to enqueue account batch", zap.Error(err))
 			}
-		}(i * batchSize)
+		}(i)
 	}
 	wg.Wait()
 
