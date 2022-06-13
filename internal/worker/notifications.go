@@ -327,10 +327,20 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 			}
 
 			res, err := client.Push(notification)
-			if err != nil || !res.Sent() {
+			if err != nil {
 				_ = nc.statsd.Incr("apns.notification.errors", []string{}, 1)
 				nc.logger.Error("failed to send notification",
 					zap.Error(err),
+					zap.Int64("account#id", id),
+					zap.String("account#username", account.NormalizedUsername()),
+					zap.String("device#token", device.APNSToken),
+				)
+
+				// Delete device as notifications might have been disabled here
+				_ = nc.deviceRepo.Delete(nc, device.APNSToken)
+			} else if !res.Sent() {
+				_ = nc.statsd.Incr("apns.notification.errors", []string{}, 1)
+				nc.logger.Error("notification not sent",
 					zap.Int64("account#id", id),
 					zap.String("account#username", account.NormalizedUsername()),
 					zap.String("device#token", device.APNSToken),

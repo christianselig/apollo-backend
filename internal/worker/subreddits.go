@@ -412,10 +412,18 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 			}
 
 			res, err := client.Push(notification)
-			if err != nil || !res.Sent() {
+			if err != nil {
 				_ = sc.statsd.Incr("apns.notification.errors", []string{}, 1)
 				sc.logger.Error("failed to send notification",
 					zap.Error(err),
+					zap.Int64("subreddit#id", id),
+					zap.String("subreddit#name", subreddit.NormalizedName()),
+					zap.String("post#id", post.ID),
+					zap.String("apns", watcher.Device.APNSToken),
+				)
+			} else if !res.Sent() {
+				_ = sc.statsd.Incr("apns.notification.errors", []string{}, 1)
+				sc.logger.Error("notificaion not sent",
 					zap.Int64("subreddit#id", id),
 					zap.String("subreddit#name", subreddit.NormalizedName()),
 					zap.String("post#id", post.ID),
