@@ -291,10 +291,18 @@ func (tc *trendingConsumer) Consume(delivery rmq.Delivery) {
 			}
 
 			res, err := client.Push(notification)
-			if err != nil || !res.Sent() {
+			if err != nil {
 				_ = tc.statsd.Incr("apns.notification.errors", []string{}, 1)
 				tc.logger.Error("failed to send notification",
 					zap.Error(err),
+					zap.Int64("subreddit#id", id),
+					zap.String("subreddit#name", subreddit.NormalizedName()),
+					zap.String("post#id", post.ID),
+					zap.String("apns", watcher.Device.APNSToken),
+				)
+			} else if !res.Sent() {
+				_ = tc.statsd.Incr("apns.notification.errors", []string{}, 1)
+				tc.logger.Error("notification not sent",
 					zap.Int64("subreddit#id", id),
 					zap.String("subreddit#name", subreddit.NormalizedName()),
 					zap.String("post#id", post.ID),
