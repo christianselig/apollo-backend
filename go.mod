@@ -17,7 +17,7 @@ require (
 	github.com/joho/godotenv v1.4.0
 	github.com/sideshow/apns2 v0.23.0
 	github.com/smtp2go-oss/smtp2go-go v1.0.1
-	github.com/spf13/cobra v1.4.0
+	github.com/spf13/cobra v1.5.0
 	github.com/stretchr/testify v1.7.1
 	github.com/valyala/fastjson v1.6.3
 	go.uber.org/zap v1.21.0
