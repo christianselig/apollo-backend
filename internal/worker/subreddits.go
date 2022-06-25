@@ -195,8 +195,7 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 		i := rand.Intn(len(watchers))
 		watcher := watchers[i]
 
-		acc, _ := sc.accountRepo.GetByID(sc, watcher.AccountID)
-		rac := sc.reddit.NewAuthenticatedClient(acc.AccountID, acc.RefreshToken, acc.AccessToken)
+		rac := sc.reddit.NewAuthenticatedClient(watcher.Account.AccountID, watcher.Account.RefreshToken, watcher.Account.AccessToken)
 		sps, err := rac.SubredditNew(sc,
 			subreddit.Name,
 			reddit.WithQuery("before", before),
