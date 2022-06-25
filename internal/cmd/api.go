@@ -33,7 +33,7 @@ func APICmd(ctx context.Context) *cobra.Command {
 			}
 			defer statsd.Close()
 
-			db, err := cmdutil.NewDatabasePool(ctx, 16)
+			db, err := cmdutil.NewDatabasePool(ctx, 32)
 			if err != nil {
 				return err
 			}
