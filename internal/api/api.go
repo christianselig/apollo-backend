@@ -165,9 +165,11 @@ func (a *api) loggingMiddleware(next http.Handler) http.Handler {
 
 		start := time.Now()
 		lrw := &LoggingResponseWriter{w: w}
-		// Do stuff here
+
 		// Call the next handler, which can be another middleware in the chain, or the final handler.
 		next.ServeHTTP(lrw, r)
+
+		duration := time.Since(start).Milliseconds()
 
 		remoteAddr := r.Header.Get("X-Forwarded-For")
 		if remoteAddr == "" {
@@ -179,7 +181,7 @@ func (a *api) loggingMiddleware(next http.Handler) http.Handler {
 		}
 
 		fields := []zap.Field{
-			zap.Int64("duration", time.Since(start).Milliseconds()),
+			zap.Int64("duration", duration),
 			zap.String("method", r.Method),
 			zap.String("remote#addr", remoteAddr),
 			zap.Int("response#bytes", lrw.bytes),
@@ -192,6 +194,13 @@ func (a *api) loggingMiddleware(next http.Handler) http.Handler {
 		} else {
 			err := lrw.Header().Get("X-Apollo-Error")
 			a.logger.Error(err, fields...)
+		}
+
+		tags := []string{fmt.Sprintf("status:%d", lrw.statusCode)}
+		_ = a.statsd.Histogram("api.latency", float64(duration), tags, 0.1)
+		_ = a.statsd.Incr("api.calls", nil, 0.1)
+		if lrw.statusCode >= 500 {
+			_ = a.statsd.Incr("api.errors", nil, 0.1)
 		}
 	})
 }
