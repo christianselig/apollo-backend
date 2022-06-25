@@ -89,7 +89,7 @@ services:
   scaling:
     minInstances: 2
     maxInstances: 20
-    targetCPUPercent: 75
+    targetCPUPercent: 60
   buildCommand: go install github.com/bugsnag/panic-monitor@latest && go build ./cmd/apollo
   startCommand: panic-monitor ./apollo worker --queue notifications --multiplier 64
 
@@ -107,7 +107,7 @@ services:
   scaling:
     minInstances: 1
     maxInstances: 10
-    targetCPUPercent: 75
+    targetCPUPercent: 60
   buildCommand: go install github.com/bugsnag/panic-monitor@latest && go build ./cmd/apollo
   startCommand: panic-monitor ./apollo worker --queue stuck-notifications --multiplier 64
 
@@ -151,7 +151,7 @@ services:
   scaling:
     minInstances: 1
     maxInstances: 10
-    targetCPUPercent: 75
+    targetCPUPercent: 60
   buildCommand: go install github.com/bugsnag/panic-monitor@latest && go build ./cmd/apollo
   startCommand: panic-monitor ./apollo worker --queue subreddits --multiplier 64
 
@@ -169,7 +169,7 @@ services:
   scaling:
     minInstances: 1
     maxInstances: 10
-    targetCPUPercent: 75
+    targetCPUPercent: 60
   buildCommand: go install github.com/bugsnag/panic-monitor@latest && go build ./cmd/apollo
   startCommand: panic-monitor ./apollo worker --queue trending --multiplier 64
 
