@@ -5,7 +5,8 @@ databases:
   databaseName: apollo
   postgresMajorVersion: 14
   ipAllowList:
-  - 10.204.0.0/16
+  - source: 10.204.0.0/16
+    description: internal
 
 services:
 # Redis
@@ -14,7 +15,8 @@ services:
   plan: pro
   maxmemoryPolicy: noeviction
   ipAllowList:
-  - 10.204.0.0/16
+  - source: 10.204.0.0/16
+    description: internal
 
 # PGBouncer
 - type: pserv
