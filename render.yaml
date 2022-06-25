@@ -65,8 +65,8 @@ services:
   - key: BUGSNAG_APP_TYPE
     value: api
   scaling:
-    minInstances: 1
-    maxInstances: 3
+    minInstances: 2
+    maxInstances: 4
     targetCPUPercent: 60
   buildCommand: go install github.com/bugsnag/panic-monitor@latest && go build ./cmd/apollo
   startCommand: panic-monitor ./apollo api
