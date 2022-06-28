@@ -197,10 +197,10 @@ func (a *api) loggingMiddleware(next http.Handler) http.Handler {
 		}
 
 		tags := []string{fmt.Sprintf("status:%d", lrw.statusCode)}
-		_ = a.statsd.Histogram("api.latency", float64(duration), nil, 0.1)
-		_ = a.statsd.Incr("api.calls", tags, 0.1)
+		_ = a.statsd.Histogram("api.latency", float64(duration), nil, 1.0)
+		_ = a.statsd.Incr("api.calls", tags, 1.0)
 		if lrw.statusCode >= 500 {
-			_ = a.statsd.Incr("api.errors", nil, 0.1)
+			_ = a.statsd.Incr("api.errors", nil, 1.0)
 		}
 	})
 }
