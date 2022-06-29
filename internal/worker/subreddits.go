@@ -337,7 +337,7 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 				continue
 			}
 
-			sc.logger.Info("matched post",
+			sc.logger.Debug("matched post",
 				zap.Int64("subreddit#id", id),
 				zap.String("subreddit#name", subreddit.NormalizedName()),
 				zap.Int64("watcher#id", watcher.ID),

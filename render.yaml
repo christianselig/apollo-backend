@@ -141,7 +141,7 @@ services:
 - type: worker
   name: worker.watcher.subreddits
   env: go
-  plan: starter plus
+  plan: standard
   envVars:
   - fromGroup: env-settings
   - key: BUGSNAG_APP_TYPE
