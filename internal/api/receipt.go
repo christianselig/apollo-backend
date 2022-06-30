@@ -23,6 +23,19 @@ func (a *api) checkReceiptHandler(w http.ResponseWriter, r *http.Request) {
 	iapr, err := itunes.NewIAPResponse(string(body), true)
 
 	if err != nil {
+		// treat as if it's a valid subscription, given that this is not the user's fault
+		if apns != "" {
+			dev, err := a.deviceRepo.GetByAPNSToken(ctx, apns)
+			if err != nil {
+				a.errorResponse(w, r, 500, err)
+				return
+			}
+
+			dev.ExpiresAt = time.Now().Add(domain.DeviceActiveAfterReceitCheckDuration)
+			dev.GracePeriodExpiresAt = dev.ExpiresAt.Add(domain.DeviceGracePeriodAfterReceiptExpiry)
+			_ = a.deviceRepo.Update(ctx, &dev)
+		}
+
 		a.logger.Info("failed to verify receipt", zap.Error(err))
 		a.errorResponse(w, r, 500, err)
 		return
