@@ -170,7 +170,7 @@ func NewSubredditResponse(val *fastjson.Value) interface{} {
 	data := val.Get("data")
 	sr.ID = string(data.GetStringBytes("id"))
 	sr.Name = string(data.GetStringBytes("display_name"))
-	sr.Quarantined = data.GetBool("quarantined")
+	sr.Quarantined = data.GetBool("quarantine")
 
 	return sr
 }

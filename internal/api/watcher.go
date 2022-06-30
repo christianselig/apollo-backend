@@ -115,6 +115,7 @@ func (a *api) createWatcherHandler(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			switch err {
 			case reddit.ErrSubredditIsPrivate, reddit.ErrSubredditIsQuarantined:
+				err = fmt.Errorf("error watching %s: %w", cwr.Subreddit, err)
 				a.errorResponse(w, r, 403, err)
 			default:
 				a.errorResponse(w, r, 422, err)
