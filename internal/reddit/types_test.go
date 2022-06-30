@@ -137,6 +137,7 @@ func TestSubredditResponseParsing(t *testing.T) {
 	assert.Equal(t, "2vq0w", s.ID)
 	assert.Equal(t, "DestinyTheGame", s.Name)
 	assert.Equal(t, false, s.Quarantined)
+	assert.Equal(t, true, s.Public)
 }
 
 func TestUserResponseParsing(t *testing.T) {
