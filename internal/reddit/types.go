@@ -160,6 +160,7 @@ type SubredditResponse struct {
 
 	Name        string
 	Quarantined bool
+	Public      bool
 }
 
 func NewSubredditResponse(val *fastjson.Value) interface{} {
@@ -171,7 +172,7 @@ func NewSubredditResponse(val *fastjson.Value) interface{} {
 	sr.ID = string(data.GetStringBytes("id"))
 	sr.Name = string(data.GetStringBytes("display_name"))
 	sr.Quarantined = data.GetBool("quarantine")
-
+	sr.Public = string(data.GetStringBytes("subreddit_type")) == "public"
 	return sr
 }
 

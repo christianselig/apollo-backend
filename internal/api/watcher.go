@@ -111,8 +111,12 @@ func (a *api) createWatcherHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if cwr.Type == "subreddit" || cwr.Type == "trending" {
-		srr, err := a.reddit.SubredditAbout(ctx, cwr.Subreddit)
-		if err != nil {
+		ac := a.reddit.NewAuthenticatedClient(account.AccountID, account.RefreshToken, account.AccessToken)
+		srr, err := ac.SubredditAbout(ctx, cwr.Subreddit)
+		if !srr.Public {
+			a.errorResponse(w, r, 403, reddit.ErrSubredditIsPrivate)
+			return
+		} else if err != nil {
 			switch err {
 			case reddit.ErrSubredditIsPrivate, reddit.ErrSubredditIsQuarantined:
 				err = fmt.Errorf("error watching %s: %w", cwr.Subreddit, err)
@@ -229,6 +233,7 @@ func (a *api) editWatcherHandler(w http.ResponseWriter, r *http.Request) {
 	if watcher.Type == domain.SubredditWatcher {
 		lsr := strings.ToLower(watcher.Subreddit)
 		if watcher.WatcheeLabel != lsr {
+			var account domain.Account
 			accs, err := a.accountRepo.GetByAPNSToken(ctx, apns)
 			if err != nil {
 				a.errorResponse(w, r, 422, err)
@@ -244,6 +249,7 @@ func (a *api) editWatcherHandler(w http.ResponseWriter, r *http.Request) {
 			found := false
 			for _, acc := range accs {
 				if acc.AccountID == rid {
+					account = acc
 					found = true
 				}
 			}
@@ -254,8 +260,12 @@ func (a *api) editWatcherHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			srr, err := a.reddit.SubredditAbout(ctx, lsr)
-			if err != nil {
+			ac := a.reddit.NewAuthenticatedClient(account.AccountID, account.RefreshToken, account.AccessToken)
+			srr, err := ac.SubredditAbout(ctx, lsr)
+			if !srr.Public {
+				a.errorResponse(w, r, 403, reddit.ErrSubredditIsPrivate)
+				return
+			} else if err != nil {
 				switch err {
 				case reddit.ErrSubredditIsPrivate, reddit.ErrSubredditIsQuarantined:
 					err = fmt.Errorf("error watching %s: %w", lsr, err)
