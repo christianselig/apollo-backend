@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	DeviceReceiptCheckPeriodDuration     = 1 * time.Hour
+	DeviceReceiptCheckPeriodDuration     = 4 * time.Hour
 	DeviceActiveAfterReceitCheckDuration = 30 * 24 * time.Hour // ~1 month
 	DeviceGracePeriodAfterReceiptExpiry  = 30 * 24 * time.Hour // ~1 month
 )
