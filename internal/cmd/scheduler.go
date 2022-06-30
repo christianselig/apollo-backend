@@ -137,7 +137,6 @@ func evalScript(ctx context.Context, redis *redis.Client) (string, error) {
 }
 
 func pruneAccounts(ctx context.Context, logger *zap.Logger, pool *pgxpool.Pool) {
-	return
 	expiry := time.Now().Add(-domain.StaleTokenThreshold)
 	ar := repository.NewPostgresAccount(pool)
 
