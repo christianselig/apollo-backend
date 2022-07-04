@@ -222,7 +222,8 @@ func (tc *trendingConsumer) Consume(delivery rmq.Delivery) {
 	i = rand.Intn(len(watchers))
 	watcher = watchers[i]
 	rac = tc.reddit.NewAuthenticatedClient(watcher.Account.AccountID, watcher.Account.RefreshToken, watcher.Account.AccessToken)
-	hps, err := tc.reddit.SubredditHot(tc, subreddit.Name, reddit.WithQuery("show", "all"), reddit.WithQuery("always_show_media", "1"))
+
+	hps, err := rac.SubredditHot(tc, subreddit.Name, reddit.WithQuery("show", "all"), reddit.WithQuery("always_show_media", "1"))
 	if err != nil {
 		tc.logger.Error("failed to fetch hot posts",
 			zap.Error(err),
