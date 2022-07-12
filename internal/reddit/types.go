@@ -172,7 +172,9 @@ func NewSubredditResponse(val *fastjson.Value) interface{} {
 	sr.ID = string(data.GetStringBytes("id"))
 	sr.Name = string(data.GetStringBytes("display_name"))
 	sr.Quarantined = data.GetBool("quarantine")
-	sr.Public = string(data.GetStringBytes("subreddit_type")) == "public"
+
+	sr_type := string(data.GetStringBytes("subreddit_type"))
+	sr.Public = sr_type == "public" || sr_type == "restricted"
 	return sr
 }
 
