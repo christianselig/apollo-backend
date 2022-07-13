@@ -125,7 +125,7 @@ func evalScript(ctx context.Context, redis *redis.Client) (string, error) {
 			local key = KEYS[1] .. ":" .. ARGV[i]
 			if redis.call("exists", key) == 0 then
 				redis.call("setex", key, %.0f, 1)
-				retv[#retv + 1] = ids[i]
+				retv[#retv + 1] = ARGV[i]
 			end
 		end
 
