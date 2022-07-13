@@ -178,9 +178,7 @@ func (rc *Client) doRequest(ctx context.Context, r *Request) ([]byte, *RateLimit
 	switch resp.StatusCode {
 	case 200:
 		return bb, rli, err
-	case 401:
-		return nil, rli, ErrInvalidBasicAuth
-	case 403:
+	case 401, 403:
 		return nil, rli, ErrOauthRevoked
 	default:
 		_ = rc.statsd.Incr("reddit.api.errors", r.tags, 0.1)
