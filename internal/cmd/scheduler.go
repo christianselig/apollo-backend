@@ -25,8 +25,8 @@ import (
 )
 
 const (
-	batchSize             = 100
-	maxNotificationChecks = 500
+	batchSize             = 250
+	maxNotificationChecks = 2000
 )
 
 func SchedulerCmd(ctx context.Context) *cobra.Command {
