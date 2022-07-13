@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/DataDog/datadog-go/statsd"
 	"github.com/adjust/rmq/v4"
@@ -68,7 +69,8 @@ func NewDatabasePool(ctx context.Context, maxConns int) (*pgxpool.Pool, error) {
 	// Setting the build statement cache to nil helps this work with pgbouncer
 	config.ConnConfig.BuildStatementCache = nil
 	config.ConnConfig.PreferSimpleProtocol = true
-
+	config.MaxConnLifetime = 1 * time.Hour
+	config.MaxConnIdleTime = 30 * time.Second
 	return pgxpool.ConnectConfig(ctx, config)
 }
 
