@@ -137,16 +137,20 @@ func NewNotificationsConsumer(nw *notificationsWorker, tag int) *notificationsCo
 func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 	id := delivery.Payload()
 
-	defer func(id string) {
+	defer func() {
 		key := fmt.Sprintf("locks:accounts:%s", id)
 		if err := nc.redis.Del(nc, key).Err(); err != nil {
 			nc.logger.Error("failed to remove account lock", zap.Error(err), zap.String("key", key))
 		}
-	}(id)
+	}()
 
 	nc.logger.Debug("starting job", zap.String("account#reddit_account_id", id))
 
-	defer func() { _ = delivery.Ack() }()
+	defer func() {
+		if err := delivery.Ack(); err != nil {
+			nc.logger.Error("failed to acknowledge message", zap.Error(err), zap.String("account#reddit_account_id", id))
+		}
+	}()
 
 	now := time.Now()
 
