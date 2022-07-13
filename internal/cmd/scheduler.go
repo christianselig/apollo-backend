@@ -416,7 +416,7 @@ func enqueueAccounts(ctx context.Context, logger *zap.Logger, statsd *statsd.Cli
 				FOR UPDATE SKIP LOCKED
 				LIMIT %d
 			)
-			RETURNING accounts.account_id`, maxNotificationChecks)
+			RETURNING accounts.reddit_account_id`, maxNotificationChecks)
 		rows, err := tx.Query(ctx, stmt, now, next)
 		if err != nil {
 			return err
