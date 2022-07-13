@@ -120,10 +120,9 @@ func SchedulerCmd(ctx context.Context) *cobra.Command {
 func evalScript(ctx context.Context, redis *redis.Client) (string, error) {
 	lua := fmt.Sprintf(`
 		local retv={}
-		local ids=cjson.decode(ARGV[1])
 
-		for i=1, #ids do
-			local key = KEYS[1] .. ":" .. ids[i]
+		for i=1, #ARGV do
+			local key = KEYS[1] .. ":" .. ARGV[i]
 			if redis.call("exists", key) == 0 then
 				redis.call("setex", key, %.0f, 1)
 				retv[#retv + 1] = ids[i]
