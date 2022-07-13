@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/DataDog/datadog-go/statsd"
 	"github.com/adjust/rmq/v4"
@@ -100,6 +101,12 @@ func NewStuckNotificationsConsumer(snw *stuckNotificationsWorker, tag int) *stuc
 }
 
 func (snc *stuckNotificationsConsumer) Consume(delivery rmq.Delivery) {
+	now := time.Now()
+	defer func() {
+		elapsed := time.Now().Sub(now).Milliseconds()
+		_ = snc.statsd.Histogram("apollo.consumer.runtime", float64(elapsed), []string{"queue:stuck-notifications"}, 0.1)
+	}()
+
 	id, err := strconv.ParseInt(delivery.Payload(), 10, 64)
 	if err != nil {
 		snc.logger.Error("failed to parse account id from payload", zap.Error(err), zap.String("payload", delivery.Payload()))

@@ -138,7 +138,7 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 	now := time.Now()
 	defer func() {
 		elapsed := time.Now().Sub(now).Milliseconds()
-		_ = nc.statsd.Histogram("apollo.queue.runtime", float64(elapsed), []string{"queue:notifications"}, 0.1)
+		_ = nc.statsd.Histogram("apollo.consumer.runtime", float64(elapsed), []string{"queue:notifications"}, 0.1)
 	}()
 
 	id := delivery.Payload()
