@@ -214,13 +214,6 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 		rac = nc.reddit.NewAuthenticatedClient(account.AccountID, tokens.RefreshToken, tokens.AccessToken)
 	}
 
-	// Only update delay on accounts we can actually check, otherwise it skews
-	// the numbers too much.
-	if !newAccount {
-		latency := now.Sub(previousNextCheck)
-		_ = nc.statsd.Histogram("apollo.queue.delay", float64(latency.Milliseconds()), []string{}, rate)
-	}
-
 	nc.logger.Debug("fetching message inbox", zap.String("account#reddit_account_id", id), zap.String("account#username", account.NormalizedUsername()))
 
 	opts := []reddit.RequestOption{reddit.WithQuery("limit", "10")}
@@ -312,6 +305,11 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 		if msg.IsDeleted() {
 			continue
 		}
+
+		// Latency is the time difference between the appearence of the new message and the
+		// time we notified at.
+		latency := now.Sub(msg.CreatedAt)
+		_ = nc.statsd.Histogram("apollo.queue.delay", float64(latency.Milliseconds()), []string{}, rate)
 
 		notification := &apns2.Notification{}
 		notification.Topic = "com.christianselig.Apollo"
