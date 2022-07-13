@@ -32,7 +32,7 @@ services:
       name: srv.postgres
       property: connectionString
   - key: DEFAULT_POOL_SIZE
-    value: 128
+    value: 178
   - key: MAX_CLIENT_CONN
     value: 1024
   - key: MIN_POOL_SIZE
