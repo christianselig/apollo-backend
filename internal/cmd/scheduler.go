@@ -392,7 +392,7 @@ func enqueueAccounts(ctx context.Context, logger *zap.Logger, statsd *statsd.Cli
 	now := time.Now()
 	next := now.Add(domain.NotificationCheckInterval)
 
-	ids := make([]int64, maxNotificationChecks)
+	ids := make([]string, maxNotificationChecks)
 	idslen := 0
 	enqueued := 0
 	skipped := 0
@@ -416,16 +416,14 @@ func enqueueAccounts(ctx context.Context, logger *zap.Logger, statsd *statsd.Cli
 				FOR UPDATE SKIP LOCKED
 				LIMIT %d
 			)
-			RETURNING accounts.id`, maxNotificationChecks)
+			RETURNING accounts.account_id`, maxNotificationChecks)
 		rows, err := tx.Query(ctx, stmt, now, next)
 		if err != nil {
 			return err
 		}
 		defer rows.Close()
 		for i := 0; rows.Next(); i++ {
-			var id int64
-			_ = rows.Scan(&id)
-			ids[i] = id
+			_ = rows.Scan(&ids[i])
 			idslen = i
 		}
 		return nil
@@ -453,7 +451,7 @@ func enqueueAccounts(ctx context.Context, logger *zap.Logger, statsd *statsd.Cli
 			if j > idslen {
 				j = idslen
 			}
-			batch := Int64Slice(ids[offset:j])
+			batch := ids[offset:j]
 
 			logger.Debug("enqueueing batch", zap.Int("len", len(batch)))
 
@@ -472,7 +470,7 @@ func enqueueAccounts(ctx context.Context, logger *zap.Logger, statsd *statsd.Cli
 
 			batchIds := make([]string, len(vals))
 			for k, v := range vals {
-				batchIds[k] = strconv.FormatInt(v.(int64), 10)
+				batchIds[k] = v.(string)
 			}
 
 			if err = queue.Publish(batchIds...); err != nil {
