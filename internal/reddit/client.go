@@ -88,14 +88,17 @@ func NewClient(id, secret string, statsd statsd.ClientInterface, redis *redis.Cl
 		},
 	}
 
-	t := http.DefaultTransport.(*http.Transport).Clone()
-	t.MaxIdleConns = connLimit / 4 / 100
-	t.MaxConnsPerHost = connLimit / 100
-	t.MaxIdleConnsPerHost = connLimit / 4 / 100
-	t.IdleConnTimeout = 60 * time.Second
-	t.ResponseHeaderTimeout = 5 * time.Second
+	/*
+		t := http.DefaultTransport.(*http.Transport).Clone()
+		t.MaxIdleConns = connLimit / 4 / 100
+		t.MaxConnsPerHost = connLimit / 100
+		t.MaxIdleConnsPerHost = connLimit / 4 / 100
+		t.IdleConnTimeout = 60 * time.Second
+		t.ResponseHeaderTimeout = 5 * time.Second
 
-	client := &http.Client{Transport: t}
+		client := &http.Client{Transport: t}
+	*/
+	client := &http.Client{}
 
 	pool := &fastjson.ParserPool{}
 
