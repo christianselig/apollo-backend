@@ -139,8 +139,9 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 	key := fmt.Sprintf("locks:accounts:%s", id)
 
 	// Measure queue latency
-	ttl := nc.redis.TTL(nc, key).Val().Milliseconds()
-	_ = nc.statsd.Histogram("apollo.dequeue.time", float64(ttl), []string{"queue:notifications"}, 1.0)
+	ttl := nc.redis.TTL(nc, key).Val()
+	age := (domain.NotificationCheckTimeout - ttl)
+	_ = nc.statsd.Histogram("apollo.dequeue.latency", float64(age.Milliseconds()), []string{"queue:notifications"}, 1.0)
 
 	defer func() {
 		if err := nc.redis.Del(nc, key).Err(); err != nil {
