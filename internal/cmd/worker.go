@@ -83,7 +83,7 @@ func WorkerCmd(ctx context.Context) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().IntVar(&multiplier, "multiplier", 12, "The multiplier (by CPUs) to run")
+	cmd.Flags().IntVar(&multiplier, "multiplier", 4, "The multiplier (by CPUs) to run")
 	cmd.Flags().StringVar(&queueID, "queue", "", "The queue to work on")
 
 	return cmd
