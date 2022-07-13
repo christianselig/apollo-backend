@@ -135,13 +135,19 @@ func NewNotificationsConsumer(nw *notificationsWorker, tag int) *notificationsCo
 }
 
 func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
+	now := time.Now()
+	defer func() {
+		elapsed := time.Now().Sub(now).Milliseconds()
+		_ = nc.statsd.Histogram("apollo.queue.runtime", float64(elapsed), []string{"queue:notifications"}, 0.1)
+	}()
+
 	id := delivery.Payload()
 	key := fmt.Sprintf("locks:accounts:%s", id)
 
 	// Measure queue latency
 	ttl := nc.redis.TTL(nc, key).Val()
 	age := (domain.NotificationCheckTimeout - ttl)
-	_ = nc.statsd.Histogram("apollo.dequeue.latency", float64(age.Milliseconds()), []string{"queue:notifications"}, 1.0)
+	_ = nc.statsd.Histogram("apollo.dequeue.latency", float64(age.Milliseconds()), []string{"queue:notifications"}, 0.1)
 
 	defer func() {
 		if err := nc.redis.Del(nc, key).Err(); err != nil {
@@ -156,8 +162,6 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 			nc.logger.Error("failed to acknowledge message", zap.Error(err), zap.String("account#reddit_account_id", id))
 		}
 	}()
-
-	now := time.Now()
 
 	account, err := nc.accountRepo.GetByRedditID(nc, id)
 	if err != nil {
