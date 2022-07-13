@@ -165,9 +165,6 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 		return
 	}
 
-	account.CheckCount++
-	newAccount := account.CheckCount == 1
-
 	defer func(acc *domain.Account) {
 		if err = nc.accountRepo.Update(nc, acc); err != nil {
 			nc.logger.Error("failed to update account",
@@ -212,6 +209,7 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 		account.AccessToken = tokens.AccessToken
 		account.RefreshToken = tokens.RefreshToken
 		account.TokenExpiresAt = now.Add(tokens.Expiry)
+		_ = nc.accountRepo.Update(nc, &account)
 
 		// Refresh client
 		rac = nc.reddit.NewAuthenticatedClient(account.AccountID, tokens.RefreshToken, tokens.AccessToken)
@@ -270,16 +268,20 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 	for _, msg := range msgs.Children {
 		if !msg.IsDeleted() {
 			account.LastMessageID = msg.FullName()
+			_ = nc.accountRepo.Update(nc, &account)
 			break
 		}
 	}
 
 	// Let's populate this with the latest message so we don't flood users with stuff
-	if newAccount {
+	if account.CheckCount == 0 {
 		nc.logger.Debug("populating first message id to prevent spamming",
 			zap.String("account#reddit_account_id", id),
 			zap.String("account#username", account.NormalizedUsername()),
 		)
+
+		account.CheckCount = 1
+		_ = nc.accountRepo.Update(nc, &account)
 		return
 	}
 
