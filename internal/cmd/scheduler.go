@@ -454,25 +454,19 @@ func enqueueAccounts(ctx context.Context, logger *zap.Logger, statsd *statsd.Cli
 
 			logger.Debug("enqueueing batch", zap.Int("len", len(batch)))
 
-			res, err := redisConn.EvalSha(ctx, luaSha, []string{"locks:accounts"}, batch).Result()
+			unlocked, err := redisConn.EvalSha(ctx, luaSha, []string{"locks:accounts"}, batch).StringSlice()
 			if err != nil {
 				logger.Error("failed to check for locked accounts", zap.Error(err))
 			}
 
-			vals := res.([]interface{})
-			skipped += len(batch) - len(vals)
-			enqueued += len(vals)
+			skipped += len(batch) - len(unlocked)
+			enqueued += len(unlocked)
 
-			if len(vals) == 0 {
+			if len(unlocked) == 0 {
 				return
 			}
 
-			batchIds := make([]string, len(vals))
-			for k, v := range vals {
-				batchIds[k] = v.(string)
-			}
-
-			if err = queue.Publish(batchIds...); err != nil {
+			if err = queue.Publish(unlocked...); err != nil {
 				logger.Error("failed to enqueue account batch", zap.Error(err))
 			}
 		}(i)
