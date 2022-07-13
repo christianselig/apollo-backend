@@ -160,10 +160,8 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 		return
 	}
 
-	newAccount := account.CheckCount == 0
-	previousNextCheck := account.NextNotificationCheckAt
-
 	account.CheckCount++
+	newAccount := account.CheckCount == 1
 
 	defer func(acc *domain.Account) {
 		if err = nc.accountRepo.Update(nc, acc); err != nil {
