@@ -91,7 +91,7 @@ services:
     maxInstances: 20
     targetCPUPercent: 60
   buildCommand: go install github.com/bugsnag/panic-monitor@latest && go build ./cmd/apollo
-  startCommand: panic-monitor ./apollo worker --queue notifications --multiplier 64
+  startCommand: panic-monitor ./apollo worker --queue notifications
 
 # Stuck Notifications Checker
 - type: worker
