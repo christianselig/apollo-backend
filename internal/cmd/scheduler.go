@@ -14,7 +14,6 @@ import (
 	"github.com/adjust/rmq/v4"
 	"github.com/go-co-op/gocron"
 	"github.com/go-redis/redis/v8"
-	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
@@ -219,36 +218,29 @@ func enqueueUsers(ctx context.Context, logger *zap.Logger, statsd *statsd.Client
 		_ = statsd.Histogram("apollo.queue.runtime", float64(time.Since(now).Milliseconds()), tags, 1)
 	}()
 
-	err := pool.BeginFunc(ctx, func(tx pgx.Tx) error {
-		stmt := `
-			UPDATE users
-			SET next_check_at = $2
-			WHERE id IN (
-				SELECT id
-				FROM users
-				WHERE next_check_at < $1
-				ORDER BY next_check_at
-				FOR UPDATE SKIP LOCKED
-				LIMIT 100
-			)
-			RETURNING users.id`
-		rows, err := tx.Query(ctx, stmt, now, next)
-		if err != nil {
-			return err
-		}
-		defer rows.Close()
-		for rows.Next() {
-			var id int64
-			_ = rows.Scan(&id)
-			ids = append(ids, id)
-		}
-		return nil
-	})
-
+	stmt := `
+		UPDATE users
+		SET next_check_at = $2
+		WHERE id IN (
+			SELECT id
+			FROM users
+			WHERE next_check_at < $1
+			ORDER BY next_check_at
+			FOR UPDATE SKIP LOCKED
+			LIMIT 100
+		)
+		RETURNING users.id`
+	rows, err := pool.Query(ctx, stmt, now, next)
 	if err != nil {
 		logger.Error("failed to fetch batch of users", zap.Error(err))
 		return
 	}
+	for rows.Next() {
+		var id int64
+		_ = rows.Scan(&id)
+		ids = append(ids, id)
+	}
+	rows.Close()
 
 	if len(ids) == 0 {
 		return
@@ -278,8 +270,7 @@ func enqueueSubreddits(ctx context.Context, logger *zap.Logger, statsd *statsd.C
 		_ = statsd.Histogram("apollo.queue.runtime", float64(time.Since(now).Milliseconds()), tags, 1)
 	}()
 
-	err := pool.BeginFunc(ctx, func(tx pgx.Tx) error {
-		stmt := `
+	stmt := `
 			UPDATE subreddits
 			SET next_check_at = $2
 			WHERE subreddits.id IN(
@@ -291,23 +282,17 @@ func enqueueSubreddits(ctx context.Context, logger *zap.Logger, statsd *statsd.C
 				LIMIT 100
 			)
 			RETURNING subreddits.id`
-		rows, err := tx.Query(ctx, stmt, now, next)
-		if err != nil {
-			return err
-		}
-		defer rows.Close()
-		for rows.Next() {
-			var id int64
-			_ = rows.Scan(&id)
-			ids = append(ids, id)
-		}
-		return nil
-	})
-
+	rows, err := pool.Query(ctx, stmt, now, next)
 	if err != nil {
 		logger.Error("failed to fetch batch of subreddits", zap.Error(err))
 		return
 	}
+	for rows.Next() {
+		var id int64
+		_ = rows.Scan(&id)
+		ids = append(ids, id)
+	}
+	rows.Close()
 
 	if len(ids) == 0 {
 		return
@@ -340,8 +325,7 @@ func enqueueStuckAccounts(ctx context.Context, logger *zap.Logger, statsd *stats
 		_ = statsd.Histogram("apollo.queue.runtime", float64(time.Since(now).Milliseconds()), tags, 1)
 	}()
 
-	err := pool.BeginFunc(ctx, func(tx pgx.Tx) error {
-		stmt := `
+	stmt := `
 			UPDATE accounts
 			SET next_stuck_notification_check_at = $2
 			WHERE accounts.id IN(
@@ -353,23 +337,18 @@ func enqueueStuckAccounts(ctx context.Context, logger *zap.Logger, statsd *stats
 				LIMIT 500
 			)
 			RETURNING accounts.id`
-		rows, err := tx.Query(ctx, stmt, now, next)
-		if err != nil {
-			return err
-		}
-		defer rows.Close()
-		for rows.Next() {
-			var id int64
-			_ = rows.Scan(&id)
-			ids = append(ids, id)
-		}
-		return nil
-	})
-
+	rows, err := pool.Query(ctx, stmt, now, next)
 	if err != nil {
 		logger.Error("failed to fetch accounts", zap.Error(err))
 		return
 	}
+
+	for rows.Next() {
+		var id int64
+		_ = rows.Scan(&id)
+		ids = append(ids, id)
+	}
+	rows.Close()
 
 	if len(ids) == 0 {
 		return
@@ -403,8 +382,7 @@ func enqueueAccounts(ctx context.Context, logger *zap.Logger, statsd *statsd.Cli
 		_ = statsd.Histogram("apollo.queue.runtime", float64(time.Since(now).Milliseconds()), tags, 1)
 	}()
 
-	err := pool.BeginFunc(ctx, func(tx pgx.Tx) error {
-		stmt := fmt.Sprintf(`
+	stmt := fmt.Sprintf(`
 			UPDATE accounts
 			SET next_notification_check_at = $2
 			WHERE accounts.id IN(
@@ -416,22 +394,16 @@ func enqueueAccounts(ctx context.Context, logger *zap.Logger, statsd *statsd.Cli
 				LIMIT %d
 			)
 			RETURNING accounts.reddit_account_id`, maxNotificationChecks)
-		rows, err := tx.Query(ctx, stmt, now, next)
-		if err != nil {
-			return err
-		}
-		defer rows.Close()
-		for i := 0; rows.Next(); i++ {
-			_ = rows.Scan(&ids[i])
-			idslen = i
-		}
-		return nil
-	})
-
+	rows, err := pool.Query(ctx, stmt, now, next)
 	if err != nil {
 		logger.Error("failed to fetch batch of accounts", zap.Error(err))
 		return
 	}
+	for i := 0; rows.Next(); i++ {
+		_ = rows.Scan(&ids[i])
+		idslen = i
+	}
+	rows.Close()
 
 	if idslen == 0 {
 		return

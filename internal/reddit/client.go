@@ -356,47 +356,56 @@ func (rac *AuthenticatedClient) logRequest() error {
 		return nil
 	}
 
-	return rac.client.redis.HIncrBy(context.Background(), "reddit:requests", rac.redditId, 1).Err()
+	return nil
+	// return rac.client.redis.HIncrBy(context.Background(), "reddit:requests", rac.redditId, 1).Err()
 }
 
 func (rac *AuthenticatedClient) isRateLimited() bool {
-	if rac.redditId == SkipRateLimiting {
-		return false
-	}
+	return false
 
-	key := fmt.Sprintf("reddit:%s:ratelimited", rac.redditId)
-	_, err := rac.client.redis.Get(context.Background(), key).Result()
-	return err != redis.Nil
+	/*
+		if rac.redditId == SkipRateLimiting {
+			return false
+		}
+
+		key := fmt.Sprintf("reddit:%s:ratelimited", rac.redditId)
+		_, err := rac.client.redis.Get(context.Background(), key).Result()
+		return err != redis.Nil
+	*/
 }
 
 func (rac *AuthenticatedClient) markRateLimited(rli *RateLimitingInfo) error {
-	if rac.redditId == SkipRateLimiting {
-		return ErrRequiresRedditId
-	}
+	return nil
 
-	if !rli.Present {
-		return nil
-	}
-
-	if rli.Remaining > RequestRemainingBuffer {
-		return nil
-	}
-
-	_ = rac.client.statsd.Incr("reddit.api.ratelimit", nil, 1.0)
-
-	key := fmt.Sprintf("reddit:%s:ratelimited", rac.redditId)
-	duration := time.Duration(rli.Reset) * time.Second
-	info := fmt.Sprintf("%+v", *rli)
-
-	if rli.Used > 2000 {
-		_, err := rac.client.redis.HSet(context.Background(), "reddit:ratelimited:crazy", rac.redditId, info).Result()
-		if err != nil {
-			return err
+	/*
+		if rac.redditId == SkipRateLimiting {
+			return ErrRequiresRedditId
 		}
-	}
 
-	_, err := rac.client.redis.SetEX(context.Background(), key, info, duration).Result()
-	return err
+		if !rli.Present {
+			return nil
+		}
+
+		if rli.Remaining > RequestRemainingBuffer {
+			return nil
+		}
+
+		_ = rac.client.statsd.Incr("reddit.api.ratelimit", nil, 1.0)
+
+		key := fmt.Sprintf("reddit:%s:ratelimited", rac.redditId)
+		duration := time.Duration(rli.Reset) * time.Second
+		info := fmt.Sprintf("%+v", *rli)
+
+		if rli.Used > 2000 {
+			_, err := rac.client.redis.HSet(context.Background(), "reddit:ratelimited:crazy", rac.redditId, info).Result()
+			if err != nil {
+				return err
+			}
+		}
+
+		_, err := rac.client.redis.SetEX(context.Background(), key, info, duration).Result()
+		return err
+	*/
 }
 
 func (rac *AuthenticatedClient) RefreshTokens(ctx context.Context, opts ...RequestOption) (*RefreshTokenResponse, error) {
