@@ -13,7 +13,7 @@ require (
 	github.com/gorilla/mux v1.8.0
 	github.com/heroku/x v0.0.50
 	github.com/jackc/pgconn v1.12.1
-	github.com/jackc/pgx/v4 v4.16.0
+	github.com/jackc/pgx/v4 v4.16.1
 	github.com/joho/godotenv v1.4.0
 	github.com/sideshow/apns2 v0.23.0
 	github.com/smtp2go-oss/smtp2go-go v1.0.1
