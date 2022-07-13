@@ -165,16 +165,6 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 		return
 	}
 
-	defer func(acc *domain.Account) {
-		if err = nc.accountRepo.Update(nc, acc); err != nil {
-			nc.logger.Error("failed to update account",
-				zap.Error(err),
-				zap.String("account#reddit_account_id", id),
-				zap.String("account#username", account.NormalizedUsername()),
-			)
-		}
-	}(&account)
-
 	rac := nc.reddit.NewAuthenticatedClient(account.AccountID, account.RefreshToken, account.AccessToken)
 	if account.TokenExpiresAt.Before(now.Add(5 * time.Minute)) {
 		nc.logger.Debug("refreshing reddit token",
