@@ -149,7 +149,6 @@ func (rc *Client) doRequest(ctx context.Context, r *Request) ([]byte, *RateLimit
 	resp, err := client.Do(req)
 
 	_ = rc.statsd.Incr("reddit.api.calls", r.tags, 0.1)
-	_ = rc.statsd.Histogram("reddit.api.latency", float64(time.Since(start).Milliseconds()), r.tags, 0.1)
 
 	if err != nil {
 		_ = rc.statsd.Incr("reddit.api.errors", r.tags, 0.1)
@@ -170,6 +169,7 @@ func (rc *Client) doRequest(ctx context.Context, r *Request) ([]byte, *RateLimit
 	}
 
 	bb, err := ioutil.ReadAll(resp.Body)
+	_ = rc.statsd.Histogram("reddit.api.latency", float64(time.Since(start).Milliseconds()), r.tags, 0.1)
 
 	switch resp.StatusCode {
 	case 200:
