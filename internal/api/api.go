@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-go/statsd"
 	"github.com/bugsnag/bugsnag-go/v2"
 	"github.com/go-redis/redis/v8"
+	"github.com/gofrs/uuid"
 	"github.com/gorilla/mux"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/sideshow/apns2/token"
@@ -122,6 +123,7 @@ func (a *api) Routes() *mux.Router {
 	r.HandleFunc("/v1/test/bugsnag", a.testBugsnagHandler).Methods("POST")
 
 	r.Use(a.loggingMiddleware)
+	r.Use(a.requestIdMiddleware)
 
 	return r
 }
@@ -153,6 +155,14 @@ func (lrw *LoggingResponseWriter) Write(bb []byte) (int, error) {
 func (lrw *LoggingResponseWriter) WriteHeader(statusCode int) {
 	lrw.w.WriteHeader(statusCode)
 	lrw.statusCode = statusCode
+}
+
+func (a *api) requestIdMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		id := uuid.Must(uuid.NewV4()).String()
+		w.Header().Set("X-Apollo-Request-Id", id)
+		next.ServeHTTP(w, r)
+	})
 }
 
 func (a *api) loggingMiddleware(next http.Handler) http.Handler {
@@ -187,6 +197,7 @@ func (a *api) loggingMiddleware(next http.Handler) http.Handler {
 			zap.Int("response#bytes", lrw.bytes),
 			zap.Int("status", lrw.statusCode),
 			zap.String("uri", r.RequestURI),
+			zap.String("request#id", lrw.Header().Get("X-Apollo-Request-Id")),
 		}
 
 		if lrw.statusCode == 200 {

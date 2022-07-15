@@ -2,7 +2,7 @@ BREW_PREFIX  ?= $(shell brew --prefix)
 DATABASE_URL ?= "postgres://$(USER)@localhost/apollo_test?sslmode=disable"
 
 test:
-	@DATABASE_URL=$(DATABASE_URL) go test -race -v -timeout 1s ./...
+	@DATABASE_URL=$(DATABASE_URL) go test -race -timeout 1s ./...
 
 test-setup: $(BREW_PREFIX)/bin/migrate
 	migrate -path migrations/ -database $(DATABASE_URL) up
