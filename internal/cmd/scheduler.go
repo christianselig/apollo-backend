@@ -369,7 +369,7 @@ func enqueueStuckAccounts(ctx context.Context, logger *zap.Logger, statsd *stats
 func enqueueAccounts(ctx context.Context, logger *zap.Logger, statsd *statsd.Client, pool *pgxpool.Pool, redisConn *redis.Client, luaSha string, queue rmq.Queue) {
 	now := time.Now()
 
-	query := `SELECT id FROM accounts`
+	query := `SELECT reddit_account_id FROM accounts`
 	rows, err := pool.Query(ctx, query)
 	if err != nil {
 		logger.Error("failed to fetch accounts", zap.Error(err))
@@ -379,9 +379,9 @@ func enqueueAccounts(ctx context.Context, logger *zap.Logger, statsd *statsd.Cli
 
 	var ids []string
 	for rows.Next() {
-		var id int64
+		var id string
 		_ = rows.Scan(&id)
-		ids = append(ids, fmt.Sprintf("%d", id))
+		ids = append(ids, id)
 	}
 
 	enqueued := 0
