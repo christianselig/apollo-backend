@@ -92,14 +92,14 @@ func SchedulerCmd(ctx context.Context) *cobra.Command {
 			}
 
 			s := gocron.NewScheduler(time.UTC)
-			_, _ = s.Every(100).Milliseconds().SingletonMode().Do(func() { enqueueAccounts(ctx, logger, statsd, db, redis, luaSha, notifQueue) })
+			_, _ = s.Every(5).Seconds().SingletonMode().Do(func() { enqueueAccounts(ctx, logger, statsd, db, redis, luaSha, notifQueue) })
 			_, _ = s.Every(5).Second().Do(func() { enqueueSubreddits(ctx, logger, statsd, db, []rmq.Queue{subredditQueue, trendingQueue}) })
 			_, _ = s.Every(5).Second().Do(func() { enqueueUsers(ctx, logger, statsd, db, userQueue) })
 			_, _ = s.Every(5).Second().Do(func() { cleanQueues(logger, queue) })
 			_, _ = s.Every(5).Second().Do(func() { enqueueStuckAccounts(ctx, logger, statsd, db, stuckNotificationsQueue) })
 			_, _ = s.Every(1).Minute().Do(func() { reportStats(ctx, logger, statsd, db) })
-			_, _ = s.Every(1).Minute().Do(func() { pruneAccounts(ctx, logger, db) })
-			_, _ = s.Every(1).Minute().Do(func() { pruneDevices(ctx, logger, db) })
+			//_, _ = s.Every(1).Minute().Do(func() { pruneAccounts(ctx, logger, db) })
+			//_, _ = s.Every(1).Minute().Do(func() { pruneDevices(ctx, logger, db) })
 			s.StartAsync()
 
 			srv := &http.Server{Addr: ":8080"}
@@ -368,10 +368,22 @@ func enqueueStuckAccounts(ctx context.Context, logger *zap.Logger, statsd *stats
 
 func enqueueAccounts(ctx context.Context, logger *zap.Logger, statsd *statsd.Client, pool *pgxpool.Pool, redisConn *redis.Client, luaSha string, queue rmq.Queue) {
 	now := time.Now()
-	next := now.Add(domain.NotificationCheckInterval)
 
-	ids := make([]string, maxNotificationChecks)
-	idslen := 0
+	query := `SELECT id FROM accounts`
+	rows, err := pool.Query(ctx, query)
+	if err != nil {
+		logger.Error("failed to fetch accounts", zap.Error(err))
+		return
+	}
+	defer rows.Close()
+
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		_ = rows.Scan(&id)
+		ids = append(ids, id)
+	}
+
 	enqueued := 0
 	skipped := 0
 
@@ -382,51 +394,24 @@ func enqueueAccounts(ctx context.Context, logger *zap.Logger, statsd *statsd.Cli
 		_ = statsd.Histogram("apollo.queue.runtime", float64(time.Since(now).Milliseconds()), tags, 1)
 	}()
 
-	stmt := fmt.Sprintf(`
-			UPDATE accounts
-			SET next_notification_check_at = $2
-			WHERE accounts.id IN(
-				SELECT id
-				FROM accounts
-				WHERE next_notification_check_at < $1
-				ORDER BY next_notification_check_at
-				FOR UPDATE SKIP LOCKED
-				LIMIT %d
-			)
-			RETURNING accounts.reddit_account_id`, maxNotificationChecks)
-	rows, err := pool.Query(ctx, stmt, now, next)
-	if err != nil {
-		logger.Error("failed to fetch batch of accounts", zap.Error(err))
-		return
-	}
-	for i := 0; rows.Next(); i++ {
-		_ = rows.Scan(&ids[i])
-		idslen = i
-	}
-	rows.Close()
-
-	if idslen == 0 {
-		return
-	}
-
 	logger.Debug("enqueueing account batch", zap.Int("count", len(ids)), zap.Time("start", now))
 
 	// Split ids in batches
 	wg := sync.WaitGroup{}
-	for i := 0; i < idslen; i += batchSize {
+	for i := 0; i < len(ids); i += batchSize {
 		wg.Add(1)
 		go func(offset int) {
 			defer wg.Done()
 
 			j := offset + batchSize
-			if j > idslen {
-				j = idslen
+			if j > len(ids) {
+				j = len(ids)
 			}
 			batch := ids[offset:j]
 
 			logger.Debug("enqueueing batch", zap.Int("len", len(batch)))
 
-			unlocked, err := redisConn.EvalSha(ctx, luaSha, []string{"locks:accounts"}, batch).StringSlice()
+			unlocked, err := redisConn.EvalSha(ctx, luaSha, []string{"locks:accounts"}, batch).Int64Slice()
 			if err != nil {
 				logger.Error("failed to check for locked accounts", zap.Error(err))
 			}
@@ -438,7 +423,12 @@ func enqueueAccounts(ctx context.Context, logger *zap.Logger, statsd *statsd.Cli
 				return
 			}
 
-			if err = queue.Publish(unlocked...); err != nil {
+			payloads := make([]string, len(unlocked))
+			for i, id := range unlocked {
+				payloads[i] = fmt.Sprintf("%d", id)
+			}
+
+			if err = queue.Publish(payloads...); err != nil {
 				logger.Error("failed to enqueue account batch", zap.Error(err))
 			}
 		}(i)
