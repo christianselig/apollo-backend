@@ -377,11 +377,11 @@ func enqueueAccounts(ctx context.Context, logger *zap.Logger, statsd *statsd.Cli
 	}
 	defer rows.Close()
 
-	var ids []int64
+	var ids []string
 	for rows.Next() {
 		var id int64
 		_ = rows.Scan(&id)
-		ids = append(ids, id)
+		ids = append(ids, fmt.Sprintf("%d", id))
 	}
 
 	enqueued := 0
@@ -411,7 +411,7 @@ func enqueueAccounts(ctx context.Context, logger *zap.Logger, statsd *statsd.Cli
 
 			logger.Debug("enqueueing batch", zap.Int("len", len(batch)))
 
-			unlocked, err := redisConn.EvalSha(ctx, luaSha, []string{"locks:accounts"}, batch).Int64Slice()
+			unlocked, err := redisConn.EvalSha(ctx, luaSha, []string{"locks:accounts"}, batch).StringSlice()
 			if err != nil {
 				logger.Error("failed to check for locked accounts", zap.Error(err))
 			}
@@ -423,12 +423,7 @@ func enqueueAccounts(ctx context.Context, logger *zap.Logger, statsd *statsd.Cli
 				return
 			}
 
-			payloads := make([]string, len(unlocked))
-			for i, id := range unlocked {
-				payloads[i] = fmt.Sprintf("%d", id)
-			}
-
-			if err = queue.Publish(payloads...); err != nil {
+			if err = queue.Publish(unlocked...); err != nil {
 				logger.Error("failed to enqueue account batch", zap.Error(err))
 			}
 		}(i)
