@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"context"
+	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"runtime"
 	"runtime/pprof"
@@ -66,6 +68,10 @@ func Execute(ctx context.Context) int {
 	rootCmd.AddCommand(APICmd(ctx))
 	rootCmd.AddCommand(SchedulerCmd(ctx))
 	rootCmd.AddCommand(WorkerCmd(ctx))
+
+	go func() {
+		_ = http.ListenAndServe("localhost:6060", nil)
+	}()
 
 	if err := rootCmd.Execute(); err != nil {
 		return 1
