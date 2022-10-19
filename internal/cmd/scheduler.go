@@ -91,10 +91,16 @@ func SchedulerCmd(ctx context.Context) *cobra.Command {
 				return err
 			}
 
+			liveActivitiesQueue, err := queue.OpenQueue("live-activities")
+			if err != nil {
+				return err
+			}
+
 			s := gocron.NewScheduler(time.UTC)
 			_, _ = s.Every(5).Seconds().SingletonMode().Do(func() { enqueueAccounts(ctx, logger, statsd, db, redis, luaSha, notifQueue) })
 			_, _ = s.Every(5).Second().Do(func() { enqueueSubreddits(ctx, logger, statsd, db, []rmq.Queue{subredditQueue, trendingQueue}) })
 			_, _ = s.Every(5).Second().Do(func() { enqueueUsers(ctx, logger, statsd, db, userQueue) })
+			_, _ = s.Every(5).Second().Do(func() { enqueueLiveActivities(ctx, logger, db, redis, luaSha, liveActivitiesQueue) })
 			_, _ = s.Every(5).Second().Do(func() { cleanQueues(logger, queue) })
 			_, _ = s.Every(5).Second().Do(func() { enqueueStuckAccounts(ctx, logger, statsd, db, stuckNotificationsQueue) })
 			_, _ = s.Every(1).Minute().Do(func() { reportStats(ctx, logger, statsd, db) })
@@ -132,6 +138,57 @@ func evalScript(ctx context.Context, redis *redis.Client) (string, error) {
 	`, domain.NotificationCheckTimeout.Seconds())
 
 	return redis.ScriptLoad(ctx, lua).Result()
+}
+
+func enqueueLiveActivities(ctx context.Context, logger *zap.Logger, pool *pgxpool.Pool, redisConn *redis.Client, luaSha string, queue rmq.Queue) {
+	now := time.Now().UTC()
+	next := now.Add(domain.LiveActivityCheckInterval)
+
+	stmt := `UPDATE live_activities
+		SET next_check_at = $2
+		WHERE id IN (
+			SELECT id
+			FROM live_activities
+			WHERE next_check_at < $1
+			ORDER BY next_check_at
+			FOR UPDATE SKIP LOCKED
+			LIMIT 100
+		)
+		RETURNING live_activities.apns_token`
+
+	ats := []string{}
+
+	rows, err := pool.Query(ctx, stmt, now, next)
+	if err != nil {
+		logger.Error("failed to fetch batch of live activities", zap.Error(err))
+		return
+	}
+	for rows.Next() {
+		var at string
+		_ = rows.Scan(&at)
+		ats = append(ats, at)
+	}
+	rows.Close()
+
+	if len(ats) == 0 {
+		return
+	}
+
+	batch, err := redisConn.EvalSha(ctx, luaSha, []string{"locks:live-activities"}, ats).StringSlice()
+	if err != nil {
+		logger.Error("failed to lock live activities", zap.Error(err))
+		return
+	}
+
+	if len(batch) == 0 {
+		return
+	}
+
+	logger.Debug("enqueueing live activity batch", zap.Int("count", len(batch)), zap.Time("start", now))
+
+	if err = queue.Publish(batch...); err != nil {
+		logger.Error("failed to enqueue live activity batch", zap.Error(err))
+	}
 }
 
 func pruneAccounts(ctx context.Context, logger *zap.Logger, pool *pgxpool.Pool) {

@@ -29,11 +29,12 @@ type api struct {
 	apns       *token.Token
 	httpClient *http.Client
 
-	accountRepo   domain.AccountRepository
-	deviceRepo    domain.DeviceRepository
-	subredditRepo domain.SubredditRepository
-	watcherRepo   domain.WatcherRepository
-	userRepo      domain.UserRepository
+	accountRepo      domain.AccountRepository
+	deviceRepo       domain.DeviceRepository
+	subredditRepo    domain.SubredditRepository
+	watcherRepo      domain.WatcherRepository
+	userRepo         domain.UserRepository
+	liveActivityRepo domain.LiveActivityRepository
 }
 
 func NewAPI(ctx context.Context, logger *zap.Logger, statsd *statsd.Client, redis *redis.Client, pool *pgxpool.Pool) *api {
@@ -64,6 +65,7 @@ func NewAPI(ctx context.Context, logger *zap.Logger, statsd *statsd.Client, redi
 	subredditRepo := repository.NewPostgresSubreddit(pool)
 	watcherRepo := repository.NewPostgresWatcher(pool)
 	userRepo := repository.NewPostgresUser(pool)
+	liveActivityRepo := repository.NewPostgresLiveActivity(pool)
 
 	client := &http.Client{}
 
@@ -74,11 +76,12 @@ func NewAPI(ctx context.Context, logger *zap.Logger, statsd *statsd.Client, redi
 		apns:       apns,
 		httpClient: client,
 
-		accountRepo:   accountRepo,
-		deviceRepo:    deviceRepo,
-		subredditRepo: subredditRepo,
-		watcherRepo:   watcherRepo,
-		userRepo:      userRepo,
+		accountRepo:      accountRepo,
+		deviceRepo:       deviceRepo,
+		subredditRepo:    subredditRepo,
+		watcherRepo:      watcherRepo,
+		userRepo:         userRepo,
+		liveActivityRepo: liveActivityRepo,
 	}
 }
 
@@ -114,6 +117,8 @@ func (a *api) Routes() *mux.Router {
 	r.HandleFunc("/v1/device/{apns}/account/{redditID}/watcher/{watcherID}", a.deleteWatcherHandler).Methods("DELETE")
 	r.HandleFunc("/v1/device/{apns}/account/{redditID}/watcher/{watcherID}", a.editWatcherHandler).Methods("PATCH")
 	r.HandleFunc("/v1/device/{apns}/account/{redditID}/watchers", a.listWatchersHandler).Methods("GET")
+
+	r.HandleFunc("/v1/live_activities", a.createLiveActivityHandler).Methods("POST")
 
 	r.HandleFunc("/v1/receipt", a.checkReceiptHandler).Methods("POST")
 	r.HandleFunc("/v1/receipt/{apns}", a.checkReceiptHandler).Methods("POST")

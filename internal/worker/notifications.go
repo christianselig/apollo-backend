@@ -321,7 +321,7 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 				client = nc.apnsSandbox
 			}
 
-			res, err := client.Push(notification)
+			res, err := client.PushWithContext(nc, notification)
 			if err != nil {
 				_ = nc.statsd.Incr("apns.notification.errors", []string{}, 1)
 				nc.logger.Error("failed to send notification",
