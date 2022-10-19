@@ -178,3 +178,24 @@ func TestUserPostsParsing(t *testing.T) {
 
 	assert.Equal(t, "public", post.SubredditType)
 }
+
+func TestThreadResponseParsing(t *testing.T) {
+	t.Parallel()
+
+	bb, err := ioutil.ReadFile("testdata/thread.json")
+	assert.NoError(t, err)
+
+	parser := NewTestParser(t)
+	val, err := parser.ParseBytes(bb)
+	assert.NoError(t, err)
+
+	ret := reddit.NewThreadResponse(val)
+	tr := ret.(*reddit.ThreadResponse)
+	assert.NotNil(t, tr)
+
+	assert.Equal(t, "When you buy $400 machine to run games that you can run using $15 RPi", tr.Post.Title)
+	assert.Equal(t, 20, len(tr.Children))
+
+	assert.Equal(t, "The Deck is a lot more portable than the Pi though.", tr.Children[0].Body)
+	assert.Equal(t, "PhonicUK", tr.Children[1].Author)
+}

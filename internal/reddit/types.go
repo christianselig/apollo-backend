@@ -63,6 +63,27 @@ func NewMeResponse(val *fastjson.Value) interface{} {
 	return mr
 }
 
+type ThreadResponse struct {
+	Post     *Thing
+	Children []*Thing
+}
+
+func NewThreadResponse(val *fastjson.Value) interface{} {
+	t := &ThreadResponse{}
+	listings := val.GetArray()
+
+	// Thread details comes in the first element of the array as a one item listing
+	t.Post = NewThing(listings[0].Get("data").GetArray("children")[0])
+
+	// Comments come in the second element of the array also as a listing
+	comments := listings[1].Get("data").GetArray("children")
+	t.Children = make([]*Thing, len(comments)-1)
+	for i, comment := range comments[:len(comments)-1] {
+		t.Children[i] = NewThing(comment)
+	}
+	return t
+}
+
 type Thing struct {
 	Kind          string    `json:"kind"`
 	ID            string    `json:"id"`
@@ -84,6 +105,7 @@ type Thing struct {
 	Flair         string    `json:"flair"`
 	Thumbnail     string    `json:"thumbnail"`
 	Over18        bool      `json:"over_18"`
+	NumComments   int       `json:"num_comments"`
 }
 
 func (t *Thing) FullName() string {
@@ -122,6 +144,7 @@ func NewThing(val *fastjson.Value) *Thing {
 	t.Flair = string(data.GetStringBytes("link_flair_text"))
 	t.Thumbnail = string(data.GetStringBytes("thumbnail"))
 	t.Over18 = data.GetBool("over_18")
+	t.NumComments = data.GetInt("num_comments")
 
 	return t
 }

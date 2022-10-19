@@ -594,3 +594,25 @@ func (rac *AuthenticatedClient) Me(ctx context.Context, opts ...RequestOption) (
 	}
 	return mr.(*MeResponse), nil
 }
+
+func (rac *AuthenticatedClient) TopLevelComments(ctx context.Context, subreddit string, threadID string, opts ...RequestOption) (*ThreadResponse, error) {
+	url := fmt.Sprintf("https://oauth.reddit.com/r/%s/comments/%s/.json", subreddit, threadID)
+
+	opts = append(rac.client.defaultOpts, opts...)
+	opts = append(opts, []RequestOption{
+		WithTags([]string{"url:/comments"}),
+		WithMethod("GET"),
+		WithToken(rac.accessToken),
+		WithURL(url),
+		WithQuery("sort", "new"),
+		WithQuery("limit", "100"),
+		WithQuery("depth", "1"),
+	}...)
+
+	req := NewRequest(opts...)
+	tr, err := rac.request(ctx, req, NewThreadResponse, nil)
+	if err != nil {
+		return nil, err
+	}
+	return tr.(*ThreadResponse), nil
+}
