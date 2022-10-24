@@ -24,6 +24,7 @@ import (
 type DynamicIslandNotification struct {
 	PostCommentCount int    `json:"postTotalComments"`
 	PostScore        int64  `json:"postScore"`
+	CommentID        string `json:"commentId"`
 	CommentAuthor    string `json:"commentAuthor"`
 	CommentBody      string `json:"commentBody"`
 	CommentAge       int64  `json:"commentAge"`
@@ -244,6 +245,7 @@ func (lac *liveActivitiesConsumer) Consume(delivery rmq.Delivery) {
 	din := DynamicIslandNotification{
 		PostCommentCount: tr.Post.NumComments,
 		PostScore:        tr.Post.Score,
+		CommentID:        comment.ID,
 		CommentAuthor:    comment.Author,
 		CommentBody:      comment.Body,
 		CommentAge:       comment.CreatedAt.Unix(),
