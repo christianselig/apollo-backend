@@ -199,3 +199,21 @@ func TestThreadResponseParsing(t *testing.T) {
 	assert.Equal(t, "The Deck is a lot more portable than the Pi though.", tr.Children[0].Body)
 	assert.Equal(t, "PhonicUK", tr.Children[1].Author)
 }
+
+func TestEmptyThreadResponseParsing(t *testing.T) {
+	t.Parallel()
+
+	bb, err := ioutil.ReadFile("testdata/thread_empty.json")
+	assert.NoError(t, err)
+
+	parser := NewTestParser(t)
+	val, err := parser.ParseBytes(bb)
+	assert.NoError(t, err)
+
+	ret := reddit.NewThreadResponse(val)
+	tr := ret.(*reddit.ThreadResponse)
+	assert.NotNil(t, tr)
+
+	assert.Equal(t, "So many knives… so little time.", tr.Post.Title)
+	assert.Equal(t, 0, len(tr.Children))
+}

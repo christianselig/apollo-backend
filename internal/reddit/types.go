@@ -77,9 +77,11 @@ func NewThreadResponse(val *fastjson.Value) interface{} {
 
 	// Comments come in the second element of the array also as a listing
 	comments := listings[1].Get("data").GetArray("children")
-	t.Children = make([]*Thing, len(comments)-1)
-	for i, comment := range comments[:len(comments)-1] {
-		t.Children[i] = NewThing(comment)
+	if len(comments) > 1 {
+		t.Children = make([]*Thing, len(comments)-1)
+		for i, comment := range comments[:len(comments)-1] {
+			t.Children[i] = NewThing(comment)
+		}
 	}
 	return t
 }
