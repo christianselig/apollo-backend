@@ -187,6 +187,9 @@ func (lac *liveActivitiesConsumer) Consume(delivery rmq.Delivery) {
 				zap.String("reddit#access_token", rac.ObfuscatedAccessToken()),
 				zap.String("reddit#refresh_token", rac.ObfuscatedRefreshToken()),
 			)
+			if err == reddit.ErrOauthRevoked {
+				_ = lac.liveActivityRepo.Delete(lac, at)
+			}
 			return
 		}
 
@@ -211,6 +214,9 @@ func (lac *liveActivitiesConsumer) Consume(delivery rmq.Delivery) {
 			zap.String("reddit#access_token", rac.ObfuscatedAccessToken()),
 			zap.String("reddit#refresh_token", rac.ObfuscatedRefreshToken()),
 		)
+		if err == reddit.ErrOauthRevoked {
+			_ = lac.liveActivityRepo.Delete(lac, at)
+		}
 		return
 	}
 
