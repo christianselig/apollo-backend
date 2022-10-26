@@ -227,10 +227,21 @@ func (lac *liveActivitiesConsumer) Consume(delivery rmq.Delivery) {
 
 	// Filter out comments in the last minute
 	candidates := make([]*reddit.Thing, 0)
-	cutoff := now.Add(-domain.LiveActivityCheckInterval)
-	for _, t := range tr.Children {
-		if t.CreatedAt.After(cutoff) {
-			candidates = append(candidates, t)
+	cutoffs := []time.Time{
+		now.Add(-domain.LiveActivityCheckInterval),
+		now.Add(-domain.LiveActivityCheckInterval * 2),
+		now.Add(-domain.LiveActivityCheckInterval * 4),
+	}
+
+	for _, cutoff := range cutoffs {
+		for _, t := range tr.Children {
+			if t.CreatedAt.After(cutoff) {
+				candidates = append(candidates, t)
+			}
+		}
+
+		if len(candidates) > 0 {
+			break
 		}
 	}
 
