@@ -284,6 +284,23 @@ func (rc *Client) SubredditAbout(ctx context.Context, subreddit string, opts ...
 	return sr, nil
 }
 
+func obfuscate(tok string) string {
+	tl := len(tok)
+	if tl < 6 {
+		return "<SHORT>"
+	}
+
+	return fmt.Sprintf("%s...%s", tok[0:3], tok[tl-3:tl])
+}
+
+func (rac *AuthenticatedClient) ObfuscatedAccessToken() string {
+	return obfuscate(rac.accessToken)
+}
+
+func (rac *AuthenticatedClient) ObfuscatedRefreshToken() string {
+	return obfuscate(rac.refreshToken)
+}
+
 func (rac *AuthenticatedClient) request(ctx context.Context, r *Request, rh ResponseHandler, empty interface{}) (interface{}, error) {
 	if rac.isRateLimited() {
 		return nil, ErrRateLimited
