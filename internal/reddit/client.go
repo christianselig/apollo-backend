@@ -44,11 +44,18 @@ type RateLimitingInfo struct {
 	Timestamp string
 }
 
-var backoffSchedule = []time.Duration{
-	4 * time.Second,
-	8 * time.Second,
-	16 * time.Second,
-}
+var (
+	backoffSchedule = []time.Duration{
+		4 * time.Second,
+		8 * time.Second,
+		16 * time.Second,
+	}
+
+	defaultErrorMap = map[int]error{
+		401: ErrOauthRevoked,
+		403: ErrOauthRevoked,
+	}
+)
 
 func SplitID(id string) (string, string) {
 	if parts := strings.Split(id, "_"); len(parts) == 2 {
@@ -131,7 +138,7 @@ func (rc *Client) NewAuthenticatedClient(redditId, refreshToken, accessToken str
 	return &AuthenticatedClient{rc, redditId, refreshToken, accessToken}
 }
 
-func (rc *Client) doRequest(ctx context.Context, r *Request) ([]byte, *RateLimitingInfo, error) {
+func (rc *Client) doRequest(ctx context.Context, r *Request, errmap map[int]error) ([]byte, *RateLimitingInfo, error) {
 	req, err := r.HTTPRequest(ctx)
 	if err != nil {
 		return nil, nil, err
@@ -171,19 +178,20 @@ func (rc *Client) doRequest(ctx context.Context, r *Request) ([]byte, *RateLimit
 	bb, err := ioutil.ReadAll(resp.Body)
 	_ = rc.statsd.Histogram("reddit.api.latency", float64(time.Since(start).Milliseconds()), r.tags, 0.1)
 
-	switch resp.StatusCode {
-	case 200:
-		return bb, rli, err
-	case 401, 403:
-		return nil, rli, ErrOauthRevoked
-	default:
-		_ = rc.statsd.Incr("reddit.api.errors", r.tags, 0.1)
+	if resp.StatusCode == 200 {
+		return bb, rli, nil
+	}
+
+	_ = rc.statsd.Incr("reddit.api.errors", r.tags, 0.1)
+	if err, ok := errmap[resp.StatusCode]; ok {
+		return nil, rli, err
+	} else {
 		return nil, rli, ServerError{string(bb), resp.StatusCode}
 	}
 }
 
-func (rc *Client) request(ctx context.Context, r *Request, rh ResponseHandler, empty interface{}) (interface{}, error) {
-	bb, _, err := rc.doRequest(ctx, r)
+func (rc *Client) request(ctx context.Context, r *Request, errmap map[int]error, rh ResponseHandler, empty interface{}) (interface{}, error) {
+	bb, _, err := rc.doRequest(ctx, r, errmap)
 
 	if err != nil && err != ErrOauthRevoked && r.retry {
 		for _, backoff := range backoffSchedule {
@@ -191,7 +199,7 @@ func (rc *Client) request(ctx context.Context, r *Request, rh ResponseHandler, e
 
 			time.AfterFunc(backoff, func() {
 				_ = rc.statsd.Incr("reddit.api.retries", r.tags, 0.1)
-				bb, _, err = rc.doRequest(ctx, r)
+				bb, _, err = rc.doRequest(ctx, r, errmap)
 				done <- struct{}{}
 			})
 
@@ -235,7 +243,7 @@ func (rc *Client) subredditPosts(ctx context.Context, subreddit string, sort str
 	}...)
 	req := NewRequest(opts...)
 
-	lr, err := rc.request(ctx, req, NewListingResponse, nil)
+	lr, err := rc.request(ctx, req, defaultErrorMap, NewListingResponse, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -263,7 +271,7 @@ func (rc *Client) SubredditAbout(ctx context.Context, subreddit string, opts ...
 		WithURL(url),
 	}...)
 	req := NewRequest(opts...)
-	srr, err := rc.request(ctx, req, NewSubredditResponse, nil)
+	srr, err := rc.request(ctx, req, defaultErrorMap, NewSubredditResponse, nil)
 
 	if err != nil {
 		if err == ErrOauthRevoked {
@@ -301,7 +309,7 @@ func (rac *AuthenticatedClient) ObfuscatedRefreshToken() string {
 	return obfuscate(rac.refreshToken)
 }
 
-func (rac *AuthenticatedClient) request(ctx context.Context, r *Request, rh ResponseHandler, empty interface{}) (interface{}, error) {
+func (rac *AuthenticatedClient) request(ctx context.Context, r *Request, errmap map[int]error, rh ResponseHandler, empty interface{}) (interface{}, error) {
 	if rac.isRateLimited() {
 		return nil, ErrRateLimited
 	}
@@ -310,7 +318,7 @@ func (rac *AuthenticatedClient) request(ctx context.Context, r *Request, rh Resp
 		return nil, err
 	}
 
-	bb, rli, err := rac.client.doRequest(ctx, r)
+	bb, rli, err := rac.client.doRequest(ctx, r, errmap)
 
 	if err != nil && err != ErrOauthRevoked && r.retry {
 		for _, backoff := range backoffSchedule {
@@ -324,7 +332,7 @@ func (rac *AuthenticatedClient) request(ctx context.Context, r *Request, rh Resp
 					return
 				}
 
-				bb, rli, err = rac.client.doRequest(ctx, r)
+				bb, rli, err = rac.client.doRequest(ctx, r, errmap)
 				done <- struct{}{}
 			})
 
@@ -419,6 +427,10 @@ func (rac *AuthenticatedClient) markRateLimited(rli *RateLimitingInfo) error {
 }
 
 func (rac *AuthenticatedClient) RefreshTokens(ctx context.Context, opts ...RequestOption) (*RefreshTokenResponse, error) {
+	errmap := map[int]error{
+		400: ErrOauthRevoked,
+	}
+
 	opts = append(rac.client.defaultOpts, opts...)
 	opts = append(opts, []RequestOption{
 		WithTags([]string{"url:/api/v1/access_token"}),
@@ -430,7 +442,7 @@ func (rac *AuthenticatedClient) RefreshTokens(ctx context.Context, opts ...Reque
 	}...)
 	req := NewRequest(opts...)
 
-	rtr, err := rac.request(ctx, req, NewRefreshTokenResponse, nil)
+	rtr, err := rac.request(ctx, req, errmap, NewRefreshTokenResponse, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -453,7 +465,7 @@ func (rac *AuthenticatedClient) AboutInfo(ctx context.Context, fullname string, 
 	}...)
 	req := NewRequest(opts...)
 
-	lr, err := rac.request(ctx, req, NewListingResponse, nil)
+	lr, err := rac.request(ctx, req, defaultErrorMap, NewListingResponse, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -471,7 +483,7 @@ func (rac *AuthenticatedClient) UserPosts(ctx context.Context, user string, opts
 	}...)
 	req := NewRequest(opts...)
 
-	lr, err := rac.request(ctx, req, NewListingResponse, nil)
+	lr, err := rac.request(ctx, req, defaultErrorMap, NewListingResponse, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -488,7 +500,7 @@ func (rac *AuthenticatedClient) UserAbout(ctx context.Context, user string, opts
 		WithURL(url),
 	}...)
 	req := NewRequest(opts...)
-	ur, err := rac.request(ctx, req, NewUserResponse, nil)
+	ur, err := rac.request(ctx, req, defaultErrorMap, NewUserResponse, nil)
 
 	if err != nil {
 		return nil, err
@@ -507,7 +519,7 @@ func (rac *AuthenticatedClient) SubredditAbout(ctx context.Context, subreddit st
 		WithURL(url),
 	}...)
 	req := NewRequest(opts...)
-	srr, err := rac.request(ctx, req, NewSubredditResponse, nil)
+	srr, err := rac.request(ctx, req, defaultErrorMap, NewSubredditResponse, nil)
 
 	if err != nil {
 		if err == ErrOauthRevoked {
@@ -538,7 +550,7 @@ func (rac *AuthenticatedClient) subredditPosts(ctx context.Context, subreddit st
 	}...)
 	req := NewRequest(opts...)
 
-	lr, err := rac.request(ctx, req, NewListingResponse, nil)
+	lr, err := rac.request(ctx, req, defaultErrorMap, NewListingResponse, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -569,7 +581,7 @@ func (rac *AuthenticatedClient) MessageInbox(ctx context.Context, opts ...Reques
 	}...)
 	req := NewRequest(opts...)
 
-	lr, err := rac.request(ctx, req, NewListingResponse, EmptyListingResponse)
+	lr, err := rac.request(ctx, req, defaultErrorMap, NewListingResponse, EmptyListingResponse)
 	if err != nil {
 		return nil, err
 	}
@@ -588,7 +600,7 @@ func (rac *AuthenticatedClient) MessageUnread(ctx context.Context, opts ...Reque
 
 	req := NewRequest(opts...)
 
-	lr, err := rac.request(ctx, req, NewListingResponse, EmptyListingResponse)
+	lr, err := rac.request(ctx, req, defaultErrorMap, NewListingResponse, EmptyListingResponse)
 	if err != nil {
 		return nil, err
 	}
@@ -605,7 +617,7 @@ func (rac *AuthenticatedClient) Me(ctx context.Context, opts ...RequestOption) (
 	}...)
 
 	req := NewRequest(opts...)
-	mr, err := rac.request(ctx, req, NewMeResponse, nil)
+	mr, err := rac.request(ctx, req, defaultErrorMap, NewMeResponse, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -627,7 +639,7 @@ func (rac *AuthenticatedClient) TopLevelComments(ctx context.Context, subreddit 
 	}...)
 
 	req := NewRequest(opts...)
-	tr, err := rac.request(ctx, req, NewThreadResponse, nil)
+	tr, err := rac.request(ctx, req, defaultErrorMap, NewThreadResponse, nil)
 	if err != nil {
 		return nil, err
 	}
