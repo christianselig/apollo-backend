@@ -5,9 +5,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/christianselig/apollo-backend/internal/reddit"
 	"github.com/stretchr/testify/assert"
 	"github.com/valyala/fastjson"
+
+	"github.com/christianselig/apollo-backend/internal/reddit"
 )
 
 var pool = &fastjson.ParserPool{}

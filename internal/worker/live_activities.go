@@ -173,26 +173,20 @@ func (lac *liveActivitiesConsumer) Consume(delivery rmq.Delivery) {
 	if la.TokenExpiresAt.Before(now.Add(5 * time.Minute)) {
 		lac.logger.Debug("refreshing reddit token",
 			zap.String("live_activity#apns_token", at),
+			zap.String("reddit#id", la.RedditAccountID),
+			zap.String("reddit#access_token", rac.ObfuscatedAccessToken()),
+			zap.String("reddit#refresh_token", rac.ObfuscatedRefreshToken()),
 		)
 
 		tokens, err := rac.RefreshTokens(lac)
 		if err != nil {
-			if err != reddit.ErrOauthRevoked {
-				lac.logger.Error("failed to refresh reddit tokens",
-					zap.Error(err),
-					zap.String("live_activity#apns_token", at),
-				)
-				return
-			}
-
-			err = lac.liveActivityRepo.Delete(lac, at)
-			if err != nil {
-				lac.logger.Error("failed to remove revoked account",
-					zap.Error(err),
-					zap.String("live_activity#apns_token", at),
-				)
-			}
-
+			lac.logger.Error("failed to refresh reddit tokens",
+				zap.Error(err),
+				zap.String("live_activity#apns_token", at),
+				zap.String("reddit#id", la.RedditAccountID),
+				zap.String("reddit#access_token", rac.ObfuscatedAccessToken()),
+				zap.String("reddit#refresh_token", rac.ObfuscatedRefreshToken()),
+			)
 			return
 		}
 
@@ -213,6 +207,9 @@ func (lac *liveActivitiesConsumer) Consume(delivery rmq.Delivery) {
 		lac.logger.Error("failed to fetch latest comments",
 			zap.Error(err),
 			zap.String("live_activity#apns_token", at),
+			zap.String("reddit#id", la.RedditAccountID),
+			zap.String("reddit#access_token", rac.ObfuscatedAccessToken()),
+			zap.String("reddit#refresh_token", rac.ObfuscatedRefreshToken()),
 		)
 		return
 	}
