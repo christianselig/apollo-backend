@@ -30,7 +30,7 @@ func (a *api) createLiveActivityHandler(w http.ResponseWriter, r *http.Request) 
 	}
 
 	la.RefreshToken = rtr.RefreshToken
-	la.TokenExpiresAt = time.Now().Add(1 * time.Hour).UTC()
+	la.TokenExpiresAt = time.Now().Add(1 * time.Hour)
 
 	if err := a.liveActivityRepo.Create(ctx, la); err != nil {
 		a.errorResponse(w, r, 500, err)
