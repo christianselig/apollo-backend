@@ -294,9 +294,9 @@ func (lac *liveActivitiesConsumer) Consume(delivery rmq.Delivery) {
 	}
 
 	client := lac.apnsProduction
-	if la.Sandbox {
+	/*if la.Sandbox {
 		client = lac.apnsSandbox
-	}
+	}*/
 
 	res, err := client.PushWithContext(ctx, notification)
 	if err != nil {
