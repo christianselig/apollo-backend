@@ -3,7 +3,7 @@ package reddit
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptrace"
 	"regexp"
@@ -29,6 +29,7 @@ type Client struct {
 	id          string
 	secret      string
 	trace       *httptrace.ClientTrace
+	client      *http.Client
 	pool        *fastjson.ParserPool
 	statsd      statsd.ClientInterface
 	redis       *redis.Client
@@ -94,12 +95,14 @@ func NewClient(id, secret string, statsd statsd.ClientInterface, redis *redis.Cl
 		},
 	}
 
-	/*
-		t := http.DefaultTransport.(*http.Transport).Clone()
-		t.IdleConnTimeout = 60 * time.Second
-		t.ResponseHeaderTimeout = 5 * time.Second
-		client := &http.Client{Transport: t}
-	*/
+	t := http.DefaultTransport.(*http.Transport).Clone()
+	t.MaxIdleConns = connLimit / 2
+	t.MaxConnsPerHost = connLimit
+	t.MaxIdleConnsPerHost = 100
+	client := &http.Client{
+		Timeout:   5 * time.Second,
+		Transport: t,
+	}
 
 	pool := &fastjson.ParserPool{}
 
@@ -117,6 +120,7 @@ func NewClient(id, secret string, statsd statsd.ClientInterface, redis *redis.Cl
 		id,
 		secret,
 		trace,
+		client,
 		pool,
 		statsd,
 		redis,
@@ -158,7 +162,7 @@ func (rc *Client) doRequest(ctx context.Context, r *Request, errmap map[int]erro
 
 	start := time.Now()
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := rc.client.Do(req)
 
 	_ = rc.statsd.Incr("reddit.api.calls", r.tags, 0.1)
 
@@ -169,7 +173,9 @@ func (rc *Client) doRequest(ctx context.Context, r *Request, errmap map[int]erro
 		}
 		return nil, nil, err
 	}
-	defer resp.Body.Close()
+	bb, err := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	_ = rc.statsd.Histogram("reddit.api.latency", float64(time.Since(start).Milliseconds()), r.tags, 0.1)
 
 	rli := &RateLimitingInfo{Present: false}
 	if resp.Header.Get(RateLimitRemainingHeader) != "" {
@@ -179,9 +185,6 @@ func (rc *Client) doRequest(ctx context.Context, r *Request, errmap map[int]erro
 		rli.Reset, _ = strconv.Atoi(resp.Header.Get(RateLimitResetHeader))
 		rli.Timestamp = time.Now().String()
 	}
-
-	bb, err := ioutil.ReadAll(resp.Body)
-	_ = rc.statsd.Histogram("reddit.api.latency", float64(time.Since(start).Milliseconds()), r.tags, 0.1)
 
 	if resp.StatusCode == 200 {
 		return bb, rli, nil
