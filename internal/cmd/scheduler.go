@@ -97,6 +97,8 @@ func SchedulerCmd(ctx context.Context) *cobra.Command {
 			}
 
 			s := gocron.NewScheduler(time.UTC)
+			s.SetMaxConcurrentJobs(8, gocron.WaitMode)
+
 			_, _ = s.Every(5).Seconds().SingletonMode().Do(func() { enqueueAccounts(ctx, logger, statsd, db, redis, luaSha, notifQueue) })
 			_, _ = s.Every(5).Second().Do(func() { enqueueSubreddits(ctx, logger, statsd, db, []rmq.Queue{subredditQueue, trendingQueue}) })
 			_, _ = s.Every(5).Second().Do(func() { enqueueUsers(ctx, logger, statsd, db, userQueue) })
