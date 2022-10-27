@@ -252,6 +252,7 @@ func reportStats(ctx context.Context, logger *zap.Logger, statsd *statsd.Client,
 			{"SELECT COUNT(*) FROM devices", "apollo.registrations.devices"},
 			{"SELECT COUNT(*) FROM subreddits", "apollo.registrations.subreddits"},
 			{"SELECT COUNT(*) FROM users", "apollo.registrations.users"},
+			{"SELECT COUNT(*) FROM live_activities", "apollo.registrations.live-activities"},
 		}
 	)
 
