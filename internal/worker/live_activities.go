@@ -145,7 +145,7 @@ func (lac *liveActivitiesConsumer) Consume(delivery rmq.Delivery) {
 	key := fmt.Sprintf("locks:live-activities:%s", at)
 
 	// Measure queue latency
-	ttl := lac.redis.TTL(lac, key).Val()
+	ttl := lac.redis.PTTL(lac, key).Val()
 	age := (domain.NotificationCheckTimeout - ttl)
 	_ = lac.statsd.Histogram("apollo.dequeue.latency", float64(age.Milliseconds()), []string{"queue:live_activities"}, 0.1)
 
