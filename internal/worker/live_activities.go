@@ -315,7 +315,7 @@ func (lac *liveActivitiesConsumer) Consume(delivery rmq.Delivery) {
 		_ = lac.liveActivityRepo.Delete(ctx, at)
 	} else {
 		_ = lac.statsd.Incr("apns.notification.sent", []string{}, 1)
-		lac.logger.Info("sent notification",
+		lac.logger.Debug("sent notification",
 			zap.String("live_activity#apns_token", at),
 		)
 	}
