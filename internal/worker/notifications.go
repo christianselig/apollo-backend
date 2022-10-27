@@ -322,9 +322,11 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 		for _, device := range devices {
 			notification.DeviceToken = device.APNSToken
 			client := nc.apnsProduction
-			if device.Sandbox {
-				client = nc.apnsSandbox
-			}
+			/*
+				if device.Sandbox {
+					client = nc.apnsSandbox
+				}
+			*/
 
 			res, err := client.PushWithContext(ctx, notification)
 			if err != nil {
