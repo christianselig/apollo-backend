@@ -28,8 +28,7 @@ const (
 type Client struct {
 	id          string
 	secret      string
-	client      *http.Client
-	tracer      *httptrace.ClientTrace
+	trace       *httptrace.ClientTrace
 	pool        *fastjson.ParserPool
 	statsd      statsd.ClientInterface
 	redis       *redis.Client
@@ -81,7 +80,7 @@ func PostIDFromContext(context string) string {
 }
 
 func NewClient(id, secret string, statsd statsd.ClientInterface, redis *redis.Client, connLimit int, opts ...RequestOption) *Client {
-	tracer := &httptrace.ClientTrace{
+	trace := &httptrace.ClientTrace{
 		GotConn: func(info httptrace.GotConnInfo) {
 			if info.Reused {
 				_ = statsd.Incr("reddit.api.connections.reused", []string{}, 0.1)
@@ -95,18 +94,29 @@ func NewClient(id, secret string, statsd statsd.ClientInterface, redis *redis.Cl
 		},
 	}
 
-	t := http.DefaultTransport.(*http.Transport).Clone()
-	t.IdleConnTimeout = 60 * time.Second
-	t.ResponseHeaderTimeout = 5 * time.Second
-	client := &http.Client{Transport: t}
+	/*
+		t := http.DefaultTransport.(*http.Transport).Clone()
+		t.IdleConnTimeout = 60 * time.Second
+		t.ResponseHeaderTimeout = 5 * time.Second
+		client := &http.Client{Transport: t}
+	*/
 
 	pool := &fastjson.ParserPool{}
+
+	// Preallocate pool
+	parsers := make([]*fastjson.Parser, connLimit)
+	for i := 0; i < connLimit; i++ {
+		parsers[i] = pool.Get()
+	}
+
+	for i := 0; i < connLimit; i++ {
+		pool.Put(parsers[i])
+	}
 
 	return &Client{
 		id,
 		secret,
-		client,
-		tracer,
+		trace,
 		pool,
 		statsd,
 		redis,
@@ -139,21 +149,16 @@ func (rc *Client) NewAuthenticatedClient(redditId, refreshToken, accessToken str
 }
 
 func (rc *Client) doRequest(ctx context.Context, r *Request, errmap map[int]error) ([]byte, *RateLimitingInfo, error) {
+	ctx = httptrace.WithClientTrace(ctx, rc.trace)
+
 	req, err := r.HTTPRequest(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	req = req.WithContext(httptrace.WithClientTrace(ctx, rc.tracer))
-
 	start := time.Now()
 
-	client := r.client
-	if client == nil {
-		client = rc.client
-	}
-
-	resp, err := client.Do(req)
+	resp, err := http.DefaultClient.Do(req)
 
 	_ = rc.statsd.Incr("reddit.api.calls", r.tags, 0.1)
 
