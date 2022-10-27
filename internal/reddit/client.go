@@ -369,6 +369,7 @@ func (rac *AuthenticatedClient) request(ctx context.Context, r *Request, errmap 
 	return rh(val), nil
 }
 
+//nolint:unparam
 func (rac *AuthenticatedClient) logRequest() error {
 	if rac.redditId == SkipRateLimiting {
 		return nil
