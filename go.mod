@@ -5,7 +5,7 @@ go 1.18
 require (
 	github.com/DataDog/datadog-go v4.8.3+incompatible
 	github.com/adjust/rmq/v4 v4.0.5
-	github.com/bugsnag/bugsnag-go/v2 v2.1.2
+	github.com/bugsnag/bugsnag-go/v2 v2.2.0
 	github.com/dustin/go-humanize v1.0.0
 	github.com/go-co-op/gocron v1.17.1
 	github.com/go-ozzo/ozzo-validation/v4 v4.3.0
@@ -31,6 +31,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/golang-jwt/jwt/v4 v4.4.2 // indirect
+	github.com/google/uuid v1.3.0 // indirect
 	github.com/inconshreveable/mousetrap v1.0.1 // indirect
 	github.com/jackc/chunkreader/v2 v2.0.1 // indirect
 	github.com/jackc/pgio v1.0.0 // indirect
