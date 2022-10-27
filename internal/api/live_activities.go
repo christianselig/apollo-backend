@@ -13,7 +13,12 @@ func (a *api) createLiveActivityHandler(w http.ResponseWriter, r *http.Request) 
 
 	la := &domain.LiveActivity{}
 	if err := json.NewDecoder(r.Body).Decode(la); err != nil {
-		a.errorResponse(w, r, 500, err)
+		a.errorResponse(w, r, 400, err)
+		return
+	}
+
+	if _, err := a.liveActivityRepo.Get(ctx, la.APNSToken); err == nil {
+		a.errorResponse(w, r, 400, ErrDuplicateAPNSToken)
 		return
 	}
 
