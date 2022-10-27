@@ -149,7 +149,7 @@ func enqueueLiveActivities(ctx context.Context, logger *zap.Logger, pool *pgxpoo
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	now := time.Now().UTC()
+	now := time.Now()
 	next := now.Add(domain.LiveActivityCheckInterval)
 
 	stmt := `UPDATE live_activities

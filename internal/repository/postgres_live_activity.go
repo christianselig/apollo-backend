@@ -87,8 +87,8 @@ func (p *postgresLiveActivityRepository) Create(ctx context.Context, la *domain.
 		la.TokenExpiresAt,
 		la.ThreadID,
 		la.Subreddit,
-		time.Now().UTC(),
-		time.Now().Add(domain.LiveActivityDuration).UTC(),
+		time.Now(),
+		time.Now().Add(domain.LiveActivityDuration),
 	).Scan(&la.ID)
 }
 

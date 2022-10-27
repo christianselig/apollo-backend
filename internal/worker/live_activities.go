@@ -138,7 +138,7 @@ func (lac *liveActivitiesConsumer) Consume(delivery rmq.Delivery) {
 	ctx, cancel := context.WithCancel(lac)
 	defer cancel()
 
-	now := time.Now().UTC()
+	now := time.Now()
 	defer func() {
 		elapsed := time.Now().Sub(now).Milliseconds()
 		_ = lac.statsd.Histogram("apollo.consumer.runtime", float64(elapsed), []string{"queue:live_activities"}, 0.1)
