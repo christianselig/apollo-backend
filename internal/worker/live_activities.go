@@ -262,7 +262,7 @@ func (lac *liveActivitiesConsumer) Consume(delivery rmq.Delivery) {
 		PostScore:        tr.Post.Score,
 	}
 
-	if len(candidates) > 1 {
+	if len(candidates) >= 1 {
 		comment := candidates[0]
 
 		din.CommentID = comment.ID
