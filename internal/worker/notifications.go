@@ -168,7 +168,9 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 
 	account, err := nc.accountRepo.GetByRedditID(ctx, id)
 	if err != nil {
-		nc.logger.Error("failed to fetch account from database", zap.Error(err), zap.String("account#reddit_account_id", id))
+		nc.logger.Info("account not found, exiting",
+			zap.Error(err),
+			zap.String("account#reddit_account_id", id))
 		return
 	}
 
