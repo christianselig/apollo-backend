@@ -158,7 +158,7 @@ func enqueueLiveActivities(ctx context.Context, logger *zap.Logger, pool *pgxpoo
 			WHERE next_check_at < $1
 			ORDER BY next_check_at
 			FOR UPDATE SKIP LOCKED
-			LIMIT 100
+			LIMIT 1000
 		)
 		RETURNING live_activities.apns_token`
 
