@@ -138,6 +138,9 @@ func NewSubredditsConsumer(sw *subredditsWorker, tag int) *subredditsConsumer {
 }
 
 func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
+	ctx, cancel := context.WithCancel(sc)
+	defer cancel()
+
 	id, err := strconv.ParseInt(delivery.Payload(), 10, 64)
 	if err != nil {
 		sc.logger.Error("failed to parse subreddit id from payload", zap.Error(err), zap.String("payload", delivery.Payload()))
@@ -149,13 +152,13 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 
 	defer func() { _ = delivery.Ack() }()
 
-	subreddit, err := sc.subredditRepo.GetByID(sc, id)
+	subreddit, err := sc.subredditRepo.GetByID(ctx, id)
 	if err != nil {
 		sc.logger.Error("failed to fetch subreddit from database", zap.Error(err), zap.Int64("subreddit#id", id))
 		return
 	}
 
-	watchers, err := sc.watcherRepo.GetBySubredditID(sc, subreddit.ID)
+	watchers, err := sc.watcherRepo.GetBySubredditID(ctx, subreddit.ID)
 	if err != nil {
 		sc.logger.Error("failed to fetch watchers from database",
 			zap.Error(err),
@@ -196,7 +199,7 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 		watcher := watchers[i]
 
 		rac := sc.reddit.NewAuthenticatedClient(watcher.Account.AccountID, watcher.Account.RefreshToken, watcher.Account.AccessToken)
-		sps, err := rac.SubredditNew(sc,
+		sps, err := rac.SubredditNew(ctx,
 			subreddit.Name,
 			reddit.WithQuery("before", before),
 			reddit.WithQuery("limit", "100"),
@@ -262,9 +265,9 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 		i := rand.Intn(len(watchers))
 		watcher := watchers[i]
 
-		acc, _ := sc.accountRepo.GetByID(sc, watcher.AccountID)
+		acc, _ := sc.accountRepo.GetByID(ctx, watcher.AccountID)
 		rac := sc.reddit.NewAuthenticatedClient(acc.AccountID, acc.RefreshToken, acc.AccessToken)
-		sps, err := rac.SubredditHot(sc,
+		sps, err := rac.SubredditHot(ctx,
 			subreddit.Name,
 			reddit.WithQuery("limit", "100"),
 			reddit.WithQuery("show", "all"),
@@ -349,7 +352,7 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 			)
 
 			lockKey := fmt.Sprintf("watcher:%d:%s", watcher.DeviceID, post.ID)
-			notified, _ := sc.redis.Get(sc, lockKey).Bool()
+			notified, _ := sc.redis.Get(ctx, lockKey).Bool()
 
 			if notified {
 				sc.logger.Debug("already notified, skipping",
@@ -361,7 +364,7 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 				continue
 			}
 
-			if err := sc.watcherRepo.IncrementHits(sc, watcher.ID); err != nil {
+			if err := sc.watcherRepo.IncrementHits(ctx, watcher.ID); err != nil {
 				sc.logger.Error("could not increment hits",
 					zap.Error(err),
 					zap.Int64("subreddit#id", id),
@@ -377,7 +380,7 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 				zap.String("post#id", post.ID),
 			)
 
-			sc.redis.SetEX(sc, lockKey, true, 24*time.Hour)
+			sc.redis.SetEX(ctx, lockKey, true, 24*time.Hour)
 			notifs = append(notifs, watcher)
 		}
 

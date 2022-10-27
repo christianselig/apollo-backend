@@ -133,6 +133,9 @@ func NewTrendingConsumer(tw *trendingWorker, tag int) *trendingConsumer {
 }
 
 func (tc *trendingConsumer) Consume(delivery rmq.Delivery) {
+	ctx, cancel := context.WithCancel(tc)
+	defer cancel()
+
 	id, err := strconv.ParseInt(delivery.Payload(), 10, 64)
 	if err != nil {
 		tc.logger.Error("failed to parse subreddit id from payload", zap.Error(err), zap.String("payload", delivery.Payload()))
@@ -144,13 +147,13 @@ func (tc *trendingConsumer) Consume(delivery rmq.Delivery) {
 
 	defer func() { _ = delivery.Ack() }()
 
-	subreddit, err := tc.subredditRepo.GetByID(tc, id)
+	subreddit, err := tc.subredditRepo.GetByID(ctx, id)
 	if err != nil {
 		tc.logger.Error("failed to fetch subreddit from database", zap.Error(err), zap.Int64("subreddit#id", id))
 		return
 	}
 
-	watchers, err := tc.watcherRepo.GetByTrendingSubredditID(tc, subreddit.ID)
+	watchers, err := tc.watcherRepo.GetByTrendingSubredditID(ctx, subreddit.ID)
 	if err != nil {
 		tc.logger.Error("failed to fetch watchers from database",
 			zap.Error(err),
@@ -173,7 +176,7 @@ func (tc *trendingConsumer) Consume(delivery rmq.Delivery) {
 	watcher := watchers[i]
 	rac := tc.reddit.NewAuthenticatedClient(watcher.Account.AccountID, watcher.Account.RefreshToken, watcher.Account.AccessToken)
 
-	tps, err := rac.SubredditTop(tc, subreddit.Name, reddit.WithQuery("t", "week"), reddit.WithQuery("show", "all"), reddit.WithQuery("limit", "25"))
+	tps, err := rac.SubredditTop(ctx, subreddit.Name, reddit.WithQuery("t", "week"), reddit.WithQuery("show", "all"), reddit.WithQuery("limit", "25"))
 	if err != nil {
 		tc.logger.Error("failed to fetch weeks's top posts",
 			zap.Error(err),
@@ -223,7 +226,7 @@ func (tc *trendingConsumer) Consume(delivery rmq.Delivery) {
 	watcher = watchers[i]
 	rac = tc.reddit.NewAuthenticatedClient(watcher.Account.AccountID, watcher.Account.RefreshToken, watcher.Account.AccessToken)
 
-	hps, err := rac.SubredditHot(tc, subreddit.Name, reddit.WithQuery("show", "all"), reddit.WithQuery("always_show_media", "1"))
+	hps, err := rac.SubredditHot(ctx, subreddit.Name, reddit.WithQuery("show", "all"), reddit.WithQuery("always_show_media", "1"))
 	if err != nil {
 		tc.logger.Error("failed to fetch hot posts",
 			zap.Error(err),
@@ -260,7 +263,7 @@ func (tc *trendingConsumer) Consume(delivery rmq.Delivery) {
 			}
 
 			lockKey := fmt.Sprintf("watcher:trending:%d:%s", watcher.DeviceID, post.ID)
-			notified, _ := tc.redis.Get(tc, lockKey).Bool()
+			notified, _ := tc.redis.Get(ctx, lockKey).Bool()
 
 			if notified {
 				tc.logger.Debug("already notified, skipping",
@@ -272,9 +275,9 @@ func (tc *trendingConsumer) Consume(delivery rmq.Delivery) {
 				continue
 			}
 
-			tc.redis.SetEX(tc, lockKey, true, 48*time.Hour)
+			tc.redis.SetEX(ctx, lockKey, true, 48*time.Hour)
 
-			if err := tc.watcherRepo.IncrementHits(tc, watcher.ID); err != nil {
+			if err := tc.watcherRepo.IncrementHits(ctx, watcher.ID); err != nil {
 				tc.logger.Error("could not increment hits",
 					zap.Error(err),
 					zap.Int64("subreddit#id", id),

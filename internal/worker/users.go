@@ -134,6 +134,9 @@ func NewUsersConsumer(uw *usersWorker, tag int) *usersConsumer {
 }
 
 func (uc *usersConsumer) Consume(delivery rmq.Delivery) {
+	ctx, cancel := context.WithCancel(uc)
+	defer cancel()
+
 	id, err := strconv.ParseInt(delivery.Payload(), 10, 64)
 	if err != nil {
 		uc.logger.Error("failed to parse subreddit id from payload", zap.Error(err), zap.String("payload", delivery.Payload()))
@@ -145,13 +148,13 @@ func (uc *usersConsumer) Consume(delivery rmq.Delivery) {
 
 	defer func() { _ = delivery.Ack() }()
 
-	user, err := uc.userRepo.GetByID(uc, id)
+	user, err := uc.userRepo.GetByID(ctx, id)
 	if err != nil {
 		uc.logger.Error("failed to fetch user from database", zap.Error(err), zap.Int64("subreddit#id", id))
 		return
 	}
 
-	watchers, err := uc.watcherRepo.GetByUserID(uc, user.ID)
+	watchers, err := uc.watcherRepo.GetByUserID(ctx, user.ID)
 	if err != nil {
 		uc.logger.Error("failed to fetch watchers from database",
 			zap.Error(err),
@@ -173,10 +176,10 @@ func (uc *usersConsumer) Consume(delivery rmq.Delivery) {
 	i := rand.Intn(len(watchers))
 	watcher := watchers[i]
 
-	acc, _ := uc.accountRepo.GetByID(uc, watcher.AccountID)
+	acc, _ := uc.accountRepo.GetByID(ctx, watcher.AccountID)
 	rac := uc.reddit.NewAuthenticatedClient(acc.AccountID, acc.RefreshToken, acc.AccessToken)
 
-	ru, err := rac.UserAbout(uc, user.Name)
+	ru, err := rac.UserAbout(ctx, user.Name)
 	if err != nil {
 		uc.logger.Error("failed to fetch user details",
 			zap.Error(err),
@@ -192,7 +195,7 @@ func (uc *usersConsumer) Consume(delivery rmq.Delivery) {
 			zap.String("user#name", user.NormalizedName()),
 		)
 
-		if err := uc.watcherRepo.DeleteByTypeAndWatcheeID(uc, domain.UserWatcher, user.ID); err != nil {
+		if err := uc.watcherRepo.DeleteByTypeAndWatcheeID(ctx, domain.UserWatcher, user.ID); err != nil {
 			uc.logger.Error("failed to remove watchers for user who disallows followers",
 				zap.Error(err),
 				zap.Int64("user#id", id),
@@ -201,7 +204,7 @@ func (uc *usersConsumer) Consume(delivery rmq.Delivery) {
 			return
 		}
 
-		if err := uc.userRepo.Delete(uc, user.ID); err != nil {
+		if err := uc.userRepo.Delete(ctx, user.ID); err != nil {
 			uc.logger.Error("failed to remove user",
 				zap.Error(err),
 				zap.Int64("user#id", id),
@@ -211,7 +214,7 @@ func (uc *usersConsumer) Consume(delivery rmq.Delivery) {
 		}
 	}
 
-	posts, err := rac.UserPosts(uc, user.Name)
+	posts, err := rac.UserPosts(ctx, user.Name)
 	if err != nil {
 		uc.logger.Error("failed to fetch user activity",
 			zap.Error(err),
@@ -257,7 +260,7 @@ func (uc *usersConsumer) Consume(delivery rmq.Delivery) {
 		notification.Topic = "com.christianselig.Apollo"
 
 		for _, watcher := range notifs {
-			if err := uc.watcherRepo.IncrementHits(uc, watcher.ID); err != nil {
+			if err := uc.watcherRepo.IncrementHits(ctx, watcher.ID); err != nil {
 				uc.logger.Error("failed to increment watcher hits",
 					zap.Error(err),
 					zap.Int64("user#id", id),
@@ -267,7 +270,7 @@ func (uc *usersConsumer) Consume(delivery rmq.Delivery) {
 				return
 			}
 
-			device, _ := uc.deviceRepo.GetByID(uc, watcher.DeviceID)
+			device, _ := uc.deviceRepo.GetByID(ctx, watcher.DeviceID)
 
 			title := fmt.Sprintf(userNotificationTitleFormat, watcher.Label)
 			payload.AlertTitle(title)

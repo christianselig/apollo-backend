@@ -101,6 +101,9 @@ func NewStuckNotificationsConsumer(snw *stuckNotificationsWorker, tag int) *stuc
 }
 
 func (snc *stuckNotificationsConsumer) Consume(delivery rmq.Delivery) {
+	ctx, cancel := context.WithCancel(snc)
+	defer cancel()
+
 	now := time.Now()
 	defer func() {
 		elapsed := time.Now().Sub(now).Milliseconds()
@@ -119,7 +122,7 @@ func (snc *stuckNotificationsConsumer) Consume(delivery rmq.Delivery) {
 
 	defer func() { _ = delivery.Ack() }()
 
-	account, err := snc.accountRepo.GetByID(snc, id)
+	account, err := snc.accountRepo.GetByID(ctx, id)
 	if err != nil {
 		snc.logger.Error("failed to fetch account from database", zap.Error(err), zap.Int64("account#id", id))
 		return
@@ -149,7 +152,7 @@ func (snc *stuckNotificationsConsumer) Consume(delivery rmq.Delivery) {
 			zap.String("account#username", account.NormalizedUsername()),
 		)
 
-		things, err = rac.MessageInbox(snc)
+		things, err = rac.MessageInbox(ctx)
 		if err != nil {
 			if err != reddit.ErrRateLimited {
 				snc.logger.Error("failed to fetch last thing via inbox",
@@ -161,7 +164,7 @@ func (snc *stuckNotificationsConsumer) Consume(delivery rmq.Delivery) {
 			return
 		}
 	} else {
-		things, err = rac.AboutInfo(snc, account.LastMessageID)
+		things, err = rac.AboutInfo(ctx, account.LastMessageID)
 		if err != nil {
 			snc.logger.Error("failed to fetch last thing",
 				zap.Error(err),
@@ -186,7 +189,7 @@ func (snc *stuckNotificationsConsumer) Consume(delivery rmq.Delivery) {
 				return
 			}
 
-			sthings, err := rac.MessageInbox(snc)
+			sthings, err := rac.MessageInbox(ctx)
 			if err != nil {
 				snc.logger.Error("failed to check inbox",
 					zap.Error(err),
@@ -233,7 +236,7 @@ func (snc *stuckNotificationsConsumer) Consume(delivery rmq.Delivery) {
 			zap.String("account#username", account.NormalizedUsername()),
 		)
 
-		things, err = rac.MessageInbox(snc)
+		things, err = rac.MessageInbox(ctx)
 		if err != nil {
 			snc.logger.Error("failed to check inbox",
 				zap.Error(err),
@@ -270,7 +273,7 @@ func (snc *stuckNotificationsConsumer) Consume(delivery rmq.Delivery) {
 		zap.String("thing#id", account.LastMessageID),
 	)
 
-	if err := snc.accountRepo.Update(snc, &account); err != nil {
+	if err := snc.accountRepo.Update(ctx, &account); err != nil {
 		snc.logger.Error("failed to update account's last message id",
 			zap.Error(err),
 			zap.Int64("account#id", id),
