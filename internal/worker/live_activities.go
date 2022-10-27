@@ -304,6 +304,7 @@ func (lac *liveActivitiesConsumer) Consume(delivery rmq.Delivery) {
 		lac.logger.Error("failed to send notification",
 			zap.Error(err),
 			zap.String("live_activity#apns_token", at),
+			zap.Bool("live_activity#sandbox", la.Sandbox),
 			zap.String("notification#type", ev),
 		)
 
@@ -312,6 +313,7 @@ func (lac *liveActivitiesConsumer) Consume(delivery rmq.Delivery) {
 		_ = lac.statsd.Incr("apns.live_activities.errors", []string{}, 1)
 		lac.logger.Error("notification not sent",
 			zap.String("live_activity#apns_token", at),
+			zap.Bool("live_activity#sandbox", la.Sandbox),
 			zap.String("notification#type", ev),
 			zap.Int("response#status", res.StatusCode),
 			zap.String("response#reason", res.Reason),
@@ -322,6 +324,7 @@ func (lac *liveActivitiesConsumer) Consume(delivery rmq.Delivery) {
 		_ = lac.statsd.Incr("apns.notification.sent", []string{}, 1)
 		lac.logger.Info("sent notification",
 			zap.String("live_activity#apns_token", at),
+			zap.Bool("live_activity#sandbox", la.Sandbox),
 			zap.String("notification#type", ev),
 		)
 	}
