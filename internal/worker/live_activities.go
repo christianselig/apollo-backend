@@ -248,7 +248,7 @@ func (lac *liveActivitiesConsumer) Consume(delivery rmq.Delivery) {
 		}
 	}
 
-	if len(candidates) == 0 {
+	if len(candidates) == 0 && la.ExpiresAt.After(now) {
 		lac.logger.Debug("no new comments found", zap.String("live_activity#apns_token", at))
 		return
 	}
@@ -257,16 +257,19 @@ func (lac *liveActivitiesConsumer) Consume(delivery rmq.Delivery) {
 		return candidates[i].Score > candidates[j].Score
 	})
 
-	comment := candidates[0]
-
 	din := DynamicIslandNotification{
 		PostCommentCount: tr.Post.NumComments,
 		PostScore:        tr.Post.Score,
-		CommentID:        comment.ID,
-		CommentAuthor:    comment.Author,
-		CommentBody:      comment.Body,
-		CommentAge:       comment.CreatedAt.Unix(),
-		CommentScore:     comment.Score,
+	}
+
+	if len(candidates) > 1 {
+		comment := candidates[0]
+
+		din.CommentID = comment.ID
+		din.CommentAuthor = comment.Author
+		din.CommentBody = comment.Body
+		din.CommentAge = comment.CreatedAt.Unix()
+		din.CommentScore = comment.Score
 	}
 
 	ev := "update"
@@ -301,6 +304,7 @@ func (lac *liveActivitiesConsumer) Consume(delivery rmq.Delivery) {
 		lac.logger.Error("failed to send notification",
 			zap.Error(err),
 			zap.String("live_activity#apns_token", at),
+			zap.String("notification#type", ev),
 		)
 
 		_ = lac.liveActivityRepo.Delete(ctx, at)
@@ -308,6 +312,7 @@ func (lac *liveActivitiesConsumer) Consume(delivery rmq.Delivery) {
 		_ = lac.statsd.Incr("apns.live_activities.errors", []string{}, 1)
 		lac.logger.Error("notification not sent",
 			zap.String("live_activity#apns_token", at),
+			zap.String("notification#type", ev),
 			zap.Int("response#status", res.StatusCode),
 			zap.String("response#reason", res.Reason),
 		)
@@ -317,6 +322,7 @@ func (lac *liveActivitiesConsumer) Consume(delivery rmq.Delivery) {
 		_ = lac.statsd.Incr("apns.notification.sent", []string{}, 1)
 		lac.logger.Debug("sent notification",
 			zap.String("live_activity#apns_token", at),
+			zap.String("notification#type", ev),
 		)
 	}
 
