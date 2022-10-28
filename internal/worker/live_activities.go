@@ -24,11 +24,11 @@ import (
 type DynamicIslandNotification struct {
 	PostCommentCount int    `json:"postTotalComments"`
 	PostScore        int64  `json:"postScore"`
-	CommentID        string `json:"commentId"`
-	CommentAuthor    string `json:"commentAuthor"`
-	CommentBody      string `json:"commentBody"`
-	CommentAge       int64  `json:"commentAge"`
-	CommentScore     int64  `json:"commentScore"`
+	CommentID        string `json:"commentId,omitempty"`
+	CommentAuthor    string `json:"commentAuthor,omitempty"`
+	CommentBody      string `json:"commentBody,omitempty"`
+	CommentAge       int64  `json:"commentAge,omitempty"`
+	CommentScore     int64  `json:"commentScore,omitempty"`
 }
 
 type liveActivitiesWorker struct {
