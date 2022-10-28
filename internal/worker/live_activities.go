@@ -121,15 +121,13 @@ type liveActivitiesConsumer struct {
 	*liveActivitiesWorker
 	tag int
 
-	apnsSandbox    *apns2.Client
-	apnsProduction *apns2.Client
+	apns *apns2.Client
 }
 
 func NewLiveActivitiesConsumer(law *liveActivitiesWorker, tag int) *liveActivitiesConsumer {
 	return &liveActivitiesConsumer{
 		law,
 		tag,
-		apns2.NewTokenClient(law.apns),
 		apns2.NewTokenClient(law.apns).Production(),
 	}
 }
@@ -223,7 +221,7 @@ func (lac *liveActivitiesConsumer) Consume(delivery rmq.Delivery) {
 		return
 	}
 
-	if len(tr.Children) == 0 {
+	if len(tr.Children) == 0 && la.ExpiresAt.After(now) {
 		lac.logger.Debug("no comments found", zap.String("live_activity#apns_token", at))
 		return
 	}
@@ -262,7 +260,7 @@ func (lac *liveActivitiesConsumer) Consume(delivery rmq.Delivery) {
 		PostScore:        tr.Post.Score,
 	}
 
-	if len(candidates) >= 1 {
+	if len(candidates) > 0 {
 		comment := candidates[0]
 
 		din.CommentID = comment.ID
@@ -277,14 +275,13 @@ func (lac *liveActivitiesConsumer) Consume(delivery rmq.Delivery) {
 		ev = "end"
 	}
 
-	pl := map[string]interface{}{
+	bb, _ := json.Marshal(map[string]interface{}{
 		"aps": map[string]interface{}{
 			"timestamp":     time.Now().Unix(),
 			"event":         ev,
 			"content-state": din,
 		},
-	}
-	bb, _ := json.Marshal(pl)
+	})
 
 	notification := &apns2.Notification{
 		DeviceToken: la.APNSToken,
@@ -293,12 +290,7 @@ func (lac *liveActivitiesConsumer) Consume(delivery rmq.Delivery) {
 		Payload:     bb,
 	}
 
-	client := lac.apnsProduction
-	/*if la.Sandbox {
-		client = lac.apnsSandbox
-	}*/
-
-	res, err := client.PushWithContext(ctx, notification)
+	res, err := lac.apns.PushWithContext(ctx, notification)
 	if err != nil {
 		_ = lac.statsd.Incr("apns.live_activities.errors", []string{}, 1)
 		lac.logger.Error("failed to send notification",
