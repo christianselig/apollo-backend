@@ -29,6 +29,8 @@ const (
 	usernameMentionNotificationTitleFormat = "Mention in \u201c%s\u201d"
 )
 
+var notificationTags = []string{"queue:notifications"}
+
 type notificationsWorker struct {
 	context.Context
 
@@ -138,7 +140,8 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 	now := time.Now()
 	defer func() {
 		elapsed := time.Now().Sub(now).Milliseconds()
-		_ = nc.statsd.Histogram("apollo.consumer.runtime", float64(elapsed), []string{"queue:notifications"}, 0.1)
+		_ = nc.statsd.Histogram("apollo.consumer.runtime", float64(elapsed), notificationTags, 0.1)
+		_ = nc.statsd.Incr("apollo.consumer.executions", notificationTags, 0.1)
 	}()
 
 	id := delivery.Payload()
@@ -147,7 +150,7 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 	// Measure queue latency
 	ttl := nc.redis.PTTL(ctx, key).Val()
 	age := (domain.NotificationCheckTimeout - ttl)
-	_ = nc.statsd.Histogram("apollo.dequeue.latency", float64(age.Milliseconds()), []string{"queue:notifications"}, 0.1)
+	_ = nc.statsd.Histogram("apollo.dequeue.latency", float64(age.Milliseconds()), notificationTags, 0.1)
 
 	defer func() {
 		if err := nc.redis.Del(ctx, key).Err(); err != nil {

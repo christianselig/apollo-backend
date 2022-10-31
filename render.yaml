@@ -87,11 +87,11 @@ services:
   - key: BUGSNAG_METADATA_QUEUE
     value: notifications
   scaling:
-    minInstances: 20
+    minInstances: 30
     maxInstances: 50
     targetCPUPercent: 60
   buildCommand: go install github.com/bugsnag/panic-monitor@latest && go build ./cmd/apollo
-  startCommand: panic-monitor ./apollo worker --queue notifications --consumers 512
+  startCommand: panic-monitor ./apollo worker --queue notifications --consumers 1024
 
 # Stuck Notifications Checker
 - type: worker
