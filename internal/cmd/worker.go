@@ -23,7 +23,7 @@ var (
 )
 
 func WorkerCmd(ctx context.Context) *cobra.Command {
-	var multiplier int
+	var consumers int
 	var queueID string
 
 	cmd := &cobra.Command{
@@ -46,10 +46,9 @@ func WorkerCmd(ctx context.Context) *cobra.Command {
 			}
 			defer statsd.Close()
 
-			consumers := runtime.NumCPU() * multiplier
-			poolSize := multiplier / 4
+			poolSize := consumers / 4
 
-			runtime.GOMAXPROCS(multiplier)
+			runtime.GOMAXPROCS(consumers)
 
 			db, err := cmdutil.NewDatabasePool(ctx, poolSize)
 			if err != nil {
@@ -57,7 +56,7 @@ func WorkerCmd(ctx context.Context) *cobra.Command {
 			}
 			defer db.Close()
 
-			redis, err := cmdutil.NewRedisClient(ctx, multiplier)
+			redis, err := cmdutil.NewRedisClient(ctx, consumers)
 			if err != nil {
 				return err
 			}
@@ -86,7 +85,7 @@ func WorkerCmd(ctx context.Context) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().IntVar(&multiplier, "multiplier", 32, "The multiplier (by CPUs) to run")
+	cmd.Flags().IntVar(&consumers, "consumers", runtime.NumCPU()*64, "The consumers to run")
 	cmd.Flags().StringVar(&queueID, "queue", "", "The queue to work on")
 
 	return cmd
