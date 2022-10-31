@@ -8,6 +8,7 @@ import (
 	_ "net/http/pprof"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-go/statsd"
@@ -471,8 +472,10 @@ func enqueueAccounts(ctx context.Context, logger *zap.Logger, statsd *statsd.Cli
 		ids = append(ids, id)
 	}
 
-	enqueued := 0
-	skipped := 0
+	var (
+		enqueued int64 = 0
+		skipped  int64 = 0
+	)
 
 	defer func() {
 		tags := []string{"queue:notifications"}
@@ -503,8 +506,8 @@ func enqueueAccounts(ctx context.Context, logger *zap.Logger, statsd *statsd.Cli
 				logger.Error("failed to check for locked accounts", zap.Error(err))
 			}
 
-			skipped += len(batch) - len(unlocked)
-			enqueued += len(unlocked)
+			atomic.AddInt64(&skipped, int64(len(batch)-len(unlocked)))
+			atomic.AddInt64(&enqueued, int64(len(unlocked)))
 
 			if len(unlocked) == 0 {
 				return
@@ -517,7 +520,12 @@ func enqueueAccounts(ctx context.Context, logger *zap.Logger, statsd *statsd.Cli
 	}
 	wg.Wait()
 
-	logger.Debug("done enqueueing account batch", zap.Int("count", enqueued), zap.Int("skipped", skipped), zap.Time("start", now))
+	logger.Info("enqueued account batch",
+		zap.Int64("count", enqueued),
+		zap.Int64("skipped", skipped),
+		zap.Time("start", now),
+		zap.Int64("duration", time.Since(now).Milliseconds()),
+	)
 }
 
 type Int64Slice []int64
