@@ -277,9 +277,10 @@ func (lac *liveActivitiesConsumer) Consume(delivery rmq.Delivery) {
 
 	bb, _ := json.Marshal(map[string]interface{}{
 		"aps": map[string]interface{}{
-			"timestamp":     time.Now().Unix(),
-			"event":         ev,
-			"content-state": din,
+			"content-state":  din,
+			"dismissal-date": la.ExpiresAt.Unix(),
+			"event":          ev,
+			"timestamp":      now.Unix(),
 		},
 	})
 
