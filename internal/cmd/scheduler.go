@@ -458,6 +458,7 @@ func enqueueAccounts(ctx context.Context, logger *zap.Logger, statsd *statsd.Cli
 		INNER JOIN devices_accounts ON devices_accounts.account_id = accounts.id
 		INNER JOIN devices ON devices.id = devices_accounts.device_id
 		WHERE grace_period_expires_at >= NOW()
+		AND accounts.is_deleted IS FALSE
 	`
 	rows, err := pool.Query(ctx, query)
 	if err != nil {
