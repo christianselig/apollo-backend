@@ -10,7 +10,7 @@ require (
 	github.com/go-co-op/gocron v1.17.1
 	github.com/go-ozzo/ozzo-validation/v4 v4.3.0
 	github.com/go-redis/redis/v8 v8.11.5
-	github.com/gofrs/uuid v4.0.0+incompatible
+	github.com/gofrs/uuid v4.3.0+incompatible
 	github.com/gorilla/mux v1.8.0
 	github.com/heroku/x v0.0.55
 	github.com/jackc/pgconn v1.13.0
