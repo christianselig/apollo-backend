@@ -35,6 +35,9 @@ func WorkerCmd(ctx context.Context) *cobra.Command {
 				return fmt.Errorf("need a queue to work on")
 			}
 
+			runtime.SetBlockProfileRate(1)
+			runtime.SetMutexProfileFraction(1)
+
 			svc := fmt.Sprintf("worker: %s", queueID)
 			logger := cmdutil.NewLogger(svc)
 			defer func() { _ = logger.Sync() }()
