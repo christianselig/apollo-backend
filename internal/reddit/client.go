@@ -2,6 +2,7 @@ package reddit
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"io"
 	"net/http"
@@ -99,6 +100,7 @@ func NewClient(id, secret string, statsd statsd.ClientInterface, redis *redis.Cl
 	t.MaxIdleConns = connLimit / 2
 	t.MaxConnsPerHost = connLimit
 	t.MaxIdleConnsPerHost = 100
+	t.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} // TODO(andremedeiros): remove
 	client := &http.Client{
 		Timeout:   5 * time.Second,
 		Transport: t,
