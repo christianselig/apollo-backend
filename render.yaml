@@ -177,7 +177,7 @@ services:
 - type: worker
   name: worker.live-activities
   env: go
-  plan: starter plus
+  plan: starter
   envVars:
   - fromGroup: env-settings
   - key: BUGSNAG_APP_TYPE
@@ -185,7 +185,7 @@ services:
   - key: BUGSNAG_METADATA_QUEUE
     value: live-activities
   scaling:
-    minInstances: 2
+    minInstances: 1
     maxInstances: 20
     targetCPUPercent: 60
   buildCommand: go install github.com/bugsnag/panic-monitor@latest && go build ./cmd/apollo

@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	_ "net/http/pprof"
@@ -526,11 +525,4 @@ func enqueueAccounts(ctx context.Context, logger *zap.Logger, statsd *statsd.Cli
 		zap.Time("start", now),
 		zap.Int64("duration", time.Since(now).Milliseconds()),
 	)
-}
-
-type Int64Slice []int64
-
-func (ii Int64Slice) MarshalBinary() (data []byte, err error) {
-	bytes, err := json.Marshal(ii)
-	return bytes, err
 }
