@@ -56,13 +56,19 @@ func WorkerCmd(ctx context.Context) *cobra.Command {
 			}
 			defer db.Close()
 
+			qredis, err := cmdutil.NewRedisClient(ctx, 4)
+			if err != nil {
+				return err
+			}
+			defer qredis.Close()
+
 			redis, err := cmdutil.NewRedisClient(ctx, consumers)
 			if err != nil {
 				return err
 			}
 			defer redis.Close()
 
-			queue, err := cmdutil.NewQueueClient(logger, redis, "worker")
+			queue, err := cmdutil.NewQueueClient(logger, qredis, "worker")
 			if err != nil {
 				return err
 			}
