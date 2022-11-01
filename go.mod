@@ -4,7 +4,7 @@ go 1.18
 
 require (
 	github.com/DataDog/datadog-go v4.8.3+incompatible
-	github.com/adjust/rmq/v4 v4.0.5
+	github.com/adjust/rmq/v5 v5.0.1
 	github.com/bugsnag/bugsnag-go/v2 v2.2.0
 	github.com/dustin/go-humanize v1.0.0
 	github.com/go-co-op/gocron v1.17.1
