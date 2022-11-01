@@ -494,7 +494,7 @@ func enqueueAccounts(ctx context.Context, logger *zap.Logger, statsd *statsd.Cli
 	wg := sync.WaitGroup{}
 	for i := 0; i < len(ids); i += batchSize {
 		wg.Add(1)
-		go func(offset int) {
+		go func(offset int, ctx context.Context) {
 			defer wg.Done()
 
 			ctx, cancel := context.WithCancel(ctx)
@@ -523,7 +523,7 @@ func enqueueAccounts(ctx context.Context, logger *zap.Logger, statsd *statsd.Cli
 			if err = queue.Publish(unlocked...); err != nil {
 				logger.Error("failed to enqueue account batch", zap.Error(err))
 			}
-		}(i)
+		}(i, ctx)
 	}
 	wg.Wait()
 
