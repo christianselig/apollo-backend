@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -46,7 +47,8 @@ type watcherCreatedResponse struct {
 }
 
 func (a *api) createWatcherHandler(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
 
 	vars := mux.Vars(r)
 	apns := vars["apns"]
@@ -190,7 +192,8 @@ func (a *api) createWatcherHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *api) editWatcherHandler(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
 
 	vars := mux.Vars(r)
 	apns := vars["apns"]
@@ -302,7 +305,8 @@ func (a *api) editWatcherHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *api) deleteWatcherHandler(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
 
 	vars := mux.Vars(r)
 	id, err := strconv.ParseInt(vars["watcherID"], 10, 64)

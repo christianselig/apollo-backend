@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"time"
@@ -9,7 +10,8 @@ import (
 )
 
 func (a *api) createLiveActivityHandler(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
 
 	la := &domain.LiveActivity{}
 	if err := json.NewDecoder(r.Body).Decode(la); err != nil {
