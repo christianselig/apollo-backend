@@ -87,9 +87,9 @@ services:
   - key: BUGSNAG_METADATA_QUEUE
     value: notifications
   scaling:
-    minInstances: 30
-    maxInstances: 50
-    targetCPUPercent: 60
+    minInstances: 10
+    maxInstances: 30
+    targetCPUPercent: 80
   buildCommand: go install github.com/bugsnag/panic-monitor@latest && go build ./cmd/apollo
   startCommand: panic-monitor ./apollo worker --queue notifications --consumers 1024
 
@@ -97,7 +97,7 @@ services:
 - type: worker
   name: worker.notifications.stuck
   env: go
-  plan: starter plus
+  plan: starter
   envVars:
   - fromGroup: env-settings
   - key: BUGSNAG_APP_TYPE
@@ -105,9 +105,9 @@ services:
   - key: BUGSNAG_METADATA_QUEUE
     value: stuck
   scaling:
-    minInstances: 1
+    minInstances: 2
     maxInstances: 10
-    targetCPUPercent: 60
+    targetCPUPercent: 80
   buildCommand: go install github.com/bugsnag/panic-monitor@latest && go build ./cmd/apollo
   startCommand: panic-monitor ./apollo worker --queue stuck-notifications --consumers 64
 
@@ -149,9 +149,9 @@ services:
   - key: BUGSNAG_METADATA_QUEUE
     value: subreddits
   scaling:
-    minInstances: 1
+    minInstances: 2
     maxInstances: 10
-    targetCPUPercent: 60
+    targetCPUPercent: 80
   buildCommand: go install github.com/bugsnag/panic-monitor@latest && go build ./cmd/apollo
   startCommand: panic-monitor ./apollo worker --queue subreddits
 
@@ -159,7 +159,7 @@ services:
 - type: worker
   name: worker.watcher.trending
   env: go
-  plan: starter plus
+  plan: starter
   envVars:
   - fromGroup: env-settings
   - key: BUGSNAG_APP_TYPE
@@ -167,9 +167,9 @@ services:
   - key: BUGSNAG_METADATA_QUEUE
     value: trending
   scaling:
-    minInstances: 1
+    minInstances: 2
     maxInstances: 10
-    targetCPUPercent: 60
+    targetCPUPercent: 80
   buildCommand: go install github.com/bugsnag/panic-monitor@latest && go build ./cmd/apollo
   startCommand: panic-monitor ./apollo worker --queue trending
 
@@ -186,8 +186,8 @@ services:
     value: live-activities
   scaling:
     minInstances: 1
-    maxInstances: 20
-    targetCPUPercent: 60
+    maxInstances: 10
+    targetCPUPercent: 80
   buildCommand: go install github.com/bugsnag/panic-monitor@latest && go build ./cmd/apollo
   startCommand: panic-monitor ./apollo worker --queue live-activities
 
