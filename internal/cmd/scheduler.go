@@ -497,6 +497,9 @@ func enqueueAccounts(ctx context.Context, logger *zap.Logger, statsd *statsd.Cli
 		go func(offset int) {
 			defer wg.Done()
 
+			ctx, cancel := context.WithCancel(ctx)
+			defer cancel()
+
 			j := offset + batchSize
 			if j > len(ids) {
 				j = len(ids)
