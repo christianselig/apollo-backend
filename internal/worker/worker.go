@@ -11,7 +11,7 @@ import (
 	"go.uber.org/zap"
 )
 
-const pollDuration = 50 * time.Millisecond
+const pollDuration = 100 * time.Millisecond
 
 type NewWorkerFn func(context.Context, *zap.Logger, *statsd.Client, *pgxpool.Pool, *redis.Client, rmq.Connection, int) Worker
 type Worker interface {

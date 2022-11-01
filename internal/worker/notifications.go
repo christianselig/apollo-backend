@@ -95,7 +95,7 @@ func (nw *notificationsWorker) Start() error {
 
 	nw.logger.Info("starting up notifications worker", zap.Int("consumers", nw.consumers))
 
-	prefetchLimit := int64(nw.consumers * 4)
+	prefetchLimit := int64(nw.consumers * 20)
 
 	if err := queue.StartConsuming(prefetchLimit, pollDuration); err != nil {
 		return err
