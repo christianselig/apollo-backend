@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -20,7 +21,8 @@ type accountNotificationsRequest struct {
 }
 
 func (a *api) notificationsAccountHandler(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
 
 	anr := &accountNotificationsRequest{}
 	if err := json.NewDecoder(r.Body).Decode(anr); err != nil {
@@ -53,7 +55,8 @@ func (a *api) notificationsAccountHandler(w http.ResponseWriter, r *http.Request
 }
 
 func (a *api) getNotificationsAccountHandler(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
 
 	vars := mux.Vars(r)
 	apns := vars["apns"]
@@ -84,7 +87,8 @@ func (a *api) getNotificationsAccountHandler(w http.ResponseWriter, r *http.Requ
 }
 
 func (a *api) disassociateAccountHandler(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
 
 	vars := mux.Vars(r)
 	apns := vars["apns"]
@@ -111,7 +115,8 @@ func (a *api) disassociateAccountHandler(w http.ResponseWriter, r *http.Request)
 }
 
 func (a *api) upsertAccountsHandler(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
 
 	vars := mux.Vars(r)
 	apns := vars["apns"]
@@ -191,7 +196,8 @@ func (a *api) upsertAccountsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *api) upsertAccountHandler(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
 
 	vars := mux.Vars(r)
 

@@ -23,10 +23,7 @@ import (
 	"github.com/christianselig/apollo-backend/internal/repository"
 )
 
-const (
-	batchSize             = 500
-	maxNotificationChecks = 5000
-)
+const batchSize = 500
 
 func SchedulerCmd(ctx context.Context) *cobra.Command {
 	cmd := &cobra.Command{
@@ -530,7 +527,6 @@ func enqueueAccounts(ctx context.Context, logger *zap.Logger, statsd *statsd.Cli
 	logger.Info("enqueued account batch",
 		zap.Int64("count", enqueued),
 		zap.Int64("skipped", skipped),
-		zap.Time("start", now),
 		zap.Int64("duration", time.Since(now).Milliseconds()),
 	)
 }
