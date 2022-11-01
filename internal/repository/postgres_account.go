@@ -86,12 +86,12 @@ func (p *postgresAccountRepository) CreateOrUpdate(ctx context.Context, acc *dom
 	query := `
 		INSERT INTO accounts (username, reddit_account_id, access_token, refresh_token, token_expires_at,
 			last_message_id, next_notification_check_at, next_stuck_notification_check_at, is_deleted)
-		VALUES ($1, $2, $3, $4, $5, '', NOW(), NOW(), false)
+		VALUES ($1, $2, $3, $4, $5, '', NOW(), NOW(), FALSE)
 		ON CONFLICT(username) DO
 			UPDATE SET access_token = $3,
 				refresh_token = $4,
 				token_expires_at = $5,
-				is_deleted = false
+				is_deleted = FALSE
 		RETURNING id`
 
 	return p.conn.QueryRow(
@@ -110,7 +110,7 @@ func (p *postgresAccountRepository) Create(ctx context.Context, acc *domain.Acco
 		INSERT INTO accounts
 			(username, reddit_account_id, access_token, refresh_token, token_expires_at,
 			last_message_id, next_notification_check_at, next_stuck_notification_check_at, is_deleted)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, false)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, FALSE)
 		RETURNING id`
 
 	return p.conn.QueryRow(
