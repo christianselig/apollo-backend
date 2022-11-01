@@ -48,8 +48,6 @@ func WorkerCmd(ctx context.Context) *cobra.Command {
 
 			poolSize := consumers / 4
 
-			runtime.GOMAXPROCS(consumers)
-
 			db, err := cmdutil.NewDatabasePool(ctx, poolSize)
 			if err != nil {
 				return err
