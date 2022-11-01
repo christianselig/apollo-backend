@@ -457,11 +457,10 @@ func enqueueAccounts(ctx context.Context, logger *zap.Logger, statsd *statsd.Cli
 	now := time.Now()
 
 	query := `
-		SET work_mem TO '16MB';
 		SELECT DISTINCT reddit_account_id FROM accounts
 		INNER JOIN devices_accounts ON devices_accounts.account_id = accounts.id
 		INNER JOIN devices ON devices.id = devices_accounts.device_id
-		WHERE grace_period_expires_at >= NOW();
+		WHERE grace_period_expires_at >= NOW()
 	`
 	rows, err := pool.Query(ctx, query)
 	if err != nil {
