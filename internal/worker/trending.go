@@ -6,11 +6,9 @@ import (
 	"math/rand"
 	"os"
 	"sort"
-	"strconv"
 	"time"
 
 	"github.com/DataDog/datadog-go/statsd"
-	"github.com/adjust/rmq/v5"
 	"github.com/go-redis/redis/v8"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/sideshow/apns2"
@@ -24,16 +22,11 @@ import (
 )
 
 type trendingWorker struct {
-	context.Context
-
 	logger *zap.Logger
 	statsd *statsd.Client
 	redis  *redis.Client
-	queue  rmq.Connection
 	reddit *reddit.Client
-	apns   *token.Token
-
-	consumers int
+	apns   *apns2.Client
 
 	accountRepo   domain.AccountRepository
 	deviceRepo    domain.DeviceRepository
@@ -43,7 +36,7 @@ type trendingWorker struct {
 
 const trendingNotificationTitleFormat = "🔥 r/%s Trending"
 
-func NewTrendingWorker(ctx context.Context, logger *zap.Logger, statsd *statsd.Client, db *pgxpool.Pool, redis *redis.Client, queue rmq.Connection, consumers int) Worker {
+func NewTrendingWorker(ctx context.Context, logger *zap.Logger, statsd *statsd.Client, db *pgxpool.Pool, redis *redis.Client, consumers int) Worker {
 	reddit := reddit.NewClient(
 		os.Getenv("REDDIT_CLIENT_ID"),
 		os.Getenv("REDDIT_CLIENT_SECRET"),
@@ -52,29 +45,27 @@ func NewTrendingWorker(ctx context.Context, logger *zap.Logger, statsd *statsd.C
 		consumers,
 	)
 
-	var apns *token.Token
+	var apns *apns2.Client
 	{
 		authKey, err := token.AuthKeyFromFile(os.Getenv("APPLE_KEY_PATH"))
 		if err != nil {
 			panic(err)
 		}
 
-		apns = &token.Token{
+		tok := &token.Token{
 			AuthKey: authKey,
 			KeyID:   os.Getenv("APPLE_KEY_ID"),
 			TeamID:  os.Getenv("APPLE_TEAM_ID"),
 		}
+		apns = apns2.NewTokenClient(tok).Production()
 	}
 
 	return &trendingWorker{
-		ctx,
 		logger,
 		statsd,
 		redis,
-		queue,
 		reddit,
 		apns,
-		consumers,
 
 		repository.NewPostgresAccount(db),
 		repository.NewPostgresDevice(db),
@@ -83,130 +74,70 @@ func NewTrendingWorker(ctx context.Context, logger *zap.Logger, statsd *statsd.C
 	}
 }
 
-func (tw *trendingWorker) Start() error {
-	queue, err := tw.queue.OpenQueue("trending")
+func (tw *trendingWorker) Process(ctx context.Context, args ...interface{}) error {
+	id := args[0].(int64)
+	tw.logger.Debug("starting job", zap.Int64("subreddit#id", id))
+
+	subreddit, err := tw.subredditRepo.GetByID(ctx, id)
 	if err != nil {
-		return err
+		tw.logger.Error("failed to fetch subreddit from database", zap.Error(err), zap.Int64("subreddit#id", id))
+		return nil
 	}
 
-	tw.logger.Info("starting up trending subreddits worker", zap.Int("consumers", tw.consumers))
-
-	prefetchLimit := int64(tw.consumers * 2)
-
-	if err := queue.StartConsuming(prefetchLimit, pollDuration); err != nil {
-		return err
-	}
-
-	host, _ := os.Hostname()
-
-	for i := 0; i < tw.consumers; i++ {
-		name := fmt.Sprintf("consumer %s-%d", host, i)
-
-		consumer := NewTrendingConsumer(tw, i)
-		if _, err := queue.AddConsumer(name, consumer); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (tw *trendingWorker) Stop() {
-	<-tw.queue.StopAllConsuming() // wait for all Consume() calls to finish
-}
-
-type trendingConsumer struct {
-	*trendingWorker
-	tag int
-
-	apnsSandbox    *apns2.Client
-	apnsProduction *apns2.Client
-}
-
-func NewTrendingConsumer(tw *trendingWorker, tag int) *trendingConsumer {
-	return &trendingConsumer{
-		tw,
-		tag,
-		apns2.NewTokenClient(tw.apns),
-		apns2.NewTokenClient(tw.apns).Production(),
-	}
-}
-
-func (tc *trendingConsumer) Consume(delivery rmq.Delivery) {
-	ctx, cancel := context.WithCancel(tc)
-	defer cancel()
-
-	id, err := strconv.ParseInt(delivery.Payload(), 10, 64)
+	watchers, err := tw.watcherRepo.GetByTrendingSubredditID(ctx, subreddit.ID)
 	if err != nil {
-		tc.logger.Error("failed to parse subreddit id from payload", zap.Error(err), zap.String("payload", delivery.Payload()))
-		_ = delivery.Reject()
-		return
-	}
-
-	tc.logger.Debug("starting job", zap.Int64("subreddit#id", id))
-
-	defer func() { _ = delivery.Ack() }()
-
-	subreddit, err := tc.subredditRepo.GetByID(ctx, id)
-	if err != nil {
-		tc.logger.Error("failed to fetch subreddit from database", zap.Error(err), zap.Int64("subreddit#id", id))
-		return
-	}
-
-	watchers, err := tc.watcherRepo.GetByTrendingSubredditID(ctx, subreddit.ID)
-	if err != nil {
-		tc.logger.Error("failed to fetch watchers from database",
+		tw.logger.Error("failed to fetch watchers from database",
 			zap.Error(err),
 			zap.Int64("subreddit#id", id),
 			zap.String("subreddit#name", subreddit.NormalizedName()),
 		)
-		return
+		return err
 	}
 
 	if len(watchers) == 0 {
-		tc.logger.Debug("no watchers for subreddit, bailing early",
+		tw.logger.Debug("no watchers for subreddit, bailing early",
 			zap.Int64("subreddit#id", id),
 			zap.String("subreddit#name", subreddit.NormalizedName()),
 		)
-		return
+		return nil
 	}
 
 	// Grab last month's top posts so we calculate a trending average
 	i := rand.Intn(len(watchers))
 	watcher := watchers[i]
-	rac := tc.reddit.NewAuthenticatedClient(watcher.Account.AccountID, watcher.Account.RefreshToken, watcher.Account.AccessToken)
+	rac := tw.reddit.NewAuthenticatedClient(watcher.Account.AccountID, watcher.Account.RefreshToken, watcher.Account.AccessToken)
 
 	tps, err := rac.SubredditTop(ctx, subreddit.Name, reddit.WithQuery("t", "week"), reddit.WithQuery("show", "all"), reddit.WithQuery("limit", "25"))
 	if err != nil {
-		tc.logger.Error("failed to fetch weeks's top posts",
+		tw.logger.Error("failed to fetch weeks's top posts",
 			zap.Error(err),
 			zap.Int64("subreddit#id", id),
 			zap.String("subreddit#name", subreddit.NormalizedName()),
 		)
-		return
+		return err
 	}
 
-	tc.logger.Debug("loaded weeks's top posts",
+	tw.logger.Debug("loaded weeks's top posts",
 		zap.Int64("subreddit#id", id),
 		zap.String("subreddit#name", subreddit.NormalizedName()),
 		zap.Int("count", tps.Count),
 	)
 
 	if tps.Count == 0 {
-		tc.logger.Debug("no top posts, bailing early",
+		tw.logger.Debug("no top posts, bailing early",
 			zap.Int64("subreddit#id", id),
 			zap.String("subreddit#name", subreddit.NormalizedName()),
 		)
-		return
+		return nil
 	}
 
 	if tps.Count < 20 {
-		tc.logger.Debug("no top posts, bailing early",
+		tw.logger.Debug("no top posts, bailing early",
 			zap.Int64("subreddit#id", id),
 			zap.String("subreddit#name", subreddit.NormalizedName()),
 			zap.Int("count", tps.Count),
 		)
-		return
+		return nil
 	}
 
 	sort.SliceStable(tps.Children, func(i, j int) bool {
@@ -215,7 +146,7 @@ func (tc *trendingConsumer) Consume(delivery rmq.Delivery) {
 
 	middlePost := tps.Count / 2
 	medianScore := tps.Children[middlePost].Score
-	tc.logger.Debug("calculated median score",
+	tw.logger.Debug("calculated median score",
 		zap.Int64("subreddit#id", id),
 		zap.String("subreddit#name", subreddit.NormalizedName()),
 		zap.Int64("score", medianScore),
@@ -224,18 +155,18 @@ func (tc *trendingConsumer) Consume(delivery rmq.Delivery) {
 	// Grab hot posts and filter out anything that's > 2 days old
 	i = rand.Intn(len(watchers))
 	watcher = watchers[i]
-	rac = tc.reddit.NewAuthenticatedClient(watcher.Account.AccountID, watcher.Account.RefreshToken, watcher.Account.AccessToken)
+	rac = tw.reddit.NewAuthenticatedClient(watcher.Account.AccountID, watcher.Account.RefreshToken, watcher.Account.AccessToken)
 
 	hps, err := rac.SubredditHot(ctx, subreddit.Name, reddit.WithQuery("show", "all"), reddit.WithQuery("always_show_media", "1"))
 	if err != nil {
-		tc.logger.Error("failed to fetch hot posts",
+		tw.logger.Error("failed to fetch hot posts",
 			zap.Error(err),
 			zap.Int64("subreddit#id", id),
 			zap.String("subreddit#name", subreddit.NormalizedName()),
 		)
-		return
+		return err
 	}
-	tc.logger.Debug("loaded hot posts",
+	tw.logger.Debug("loaded hot posts",
 		zap.Int64("subreddit#id", id),
 		zap.String("subreddit#name", subreddit.NormalizedName()),
 		zap.Int("count", hps.Count),
@@ -263,10 +194,10 @@ func (tc *trendingConsumer) Consume(delivery rmq.Delivery) {
 			}
 
 			lockKey := fmt.Sprintf("watcher:trending:%d:%s", watcher.DeviceID, post.ID)
-			notified, _ := tc.redis.Get(ctx, lockKey).Bool()
+			notified, _ := tw.redis.Get(ctx, lockKey).Bool()
 
 			if notified {
-				tc.logger.Debug("already notified, skipping",
+				tw.logger.Debug("already notified, skipping",
 					zap.Int64("subreddit#id", id),
 					zap.String("subreddit#name", subreddit.NormalizedName()),
 					zap.Int64("watcher#id", watcher.ID),
@@ -275,29 +206,24 @@ func (tc *trendingConsumer) Consume(delivery rmq.Delivery) {
 				continue
 			}
 
-			tc.redis.SetEX(ctx, lockKey, true, 48*time.Hour)
+			tw.redis.SetEX(ctx, lockKey, true, 48*time.Hour)
 
-			if err := tc.watcherRepo.IncrementHits(ctx, watcher.ID); err != nil {
-				tc.logger.Error("could not increment hits",
+			if err := tw.watcherRepo.IncrementHits(ctx, watcher.ID); err != nil {
+				tw.logger.Error("could not increment hits",
 					zap.Error(err),
 					zap.Int64("subreddit#id", id),
 					zap.String("subreddit#name", subreddit.NormalizedName()),
 					zap.Int64("watcher#id", watcher.ID),
 				)
-				return
+				return err
 			}
 
 			notification.DeviceToken = watcher.Device.APNSToken
 
-			client := tc.apnsProduction
-			if watcher.Device.Sandbox {
-				client = tc.apnsSandbox
-			}
-
-			res, err := client.Push(notification)
+			res, err := tw.apns.Push(notification)
 			if err != nil {
-				_ = tc.statsd.Incr("apns.notification.errors", []string{}, 1)
-				tc.logger.Error("failed to send notification",
+				_ = tw.statsd.Incr("apns.notification.errors", []string{}, 1)
+				tw.logger.Error("failed to send notification",
 					zap.Error(err),
 					zap.Int64("subreddit#id", id),
 					zap.String("subreddit#name", subreddit.NormalizedName()),
@@ -305,8 +231,8 @@ func (tc *trendingConsumer) Consume(delivery rmq.Delivery) {
 					zap.String("apns", watcher.Device.APNSToken),
 				)
 			} else if !res.Sent() {
-				_ = tc.statsd.Incr("apns.notification.errors", []string{}, 1)
-				tc.logger.Error("notification not sent",
+				_ = tw.statsd.Incr("apns.notification.errors", []string{}, 1)
+				tw.logger.Error("notification not sent",
 					zap.Int64("subreddit#id", id),
 					zap.String("subreddit#name", subreddit.NormalizedName()),
 					zap.String("post#id", post.ID),
@@ -315,8 +241,8 @@ func (tc *trendingConsumer) Consume(delivery rmq.Delivery) {
 					zap.String("response#reason", res.Reason),
 				)
 			} else {
-				_ = tc.statsd.Incr("apns.notification.sent", []string{}, 1)
-				tc.logger.Info("sent notification",
+				_ = tw.statsd.Incr("apns.notification.sent", []string{}, 1)
+				tw.logger.Info("sent notification",
 					zap.Int64("subreddit#id", id),
 					zap.String("subreddit#name", subreddit.NormalizedName()),
 					zap.String("post#id", post.ID),
@@ -327,10 +253,12 @@ func (tc *trendingConsumer) Consume(delivery rmq.Delivery) {
 		}
 	}
 
-	tc.logger.Debug("finishing job",
+	tw.logger.Debug("finishing job",
 		zap.Int64("subreddit#id", id),
 		zap.String("subreddit#name", subreddit.NormalizedName()),
 	)
+
+	return nil
 }
 
 func payloadFromTrendingPost(post *reddit.Thing) *payload.Payload {

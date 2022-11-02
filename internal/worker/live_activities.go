@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-go/statsd"
-	"github.com/adjust/rmq/v5"
 	"github.com/go-redis/redis/v8"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/sideshow/apns2"
@@ -32,22 +31,16 @@ type DynamicIslandNotification struct {
 }
 
 type liveActivitiesWorker struct {
-	context.Context
-
-	logger *zap.Logger
-	statsd *statsd.Client
-	db     *pgxpool.Pool
-	redis  *redis.Client
-	queue  rmq.Connection
-	reddit *reddit.Client
-	apns   *token.Token
-
-	consumers int
-
+	logger           *zap.Logger
+	statsd           *statsd.Client
+	db               *pgxpool.Pool
+	redis            *redis.Client
+	reddit           *reddit.Client
+	apns             *apns2.Client
 	liveActivityRepo domain.LiveActivityRepository
 }
 
-func NewLiveActivitiesWorker(ctx context.Context, logger *zap.Logger, statsd *statsd.Client, db *pgxpool.Pool, redis *redis.Client, queue rmq.Connection, consumers int) Worker {
+func NewLiveActivitiesWorker(ctx context.Context, logger *zap.Logger, statsd *statsd.Client, db *pgxpool.Pool, redis *redis.Client, consumers int) Worker {
 	reddit := reddit.NewClient(
 		os.Getenv("REDDIT_CLIENT_ID"),
 		os.Getenv("REDDIT_CLIENT_SECRET"),
@@ -56,123 +49,64 @@ func NewLiveActivitiesWorker(ctx context.Context, logger *zap.Logger, statsd *st
 		consumers,
 	)
 
-	var apns *token.Token
+	var apns *apns2.Client
 	{
 		authKey, err := token.AuthKeyFromFile(os.Getenv("APPLE_KEY_PATH"))
 		if err != nil {
 			panic(err)
 		}
 
-		apns = &token.Token{
+		tok := &token.Token{
 			AuthKey: authKey,
 			KeyID:   os.Getenv("APPLE_KEY_ID"),
 			TeamID:  os.Getenv("APPLE_TEAM_ID"),
 		}
+		apns = apns2.NewTokenClient(tok).Production()
 	}
 
 	return &liveActivitiesWorker{
-		ctx,
 		logger,
 		statsd,
 		db,
 		redis,
-		queue,
 		reddit,
 		apns,
-		consumers,
-
 		repository.NewPostgresLiveActivity(db),
 	}
 }
 
-func (law *liveActivitiesWorker) Start() error {
-	queue, err := law.queue.OpenQueue("live-activities")
-	if err != nil {
-		return err
-	}
-
-	law.logger.Info("starting up live activities worker", zap.Int("consumers", law.consumers))
-
-	prefetchLimit := int64(law.consumers * 4)
-
-	if err := queue.StartConsuming(prefetchLimit, pollDuration); err != nil {
-		return err
-	}
-
-	host, _ := os.Hostname()
-
-	for i := 0; i < law.consumers; i++ {
-		name := fmt.Sprintf("consumer %s-%d", host, i)
-
-		consumer := NewLiveActivitiesConsumer(law, i)
-		if _, err := queue.AddConsumer(name, consumer); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (law *liveActivitiesWorker) Stop() {
-	<-law.queue.StopAllConsuming() // wait for all Consume() calls to finish
-}
-
-type liveActivitiesConsumer struct {
-	*liveActivitiesWorker
-	tag int
-
-	apns *apns2.Client
-}
-
-func NewLiveActivitiesConsumer(law *liveActivitiesWorker, tag int) *liveActivitiesConsumer {
-	return &liveActivitiesConsumer{
-		law,
-		tag,
-		apns2.NewTokenClient(law.apns).Production(),
-	}
-}
-
-func (lac *liveActivitiesConsumer) Consume(delivery rmq.Delivery) {
-	ctx, cancel := context.WithCancel(lac)
-	defer cancel()
-
+func (law *liveActivitiesWorker) Process(ctx context.Context, args ...interface{}) error {
 	now := time.Now()
 	defer func() {
 		elapsed := time.Now().Sub(now).Milliseconds()
-		_ = lac.statsd.Histogram("apollo.consumer.runtime", float64(elapsed), []string{"queue:live_activities"}, 0.1)
+		_ = law.statsd.Histogram("apollo.consumer.runtime", float64(elapsed), []string{"queue:live_activities"}, 0.1)
 	}()
 
-	at := delivery.Payload()
+	at := args[0].(string)
 	key := fmt.Sprintf("locks:live-activities:%s", at)
 
 	// Measure queue latency
-	ttl := lac.redis.PTTL(ctx, key).Val()
+	ttl := law.redis.PTTL(ctx, key).Val()
 	age := (domain.NotificationCheckTimeout - ttl)
-	_ = lac.statsd.Histogram("apollo.dequeue.latency", float64(age.Milliseconds()), []string{"queue:live_activities"}, 0.1)
+	_ = law.statsd.Histogram("apollo.dequeue.latency", float64(age.Milliseconds()), []string{"queue:live_activities"}, 0.1)
 
 	defer func() {
-		if err := lac.redis.Del(ctx, key).Err(); err != nil {
-			lac.logger.Error("failed to remove account lock", zap.Error(err), zap.String("key", key))
+		if err := law.redis.Del(ctx, key).Err(); err != nil {
+			law.logger.Error("failed to remove account lock", zap.Error(err), zap.String("key", key))
 		}
 	}()
 
-	lac.logger.Debug("starting job", zap.String("live_activity#apns_token", at))
+	law.logger.Debug("starting job", zap.String("live_activity#apns_token", at))
 
-	defer func() {
-		if err := delivery.Ack(); err != nil {
-			lac.logger.Error("failed to acknowledge message", zap.Error(err), zap.String("live_activity#apns_token", at))
-		}
-	}()
-
-	la, err := lac.liveActivityRepo.Get(ctx, at)
+	la, err := law.liveActivityRepo.Get(ctx, at)
 	if err != nil {
-		lac.logger.Error("failed to get live activity", zap.Error(err), zap.String("live_activity#apns_token", at))
-		return
+		law.logger.Error("failed to get live activity", zap.Error(err), zap.String("live_activity#apns_token", at))
+		return err
 	}
 
-	rac := lac.reddit.NewAuthenticatedClient(la.RedditAccountID, la.RefreshToken, la.AccessToken)
+	rac := law.reddit.NewAuthenticatedClient(la.RedditAccountID, la.RefreshToken, la.AccessToken)
 	if la.TokenExpiresAt.Before(now.Add(5 * time.Minute)) {
-		lac.logger.Debug("refreshing reddit token",
+		law.logger.Debug("refreshing reddit token",
 			zap.String("live_activity#apns_token", at),
 			zap.String("reddit#id", la.RedditAccountID),
 			zap.String("reddit#access_token", rac.ObfuscatedAccessToken()),
@@ -181,7 +115,7 @@ func (lac *liveActivitiesConsumer) Consume(delivery rmq.Delivery) {
 
 		tokens, err := rac.RefreshTokens(ctx)
 		if err != nil {
-			lac.logger.Error("failed to refresh reddit tokens",
+			law.logger.Error("failed to refresh reddit tokens",
 				zap.Error(err),
 				zap.String("live_activity#apns_token", at),
 				zap.String("reddit#id", la.RedditAccountID),
@@ -189,26 +123,28 @@ func (lac *liveActivitiesConsumer) Consume(delivery rmq.Delivery) {
 				zap.String("reddit#refresh_token", rac.ObfuscatedRefreshToken()),
 			)
 			if err == reddit.ErrOauthRevoked {
-				_ = lac.liveActivityRepo.Delete(ctx, at)
+				_ = law.liveActivityRepo.Delete(ctx, at)
+				return nil
 			}
-			return
+
+			return err
 		}
 
 		// Update account
 		la.AccessToken = tokens.AccessToken
 		la.RefreshToken = tokens.RefreshToken
 		la.TokenExpiresAt = now.Add(tokens.Expiry)
-		_ = lac.liveActivityRepo.Update(ctx, &la)
+		_ = law.liveActivityRepo.Update(ctx, &la)
 
 		// Refresh client
-		rac = lac.reddit.NewAuthenticatedClient(la.RedditAccountID, tokens.RefreshToken, tokens.AccessToken)
+		rac = law.reddit.NewAuthenticatedClient(la.RedditAccountID, tokens.RefreshToken, tokens.AccessToken)
 	}
 
-	lac.logger.Debug("fetching latest comments", zap.String("live_activity#apns_token", at))
+	law.logger.Debug("fetching latest comments", zap.String("live_activity#apns_token", at))
 
 	tr, err := rac.TopLevelComments(ctx, la.Subreddit, la.ThreadID)
 	if err != nil {
-		lac.logger.Error("failed to fetch latest comments",
+		law.logger.Error("failed to fetch latest comments",
 			zap.Error(err),
 			zap.String("live_activity#apns_token", at),
 			zap.String("reddit#id", la.RedditAccountID),
@@ -216,14 +152,16 @@ func (lac *liveActivitiesConsumer) Consume(delivery rmq.Delivery) {
 			zap.String("reddit#refresh_token", rac.ObfuscatedRefreshToken()),
 		)
 		if err == reddit.ErrOauthRevoked {
-			_ = lac.liveActivityRepo.Delete(ctx, at)
+			_ = law.liveActivityRepo.Delete(ctx, at)
+			return nil
 		}
-		return
+
+		return err
 	}
 
 	if len(tr.Children) == 0 && la.ExpiresAt.After(now) {
-		lac.logger.Debug("no comments found", zap.String("live_activity#apns_token", at))
-		return
+		law.logger.Debug("no comments found", zap.String("live_activity#apns_token", at))
+		return nil
 	}
 
 	// Filter out comments in the last minute
@@ -247,8 +185,8 @@ func (lac *liveActivitiesConsumer) Consume(delivery rmq.Delivery) {
 	}
 
 	if len(candidates) == 0 && la.ExpiresAt.After(now) {
-		lac.logger.Debug("no new comments found", zap.String("live_activity#apns_token", at))
-		return
+		law.logger.Debug("no new comments found", zap.String("live_activity#apns_token", at))
+		return nil
 	}
 
 	sort.Slice(candidates, func(i, j int) bool {
@@ -291,20 +229,20 @@ func (lac *liveActivitiesConsumer) Consume(delivery rmq.Delivery) {
 		Payload:     bb,
 	}
 
-	res, err := lac.apns.PushWithContext(ctx, notification)
+	res, err := law.apns.PushWithContext(ctx, notification)
 	if err != nil {
-		_ = lac.statsd.Incr("apns.live_activities.errors", []string{}, 1)
-		lac.logger.Error("failed to send notification",
+		_ = law.statsd.Incr("apns.live_activities.errors", []string{}, 1)
+		law.logger.Error("failed to send notification",
 			zap.Error(err),
 			zap.String("live_activity#apns_token", at),
 			zap.Bool("live_activity#sandbox", la.Sandbox),
 			zap.String("notification#type", ev),
 		)
 
-		_ = lac.liveActivityRepo.Delete(ctx, at)
+		_ = law.liveActivityRepo.Delete(ctx, at)
 	} else if !res.Sent() {
-		_ = lac.statsd.Incr("apns.live_activities.errors", []string{}, 1)
-		lac.logger.Error("notification not sent",
+		_ = law.statsd.Incr("apns.live_activities.errors", []string{}, 1)
+		law.logger.Error("notification not sent",
 			zap.String("live_activity#apns_token", at),
 			zap.Bool("live_activity#sandbox", la.Sandbox),
 			zap.String("notification#type", ev),
@@ -312,10 +250,10 @@ func (lac *liveActivitiesConsumer) Consume(delivery rmq.Delivery) {
 			zap.String("response#reason", res.Reason),
 		)
 
-		_ = lac.liveActivityRepo.Delete(ctx, at)
+		_ = law.liveActivityRepo.Delete(ctx, at)
 	} else {
-		_ = lac.statsd.Incr("apns.notification.sent", []string{}, 1)
-		lac.logger.Debug("sent notification",
+		_ = law.statsd.Incr("apns.notification.sent", []string{}, 1)
+		law.logger.Debug("sent notification",
 			zap.String("live_activity#apns_token", at),
 			zap.Bool("live_activity#sandbox", la.Sandbox),
 			zap.String("notification#type", ev),
@@ -323,11 +261,12 @@ func (lac *liveActivitiesConsumer) Consume(delivery rmq.Delivery) {
 	}
 
 	if la.ExpiresAt.Before(now) {
-		lac.logger.Debug("live activity expired, deleting", zap.String("live_activity#apns_token", at))
-		_ = lac.liveActivityRepo.Delete(ctx, at)
+		law.logger.Debug("live activity expired, deleting", zap.String("live_activity#apns_token", at))
+		_ = law.liveActivityRepo.Delete(ctx, at)
 	}
 
-	lac.logger.Debug("finishing job",
+	law.logger.Debug("finishing job",
 		zap.String("live_activity#apns_token", at),
 	)
+	return nil
 }

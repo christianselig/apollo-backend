@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"runtime"
 
+	faktoryworker "github.com/contribsys/faktory_worker_go"
 	"github.com/spf13/cobra"
 
 	"github.com/christianselig/apollo-backend/internal/cmdutil"
@@ -13,12 +14,11 @@ import (
 
 var (
 	queues = map[string]worker.NewWorkerFn{
-		"live-activities":     worker.NewLiveActivitiesWorker,
-		"notifications":       worker.NewNotificationsWorker,
-		"stuck-notifications": worker.NewStuckNotificationsWorker,
-		"subreddits":          worker.NewSubredditsWorker,
-		"trending":            worker.NewTrendingWorker,
-		"users":               worker.NewUsersWorker,
+		"LiveActivityJob":       worker.NewLiveActivitiesWorker,
+		"NotificationCheckJob":  worker.NewNotificationsWorker,
+		"StuckNotificationsJob": worker.NewStuckNotificationsWorker,
+		"SubredditWatcherJob":   worker.NewSubredditsWorker,
+		"SubredditTrendingJob":  worker.NewTrendingWorker,
 	}
 )
 
@@ -63,26 +63,16 @@ func WorkerCmd(ctx context.Context) *cobra.Command {
 			}
 			defer redis.Close()
 
-			queue, err := cmdutil.NewQueueClient(logger, redis, "worker")
-			if err != nil {
-				return err
-			}
-
 			workerFn, ok := queues[queueID]
 			if !ok {
-				return fmt.Errorf("invalid queue: %s", queueID)
+				return fmt.Errorf("queue does not exist: %s", queueID)
 			}
+			worker := workerFn(ctx, logger, statsd, db, redis, consumers)
 
-			worker := workerFn(ctx, logger, statsd, db, redis, queue, consumers)
-			if err := worker.Start(); err != nil {
-				return err
-			}
-
-			<-ctx.Done()
-
-			worker.Stop()
-
-			return nil
+			mgr := faktoryworker.NewManager()
+			mgr.Concurrency = consumers
+			mgr.Register(queueID, worker.Process)
+			return mgr.RunWithContext(ctx)
 		},
 	}
 

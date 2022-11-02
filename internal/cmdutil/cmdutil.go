@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-go/statsd"
-	"github.com/adjust/rmq/v5"
+	faktory "github.com/contribsys/faktory/client"
 	"github.com/go-redis/redis/v8"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"go.uber.org/zap"
@@ -74,13 +74,6 @@ func NewDatabasePool(ctx context.Context, maxConns int) (*pgxpool.Pool, error) {
 	return pgxpool.ConnectConfig(ctx, config)
 }
 
-func NewQueueClient(logger *zap.Logger, conn *redis.Client, identifier string) (rmq.Connection, error) {
-	errChan := make(chan error, 10)
-	go func() {
-		for err := range errChan {
-			logger.Error("error occurred within queue", zap.Error(err))
-		}
-	}()
-
-	return rmq.OpenConnectionWithRedisClient(identifier, conn, errChan)
+func NewFaktoryClient(logger *zap.Logger) (*faktory.Client, error) {
+	return faktory.Open()
 }

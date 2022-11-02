@@ -4,8 +4,9 @@ go 1.18
 
 require (
 	github.com/DataDog/datadog-go v4.8.3+incompatible
-	github.com/adjust/rmq/v5 v5.0.1
 	github.com/bugsnag/bugsnag-go/v2 v2.2.0
+	github.com/contribsys/faktory v1.6.2
+	github.com/contribsys/faktory_worker_go v1.6.0
 	github.com/dustin/go-humanize v1.0.0
 	github.com/go-co-op/gocron v1.17.1
 	github.com/go-ozzo/ozzo-validation/v4 v4.3.0
@@ -52,5 +53,6 @@ require (
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c // indirect
 	golang.org/x/sys v0.0.0-20211216021012-1d35b9e2eb4e // indirect
 	golang.org/x/text v0.3.7 // indirect
+	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

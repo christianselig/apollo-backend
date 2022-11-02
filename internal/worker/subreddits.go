@@ -5,12 +5,10 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-go/statsd"
-	"github.com/adjust/rmq/v5"
 	"github.com/go-redis/redis/v8"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/sideshow/apns2"
@@ -24,17 +22,12 @@ import (
 )
 
 type subredditsWorker struct {
-	context.Context
-
 	logger *zap.Logger
 	statsd *statsd.Client
 	db     *pgxpool.Pool
 	redis  *redis.Client
-	queue  rmq.Connection
 	reddit *reddit.Client
-	apns   *token.Token
-
-	consumers int
+	apns   *apns2.Client
 
 	accountRepo   domain.AccountRepository
 	deviceRepo    domain.DeviceRepository
@@ -47,7 +40,7 @@ const (
 	subredditNotificationBodyFormat  = "r/%s: \u201c%s\u201d"
 )
 
-func NewSubredditsWorker(ctx context.Context, logger *zap.Logger, statsd *statsd.Client, db *pgxpool.Pool, redis *redis.Client, queue rmq.Connection, consumers int) Worker {
+func NewSubredditsWorker(ctx context.Context, logger *zap.Logger, statsd *statsd.Client, db *pgxpool.Pool, redis *redis.Client, consumers int) Worker {
 	reddit := reddit.NewClient(
 		os.Getenv("REDDIT_CLIENT_ID"),
 		os.Getenv("REDDIT_CLIENT_SECRET"),
@@ -56,31 +49,28 @@ func NewSubredditsWorker(ctx context.Context, logger *zap.Logger, statsd *statsd
 		consumers,
 	)
 
-	var apns *token.Token
+	var apns *apns2.Client
 	{
 		authKey, err := token.AuthKeyFromFile(os.Getenv("APPLE_KEY_PATH"))
 		if err != nil {
 			panic(err)
 		}
 
-		apns = &token.Token{
+		tok := &token.Token{
 			AuthKey: authKey,
 			KeyID:   os.Getenv("APPLE_KEY_ID"),
 			TeamID:  os.Getenv("APPLE_TEAM_ID"),
 		}
+		apns = apns2.NewTokenClient(tok).Production()
 	}
 
 	return &subredditsWorker{
-		ctx,
 		logger,
 		statsd,
 		db,
 		redis,
-		queue,
 		reddit,
 		apns,
-		consumers,
-
 		repository.NewPostgresAccount(db),
 		repository.NewPostgresDevice(db),
 		repository.NewPostgresSubreddit(db),
@@ -88,92 +78,32 @@ func NewSubredditsWorker(ctx context.Context, logger *zap.Logger, statsd *statsd
 	}
 }
 
-func (sw *subredditsWorker) Start() error {
-	queue, err := sw.queue.OpenQueue("subreddits")
+func (sw *subredditsWorker) Process(ctx context.Context, args ...interface{}) error {
+	id := args[0].(int64)
+	sw.logger.Debug("starting job", zap.Int64("subreddit#id", id))
+
+	subreddit, err := sw.subredditRepo.GetByID(ctx, id)
 	if err != nil {
-		return err
+		sw.logger.Error("failed to fetch subreddit from database", zap.Error(err), zap.Int64("subreddit#id", id))
+		return nil
 	}
 
-	sw.logger.Info("starting up subreddits worker", zap.Int("consumers", sw.consumers))
-
-	prefetchLimit := int64(sw.consumers * 2)
-
-	if err := queue.StartConsuming(prefetchLimit, pollDuration); err != nil {
-		return err
-	}
-
-	host, _ := os.Hostname()
-
-	for i := 0; i < sw.consumers; i++ {
-		name := fmt.Sprintf("consumer %s-%d", host, i)
-
-		consumer := NewSubredditsConsumer(sw, i)
-		if _, err := queue.AddConsumer(name, consumer); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (sw *subredditsWorker) Stop() {
-	<-sw.queue.StopAllConsuming() // wait for all Consume() calls to finish
-}
-
-type subredditsConsumer struct {
-	*subredditsWorker
-	tag int
-
-	apnsSandbox    *apns2.Client
-	apnsProduction *apns2.Client
-}
-
-func NewSubredditsConsumer(sw *subredditsWorker, tag int) *subredditsConsumer {
-	return &subredditsConsumer{
-		sw,
-		tag,
-		apns2.NewTokenClient(sw.apns),
-		apns2.NewTokenClient(sw.apns).Production(),
-	}
-}
-
-func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
-	ctx, cancel := context.WithCancel(sc)
-	defer cancel()
-
-	id, err := strconv.ParseInt(delivery.Payload(), 10, 64)
+	watchers, err := sw.watcherRepo.GetBySubredditID(ctx, subreddit.ID)
 	if err != nil {
-		sc.logger.Error("failed to parse subreddit id from payload", zap.Error(err), zap.String("payload", delivery.Payload()))
-		_ = delivery.Reject()
-		return
-	}
-
-	sc.logger.Debug("starting job", zap.Int64("subreddit#id", id))
-
-	defer func() { _ = delivery.Ack() }()
-
-	subreddit, err := sc.subredditRepo.GetByID(ctx, id)
-	if err != nil {
-		sc.logger.Error("failed to fetch subreddit from database", zap.Error(err), zap.Int64("subreddit#id", id))
-		return
-	}
-
-	watchers, err := sc.watcherRepo.GetBySubredditID(ctx, subreddit.ID)
-	if err != nil {
-		sc.logger.Error("failed to fetch watchers from database",
+		sw.logger.Error("failed to fetch watchers from database",
 			zap.Error(err),
 			zap.Int64("subreddit#id", id),
 			zap.String("subreddit#name", subreddit.NormalizedName()),
 		)
-		return
+		return err
 	}
 
 	if len(watchers) == 0 {
-		sc.logger.Debug("no watchers for subreddit, bailing early",
+		sw.logger.Debug("no watchers for subreddit, bailing early",
 			zap.Int64("subreddit#id", id),
 			zap.String("subreddit#name", subreddit.NormalizedName()),
 		)
-		return
+		return nil
 	}
 
 	threshold := time.Now().Add(-24 * time.Hour)
@@ -183,13 +113,13 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 	seenPosts := map[string]bool{}
 
 	// Load 500 newest posts
-	sc.logger.Debug("loading up to 500 new posts",
+	sw.logger.Debug("loading up to 500 new posts",
 		zap.Int64("subreddit#id", id),
 		zap.String("subreddit#name", subreddit.NormalizedName()),
 	)
 
 	for page := 0; page < 5; page++ {
-		sc.logger.Debug("loading new posts",
+		sw.logger.Debug("loading new posts",
 			zap.Int64("subreddit#id", id),
 			zap.String("subreddit#name", subreddit.NormalizedName()),
 			zap.Int("page", page),
@@ -198,7 +128,7 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 		i := rand.Intn(len(watchers))
 		watcher := watchers[i]
 
-		rac := sc.reddit.NewAuthenticatedClient(watcher.Account.AccountID, watcher.Account.RefreshToken, watcher.Account.AccessToken)
+		rac := sw.reddit.NewAuthenticatedClient(watcher.Account.AccountID, watcher.Account.RefreshToken, watcher.Account.AccessToken)
 		sps, err := rac.SubredditNew(ctx,
 			subreddit.Name,
 			reddit.WithQuery("before", before),
@@ -208,7 +138,7 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 		)
 
 		if err != nil {
-			sc.logger.Error("failed to fetch new posts",
+			sw.logger.Error("failed to fetch new posts",
 				zap.Error(err),
 				zap.Int64("subreddit#id", id),
 				zap.String("subreddit#name", subreddit.NormalizedName()),
@@ -217,7 +147,7 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 			continue
 		}
 
-		sc.logger.Debug("loaded new posts",
+		sw.logger.Debug("loaded new posts",
 			zap.Int64("subreddit#id", id),
 			zap.String("subreddit#name", subreddit.NormalizedName()),
 			zap.Int("page", page),
@@ -247,7 +177,7 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 		}
 
 		if finished {
-			sc.logger.Debug("reached date threshold",
+			sw.logger.Debug("reached date threshold",
 				zap.Int64("subreddit#id", id),
 				zap.String("subreddit#name", subreddit.NormalizedName()),
 				zap.Int("page", page),
@@ -257,7 +187,7 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 	}
 
 	// Load hot posts
-	sc.logger.Debug("loading hot posts",
+	sw.logger.Debug("loading hot posts",
 		zap.Int64("subreddit#id", id),
 		zap.String("subreddit#name", subreddit.NormalizedName()),
 	)
@@ -265,7 +195,7 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 		i := rand.Intn(len(watchers))
 		watcher := watchers[i]
 
-		rac := sc.reddit.NewAuthenticatedClient(watcher.Account.AccountID, watcher.Account.RefreshToken, watcher.Account.AccessToken)
+		rac := sw.reddit.NewAuthenticatedClient(watcher.Account.AccountID, watcher.Account.RefreshToken, watcher.Account.AccessToken)
 		sps, err := rac.SubredditHot(ctx,
 			subreddit.Name,
 			reddit.WithQuery("limit", "100"),
@@ -274,13 +204,13 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 		)
 
 		if err != nil {
-			sc.logger.Error("failed to fetch hot posts",
+			sw.logger.Error("failed to fetch hot posts",
 				zap.Error(err),
 				zap.Int64("subreddit#id", id),
 				zap.String("subreddit#name", subreddit.NormalizedName()),
 			)
 		} else {
-			sc.logger.Debug("loaded hot posts",
+			sw.logger.Debug("loaded hot posts",
 				zap.Int64("subreddit#id", id),
 				zap.String("subreddit#name", subreddit.NormalizedName()),
 				zap.Int("count", sps.Count),
@@ -298,7 +228,7 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 		}
 	}
 
-	sc.logger.Debug("checking posts for watcher hits",
+	sw.logger.Debug("checking posts for watcher hits",
 		zap.Int64("subreddit#id", id),
 		zap.String("subreddit#name", subreddit.NormalizedName()),
 		zap.Int("count", len(posts)),
@@ -339,7 +269,7 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 				continue
 			}
 
-			sc.logger.Debug("matched post",
+			sw.logger.Debug("matched post",
 				zap.Int64("subreddit#id", id),
 				zap.String("subreddit#name", subreddit.NormalizedName()),
 				zap.Int64("watcher#id", watcher.ID),
@@ -351,10 +281,10 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 			)
 
 			lockKey := fmt.Sprintf("watcher:%d:%s", watcher.DeviceID, post.ID)
-			notified, _ := sc.redis.Get(ctx, lockKey).Bool()
+			notified, _ := sw.redis.Get(ctx, lockKey).Bool()
 
 			if notified {
-				sc.logger.Debug("already notified, skipping",
+				sw.logger.Debug("already notified, skipping",
 					zap.Int64("subreddit#id", id),
 					zap.String("subreddit#name", subreddit.NormalizedName()),
 					zap.Int64("watcher#id", watcher.ID),
@@ -363,30 +293,30 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 				continue
 			}
 
-			if err := sc.watcherRepo.IncrementHits(ctx, watcher.ID); err != nil {
-				sc.logger.Error("could not increment hits",
+			if err := sw.watcherRepo.IncrementHits(ctx, watcher.ID); err != nil {
+				sw.logger.Error("could not increment hits",
 					zap.Error(err),
 					zap.Int64("subreddit#id", id),
 					zap.String("subreddit#name", subreddit.NormalizedName()),
 					zap.Int64("watcher#id", watcher.ID),
 				)
-				return
+				return err
 			}
-			sc.logger.Debug("got a hit",
+			sw.logger.Debug("got a hit",
 				zap.Int64("subreddit#id", id),
 				zap.String("subreddit#name", subreddit.NormalizedName()),
 				zap.Int64("watcher#id", watcher.ID),
 				zap.String("post#id", post.ID),
 			)
 
-			sc.redis.SetEX(ctx, lockKey, true, 24*time.Hour)
+			sw.redis.SetEX(ctx, lockKey, true, 24*time.Hour)
 			notifs = append(notifs, watcher)
 		}
 
 		if len(notifs) == 0 {
 			continue
 		}
-		sc.logger.Debug("got hits for post",
+		sw.logger.Debug("got hits for post",
 			zap.Int64("subreddit#id", id),
 			zap.String("subreddit#name", subreddit.NormalizedName()),
 			zap.String("post#id", post.ID),
@@ -407,24 +337,20 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 			notification.DeviceToken = watcher.Device.APNSToken
 			notification.Payload = payload
 
-			client := sc.apnsProduction
-			if watcher.Device.Sandbox {
-				client = sc.apnsSandbox
-			}
-
-			res, err := client.Push(notification)
+			res, err := sw.apns.Push(notification)
 			if err != nil {
-				_ = sc.statsd.Incr("apns.notification.errors", []string{}, 1)
-				sc.logger.Error("failed to send notification",
+				_ = sw.statsd.Incr("apns.notification.errors", []string{}, 1)
+				sw.logger.Error("failed to send notification",
 					zap.Error(err),
 					zap.Int64("subreddit#id", id),
 					zap.String("subreddit#name", subreddit.NormalizedName()),
 					zap.String("post#id", post.ID),
 					zap.String("apns", watcher.Device.APNSToken),
 				)
+				return err
 			} else if !res.Sent() {
-				_ = sc.statsd.Incr("apns.notification.errors", []string{}, 1)
-				sc.logger.Error("notificaion not sent",
+				_ = sw.statsd.Incr("apns.notification.errors", []string{}, 1)
+				sw.logger.Error("notificaion not sent",
 					zap.Int64("subreddit#id", id),
 					zap.String("subreddit#name", subreddit.NormalizedName()),
 					zap.String("post#id", post.ID),
@@ -433,8 +359,8 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 					zap.String("response#reason", res.Reason),
 				)
 			} else {
-				_ = sc.statsd.Incr("apns.notification.sent", []string{}, 1)
-				sc.logger.Info("sent notification",
+				_ = sw.statsd.Incr("apns.notification.sent", []string{}, 1)
+				sw.logger.Info("sent notification",
 					zap.Int64("subreddit#id", id),
 					zap.String("subreddit#name", subreddit.NormalizedName()),
 					zap.String("post#id", post.ID),
@@ -444,10 +370,12 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 		}
 	}
 
-	sc.logger.Debug("finishing job",
+	sw.logger.Debug("finishing job",
 		zap.Int64("subreddit#id", id),
 		zap.String("subreddit#name", subreddit.NormalizedName()),
 	)
+
+	return nil
 }
 
 func payloadFromPost(post *reddit.Thing) *payload.Payload {

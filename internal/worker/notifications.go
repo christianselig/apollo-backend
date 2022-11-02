@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-go/statsd"
-	"github.com/adjust/rmq/v5"
 	"github.com/go-redis/redis/v8"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/sideshow/apns2"
@@ -32,23 +31,17 @@ const (
 var notificationTags = []string{"queue:notifications"}
 
 type notificationsWorker struct {
-	context.Context
-
-	logger *zap.Logger
-	statsd *statsd.Client
-	db     *pgxpool.Pool
-	redis  *redis.Client
-	queue  rmq.Connection
-	reddit *reddit.Client
-	apns   *token.Token
-
-	consumers int
-
+	logger      *zap.Logger
+	statsd      *statsd.Client
+	db          *pgxpool.Pool
+	redis       *redis.Client
+	reddit      *reddit.Client
+	apns        *apns2.Client
 	accountRepo domain.AccountRepository
 	deviceRepo  domain.DeviceRepository
 }
 
-func NewNotificationsWorker(ctx context.Context, logger *zap.Logger, statsd *statsd.Client, db *pgxpool.Pool, redis *redis.Client, queue rmq.Connection, consumers int) Worker {
+func NewNotificationsWorker(ctx context.Context, logger *zap.Logger, statsd *statsd.Client, db *pgxpool.Pool, redis *redis.Client, consumers int) Worker {
 	reddit := reddit.NewClient(
 		os.Getenv("REDDIT_CLIENT_ID"),
 		os.Getenv("REDDIT_CLIENT_SECRET"),
@@ -57,123 +50,65 @@ func NewNotificationsWorker(ctx context.Context, logger *zap.Logger, statsd *sta
 		consumers,
 	)
 
-	var apns *token.Token
+	var apns *apns2.Client
 	{
 		authKey, err := token.AuthKeyFromFile(os.Getenv("APPLE_KEY_PATH"))
 		if err != nil {
 			panic(err)
 		}
 
-		apns = &token.Token{
+		tok := &token.Token{
 			AuthKey: authKey,
 			KeyID:   os.Getenv("APPLE_KEY_ID"),
 			TeamID:  os.Getenv("APPLE_TEAM_ID"),
 		}
+		apns = apns2.NewTokenClient(tok).Production()
 	}
 
 	return &notificationsWorker{
-		ctx,
 		logger,
 		statsd,
 		db,
 		redis,
-		queue,
 		reddit,
 		apns,
-		consumers,
-
 		repository.NewPostgresAccount(db),
 		repository.NewPostgresDevice(db),
 	}
 }
 
-func (nw *notificationsWorker) Start() error {
-	queue, err := nw.queue.OpenQueue("notifications")
-	if err != nil {
-		return err
-	}
-
-	nw.logger.Info("starting up notifications worker", zap.Int("consumers", nw.consumers))
-
-	prefetchLimit := int64(nw.consumers * 20)
-
-	if err := queue.StartConsuming(prefetchLimit, pollDuration); err != nil {
-		return err
-	}
-
-	host, _ := os.Hostname()
-
-	for i := 0; i < nw.consumers; i++ {
-		name := fmt.Sprintf("consumer %s-%d", host, i)
-
-		consumer := NewNotificationsConsumer(nw, i)
-		if _, err := queue.AddConsumer(name, consumer); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (nw *notificationsWorker) Stop() {
-	<-nw.queue.StopAllConsuming() // wait for all Consume() calls to finish
-}
-
-type notificationsConsumer struct {
-	*notificationsWorker
-	tag  int
-	apns *apns2.Client
-}
-
-func NewNotificationsConsumer(nw *notificationsWorker, tag int) *notificationsConsumer {
-	return &notificationsConsumer{
-		nw,
-		tag,
-		apns2.NewTokenClient(nw.apns).Production(),
-	}
-}
-
-func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
-	ctx, cancel := context.WithCancel(nc)
-	defer cancel()
-
+func (nw *notificationsWorker) Process(ctx context.Context, args ...interface{}) error {
 	now := time.Now()
 	defer func() {
 		elapsed := time.Now().Sub(now).Milliseconds()
-		_ = nc.statsd.Histogram("apollo.consumer.runtime", float64(elapsed), notificationTags, 0.1)
-		_ = nc.statsd.Incr("apollo.consumer.executions", notificationTags, 0.1)
+		_ = nw.statsd.Histogram("apollo.consumer.runtime", float64(elapsed), notificationTags, 0.1)
+		_ = nw.statsd.Incr("apollo.consumer.executions", notificationTags, 0.1)
 	}()
 
-	id := delivery.Payload()
-	logger := nc.logger.With(zap.String("account#reddit_account_id", id))
+	id := args[0].(string)
+	logger := nw.logger.With(zap.String("account#reddit_account_id", id))
 
 	// Measure queue latency
 	key := fmt.Sprintf("locks:accounts:%s", id)
-	ttl := nc.redis.PTTL(ctx, key).Val()
+	ttl := nw.redis.PTTL(ctx, key).Val()
 	age := (domain.NotificationCheckTimeout - ttl)
-	_ = nc.statsd.Histogram("apollo.dequeue.latency", float64(age.Milliseconds()), notificationTags, 0.1)
+	_ = nw.statsd.Histogram("apollo.dequeue.latency", float64(age.Milliseconds()), notificationTags, 0.1)
 
 	defer func() {
-		if err := nc.redis.Del(ctx, key).Err(); err != nil {
+		if err := nw.redis.Del(ctx, key).Err(); err != nil {
 			logger.Error("failed to remove account lock", zap.Error(err), zap.String("key", key))
 		}
 	}()
 
 	logger.Debug("starting job")
 
-	defer func() {
-		if err := delivery.Ack(); err != nil {
-			logger.Error("failed to acknowledge message", zap.Error(err))
-		}
-	}()
-
-	account, err := nc.accountRepo.GetByRedditID(ctx, id)
+	account, err := nw.accountRepo.GetByRedditID(ctx, id)
 	if err != nil {
 		logger.Info("account not found, exiting", zap.Error(err))
-		return
+		return nil
 	}
 
-	rac := nc.reddit.NewAuthenticatedClient(account.AccountID, account.RefreshToken, account.AccessToken)
+	rac := nw.reddit.NewAuthenticatedClient(account.AccountID, account.RefreshToken, account.AccessToken)
 	logger = logger.With(
 		zap.String("account#username", account.NormalizedUsername()),
 		zap.String("account#access_token", rac.ObfuscatedAccessToken()),
@@ -186,24 +121,25 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 		if err != nil {
 			if err != reddit.ErrOauthRevoked {
 				logger.Error("failed to refresh reddit tokens", zap.Error(err))
-				return
+				return err
 			}
 
-			if err = nc.deleteAccount(ctx, account); err != nil {
+			if err = nw.deleteAccount(ctx, account); err != nil {
 				logger.Error("failed to remove revoked account", zap.Error(err))
+				return err
 			}
 
-			return
+			return nil
 		}
 
 		// Update account
 		account.AccessToken = tokens.AccessToken
 		account.RefreshToken = tokens.RefreshToken
 		account.TokenExpiresAt = now.Add(tokens.Expiry)
-		_ = nc.accountRepo.Update(ctx, &account)
+		_ = nw.accountRepo.Update(ctx, &account)
 
 		// Refresh client
-		rac = nc.reddit.NewAuthenticatedClient(account.AccountID, tokens.RefreshToken, tokens.AccessToken)
+		rac = nw.reddit.NewAuthenticatedClient(account.AccountID, tokens.RefreshToken, tokens.AccessToken)
 		logger = logger.With(
 			zap.String("account#access_token", rac.ObfuscatedAccessToken()),
 			zap.String("account#refresh_token", rac.ObfuscatedRefreshToken()),
@@ -220,24 +156,20 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 
 	if err != nil {
 		switch err {
-		case reddit.ErrTimeout, reddit.ErrRateLimited: // Don't log timeouts or rate limits
-			break
 		case reddit.ErrOauthRevoked:
-			if err = nc.deleteAccount(ctx, account); err != nil {
-				logger.Error("failed to remove revoked account", zap.Error(err))
-			} else {
-				logger.Info("removed revoked account")
-			}
+			_ = nw.deleteAccount(ctx, account)
+			logger.Info("removed revoked account")
+			return nil
 		default:
 			logger.Error("failed to fetch message inbox", zap.Error(err))
+			return err
 		}
-		return
 	}
 
 	// Figure out where we stand
 	if msgs.Count == 0 {
 		logger.Debug("no new messages, bailing early")
-		return
+		return nil
 	}
 
 	logger.Debug("fetched messages", zap.Int("count", msgs.Count))
@@ -245,7 +177,7 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 	for _, msg := range msgs.Children {
 		if !msg.IsDeleted() {
 			account.LastMessageID = msg.FullName()
-			_ = nc.accountRepo.Update(ctx, &account)
+			_ = nw.accountRepo.Update(ctx, &account)
 			break
 		}
 	}
@@ -255,19 +187,19 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 		logger.Debug("populating first message id to prevent spamming")
 
 		account.CheckCount = 1
-		_ = nc.accountRepo.Update(ctx, &account)
-		return
+		_ = nw.accountRepo.Update(ctx, &account)
+		return nil
 	}
 
-	devices, err := nc.deviceRepo.GetInboxNotifiableByAccountID(ctx, account.ID)
+	devices, err := nw.deviceRepo.GetInboxNotifiableByAccountID(ctx, account.ID)
 	if err != nil {
 		logger.Error("failed to fetch account devices", zap.Error(err))
-		return
+		return nil
 	}
 
 	if len(devices) == 0 {
 		logger.Debug("no notifiable devices, bailing early")
-		return
+		return nil
 	}
 
 	// Iterate backwards so we notify from older to newer
@@ -281,7 +213,7 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 		// Latency is the time difference between the appearence of the new message and the
 		// time we notified at.
 		latency := now.Sub(msg.CreatedAt)
-		_ = nc.statsd.Histogram("apollo.queue.delay", float64(latency.Milliseconds()), []string{}, 1.0)
+		_ = nw.statsd.Histogram("apollo.queue.delay", float64(latency.Milliseconds()), []string{}, 1.0)
 
 		notification := &apns2.Notification{}
 		notification.Topic = "com.christianselig.Apollo"
@@ -290,18 +222,18 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 		for _, device := range devices {
 			notification.DeviceToken = device.APNSToken
 
-			res, err := nc.apns.PushWithContext(ctx, notification)
+			res, err := nw.apns.PushWithContext(ctx, notification)
 			if err != nil {
-				_ = nc.statsd.Incr("apns.notification.errors", []string{}, 1)
+				_ = nw.statsd.Incr("apns.notification.errors", []string{}, 1)
 				logger.Error("failed to send notification",
 					zap.Error(err),
 					zap.String("device#token", device.APNSToken),
 				)
 
 				// Delete device as notifications might have been disabled here
-				_ = nc.deviceRepo.Delete(ctx, device.APNSToken)
+				_ = nw.deviceRepo.Delete(ctx, device.APNSToken)
 			} else if !res.Sent() {
-				_ = nc.statsd.Incr("apns.notification.errors", []string{}, 1)
+				_ = nw.statsd.Incr("apns.notification.errors", []string{}, 1)
 				logger.Error("notification not sent",
 					zap.String("device#token", device.APNSToken),
 					zap.Int("response#status", res.StatusCode),
@@ -309,34 +241,35 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 				)
 
 				// Delete device as notifications might have been disabled here
-				_ = nc.deviceRepo.Delete(ctx, device.APNSToken)
+				_ = nw.deviceRepo.Delete(ctx, device.APNSToken)
 			} else {
-				_ = nc.statsd.Incr("apns.notification.sent", []string{}, 1)
+				_ = nw.statsd.Incr("apns.notification.sent", []string{}, 1)
 				logger.Info("sent notification", zap.String("device#token", device.APNSToken))
 			}
 		}
 	}
 
 	ev := fmt.Sprintf("Sent notification to /u/%s (x%d)", account.Username, msgs.Count)
-	_ = nc.statsd.SimpleEvent(ev, "")
+	_ = nw.statsd.SimpleEvent(ev, "")
 
 	logger.Debug("finishing job")
+	return nil
 }
 
-func (nc *notificationsConsumer) deleteAccount(ctx context.Context, account domain.Account) error {
+func (nw *notificationsWorker) deleteAccount(ctx context.Context, account domain.Account) error {
 	// Disassociate account from devices
-	devs, err := nc.deviceRepo.GetByAccountID(ctx, account.ID)
+	devs, err := nw.deviceRepo.GetByAccountID(ctx, account.ID)
 	if err != nil {
 		return err
 	}
 
 	for _, dev := range devs {
-		if err := nc.accountRepo.Disassociate(nc, &account, &dev); err != nil {
+		if err := nw.accountRepo.Disassociate(ctx, &account, &dev); err != nil {
 			return err
 		}
 	}
 
-	return nc.accountRepo.Delete(nc, account.ID)
+	return nw.accountRepo.Delete(ctx, account.ID)
 }
 
 func payloadFromMessage(acct domain.Account, msg *reddit.Thing, badgeCount int) *payload.Payload {

@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-go/statsd"
-	"github.com/adjust/rmq/v5"
 	"github.com/go-redis/redis/v8"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"go.uber.org/zap"
@@ -13,8 +12,7 @@ import (
 
 const pollDuration = 100 * time.Millisecond
 
-type NewWorkerFn func(context.Context, *zap.Logger, *statsd.Client, *pgxpool.Pool, *redis.Client, rmq.Connection, int) Worker
+type NewWorkerFn func(context.Context, *zap.Logger, *statsd.Client, *pgxpool.Pool, *redis.Client, int) Worker
 type Worker interface {
-	Start() error
-	Stop()
+	Process(ctx context.Context, args ...interface{}) error
 }

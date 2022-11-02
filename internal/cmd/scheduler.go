@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-go/statsd"
-	"github.com/adjust/rmq/v5"
+	faktory "github.com/contribsys/faktory/client"
 	"github.com/go-co-op/gocron"
 	"github.com/go-redis/redis/v8"
 	"github.com/jackc/pgx/v4/pgxpool"
@@ -52,7 +52,7 @@ func SchedulerCmd(ctx context.Context) *cobra.Command {
 			}
 			defer redis.Close()
 
-			queue, err := cmdutil.NewQueueClient(logger, redis, "worker")
+			fc, err := cmdutil.NewFaktoryClient(logger)
 			if err != nil {
 				return err
 			}
@@ -63,47 +63,15 @@ func SchedulerCmd(ctx context.Context) *cobra.Command {
 				return err
 			}
 
-			notifQueue, err := queue.OpenQueue("notifications")
-			if err != nil {
-				return err
-			}
-
-			subredditQueue, err := queue.OpenQueue("subreddits")
-			if err != nil {
-				return err
-			}
-
-			trendingQueue, err := queue.OpenQueue("trending")
-			if err != nil {
-				return err
-			}
-
-			userQueue, err := queue.OpenQueue("users")
-			if err != nil {
-				return err
-			}
-
-			stuckNotificationsQueue, err := queue.OpenQueue("stuck-notifications")
-			if err != nil {
-				return err
-			}
-
-			liveActivitiesQueue, err := queue.OpenQueue("live-activities")
-			if err != nil {
-				return err
-			}
-
 			s := gocron.NewScheduler(time.UTC)
 			s.SetMaxConcurrentJobs(8, gocron.WaitMode)
 
-			eaj, _ := s.Every(5).Seconds().Do(func() { enqueueAccounts(ctx, logger, statsd, db, redis, luaSha, notifQueue) })
+			eaj, _ := s.Every(5).Seconds().Do(func() { enqueueAccounts(ctx, logger, statsd, db, redis, luaSha, fc) })
 			eaj.SingletonMode()
 
-			_, _ = s.Every(5).Seconds().Do(func() { enqueueSubreddits(ctx, logger, statsd, db, []rmq.Queue{subredditQueue, trendingQueue}) })
-			_, _ = s.Every(5).Seconds().Do(func() { enqueueUsers(ctx, logger, statsd, db, userQueue) })
-			_, _ = s.Every(5).Seconds().Do(func() { enqueueLiveActivities(ctx, logger, db, redis, luaSha, liveActivitiesQueue) })
-			_, _ = s.Every(5).Seconds().Do(func() { cleanQueues(logger, queue) })
-			_, _ = s.Every(5).Seconds().Do(func() { enqueueStuckAccounts(ctx, logger, statsd, db, stuckNotificationsQueue) })
+			_, _ = s.Every(5).Seconds().Do(func() { enqueueSubreddits(ctx, logger, statsd, db, fc) })
+			_, _ = s.Every(5).Seconds().Do(func() { enqueueLiveActivities(ctx, logger, db, redis, luaSha, fc) })
+			_, _ = s.Every(5).Seconds().Do(func() { enqueueStuckAccounts(ctx, logger, statsd, db, fc) })
 			_, _ = s.Every(1).Minute().Do(func() { reportStats(ctx, logger, statsd, db) })
 			//_, _ = s.Every(1).Minute().Do(func() { pruneAccounts(ctx, logger, db) })
 			//_, _ = s.Every(1).Minute().Do(func() { pruneDevices(ctx, logger, db) })
@@ -144,7 +112,7 @@ func evalScript(ctx context.Context, redis *redis.Client) (string, error) {
 	return redis.ScriptLoad(ctx, lua).Result()
 }
 
-func enqueueLiveActivities(ctx context.Context, logger *zap.Logger, pool *pgxpool.Pool, redisConn *redis.Client, luaSha string, queue rmq.Queue) {
+func enqueueLiveActivities(ctx context.Context, logger *zap.Logger, pool *pgxpool.Pool, redisConn *redis.Client, luaSha string, fc *faktory.Client) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -193,7 +161,12 @@ func enqueueLiveActivities(ctx context.Context, logger *zap.Logger, pool *pgxpoo
 
 	logger.Debug("enqueueing live activity batch", zap.Int("count", len(batch)), zap.Time("start", now))
 
-	if err = queue.Publish(batch...); err != nil {
+	jobs := make([]*faktory.Job, len(batch))
+	for i, tok := range batch {
+		jobs[i] = faktory.NewJob("LiveActivityJob", tok)
+	}
+
+	if _, err = fc.PushBulk(jobs); err != nil {
 		logger.Error("failed to enqueue live activity batch", zap.Error(err))
 	}
 }
@@ -240,19 +213,6 @@ func pruneDevices(ctx context.Context, logger *zap.Logger, pool *pgxpool.Pool) {
 	}
 }
 
-func cleanQueues(logger *zap.Logger, jobsConn rmq.Connection) {
-	cleaner := rmq.NewCleaner(jobsConn)
-	count, err := cleaner.Clean()
-	if err != nil {
-		logger.Error("failed to clean jobs from queues", zap.Error(err))
-		return
-	}
-
-	if count > 0 {
-		logger.Info("returned jobs to queues", zap.Int64("count", count))
-	}
-}
-
 func reportStats(ctx context.Context, logger *zap.Logger, statsd *statsd.Client, pool *pgxpool.Pool) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -280,62 +240,7 @@ func reportStats(ctx context.Context, logger *zap.Logger, statsd *statsd.Client,
 	}
 }
 
-func enqueueUsers(ctx context.Context, logger *zap.Logger, statsd *statsd.Client, pool *pgxpool.Pool, queue rmq.Queue) {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	now := time.Now()
-	next := now.Add(domain.NotificationCheckInterval)
-
-	ids := []int64{}
-
-	defer func() {
-		tags := []string{"queue:users"}
-		_ = statsd.Histogram("apollo.queue.enqueued", float64(len(ids)), tags, 1)
-		_ = statsd.Histogram("apollo.queue.runtime", float64(time.Since(now).Milliseconds()), tags, 1)
-	}()
-
-	stmt := `
-		UPDATE users
-		SET next_check_at = $2
-		WHERE id IN (
-			SELECT id
-			FROM users
-			WHERE next_check_at < $1
-			ORDER BY next_check_at
-			FOR UPDATE SKIP LOCKED
-			LIMIT 100
-		)
-		RETURNING users.id`
-	rows, err := pool.Query(ctx, stmt, now, next)
-	if err != nil {
-		logger.Error("failed to fetch batch of users", zap.Error(err))
-		return
-	}
-	for rows.Next() {
-		var id int64
-		_ = rows.Scan(&id)
-		ids = append(ids, id)
-	}
-	rows.Close()
-
-	if len(ids) == 0 {
-		return
-	}
-
-	logger.Debug("enqueueing user batch", zap.Int("count", len(ids)), zap.Time("start", now))
-
-	batchIds := make([]string, len(ids))
-	for i, id := range ids {
-		batchIds[i] = strconv.FormatInt(id, 10)
-	}
-
-	if err = queue.Publish(batchIds...); err != nil {
-		logger.Error("failed to enqueue user batch", zap.Error(err))
-	}
-}
-
-func enqueueSubreddits(ctx context.Context, logger *zap.Logger, statsd *statsd.Client, pool *pgxpool.Pool, queues []rmq.Queue) {
+func enqueueSubreddits(ctx context.Context, logger *zap.Logger, statsd *statsd.Client, pool *pgxpool.Pool, fc *faktory.Client) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -385,22 +290,24 @@ func enqueueSubreddits(ctx context.Context, logger *zap.Logger, statsd *statsd.C
 		batchIds[i] = strconv.FormatInt(id, 10)
 	}
 
-	for _, queue := range queues {
-		if err = queue.Publish(batchIds...); err != nil {
-			logger.Error("failed to enqueue subreddit batch", zap.Error(err))
-		}
+	jobs := make([]*faktory.Job, len(batchIds)*2)
+	for i, id := range ids {
+		jobs[i*2] = faktory.NewJob("SubredditWatcherJob", id)
+		jobs[i*2+1] = faktory.NewJob("SubredditTrendingJob", id)
 	}
-
+	if _, err := fc.PushBulk(jobs); err != nil {
+		logger.Error("failed to enqueue subreddit batch", zap.Error(err))
+	}
 }
 
-func enqueueStuckAccounts(ctx context.Context, logger *zap.Logger, statsd *statsd.Client, pool *pgxpool.Pool, queue rmq.Queue) {
+func enqueueStuckAccounts(ctx context.Context, logger *zap.Logger, statsd *statsd.Client, pool *pgxpool.Pool, fc *faktory.Client) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	now := time.Now()
 	next := now.Add(domain.StuckNotificationCheckInterval)
 
-	ids := []int64{}
+	ids := []string{}
 
 	defer func() {
 		tags := []string{"queue:stuck-accounts"}
@@ -419,7 +326,7 @@ func enqueueStuckAccounts(ctx context.Context, logger *zap.Logger, statsd *stats
 				FOR UPDATE SKIP LOCKED
 				LIMIT 500
 			)
-			RETURNING accounts.id`
+			RETURNING accounts.reddit_account_id`
 	rows, err := pool.Query(ctx, stmt, now, next)
 	if err != nil {
 		logger.Error("failed to fetch accounts", zap.Error(err))
@@ -427,7 +334,7 @@ func enqueueStuckAccounts(ctx context.Context, logger *zap.Logger, statsd *stats
 	}
 
 	for rows.Next() {
-		var id int64
+		var id string
 		_ = rows.Scan(&id)
 		ids = append(ids, id)
 	}
@@ -439,17 +346,17 @@ func enqueueStuckAccounts(ctx context.Context, logger *zap.Logger, statsd *stats
 
 	logger.Debug("enqueueing stuck account batch", zap.Int("count", len(ids)), zap.Time("start", now))
 
-	batchIds := make([]string, len(ids))
+	jobs := make([]*faktory.Job, len(ids))
 	for i, id := range ids {
-		batchIds[i] = strconv.FormatInt(id, 10)
+		jobs[i] = faktory.NewJob("StuckNotificationsJob", id)
 	}
 
-	if err = queue.Publish(batchIds...); err != nil {
+	if _, err = fc.PushBulk(jobs); err != nil {
 		logger.Error("failed to enqueue stuck account batch", zap.Error(err))
 	}
 }
 
-func enqueueAccounts(ctx context.Context, logger *zap.Logger, statsd *statsd.Client, pool *pgxpool.Pool, redisConn *redis.Client, luaSha string, queue rmq.Queue) {
+func enqueueAccounts(ctx context.Context, logger *zap.Logger, statsd *statsd.Client, pool *pgxpool.Pool, redisConn *redis.Client, luaSha string, fc *faktory.Client) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -520,8 +427,13 @@ func enqueueAccounts(ctx context.Context, logger *zap.Logger, statsd *statsd.Cli
 				return
 			}
 
-			if err = queue.Publish(unlocked...); err != nil {
-				logger.Error("failed to enqueue account batch", zap.Error(err))
+			jobs := make([]*faktory.Job, len(ids))
+			for i, id := range unlocked {
+				jobs[i] = faktory.NewJob("NotificationCheckJob", id)
+			}
+
+			if _, err = fc.PushBulk(jobs); err != nil {
+				logger.Error("failed to enqueue stuck account batch", zap.Error(err))
 			}
 		}(i, ctx)
 	}

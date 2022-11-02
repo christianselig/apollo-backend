@@ -70,7 +70,7 @@ services:
   disk:
     name: faktory-data
     mountPath: /var/lib/faktory
-    sizeGB: 20
+    sizeGB: 10
 
 # API
 - type: web

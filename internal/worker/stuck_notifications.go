@@ -2,13 +2,10 @@ package worker
 
 import (
 	"context"
-	"fmt"
 	"os"
-	"strconv"
 	"time"
 
 	"github.com/DataDog/datadog-go/statsd"
-	"github.com/adjust/rmq/v5"
 	"github.com/go-redis/redis/v8"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"go.uber.org/zap"
@@ -19,21 +16,15 @@ import (
 )
 
 type stuckNotificationsWorker struct {
-	context.Context
-
-	logger *zap.Logger
-	statsd *statsd.Client
-	db     *pgxpool.Pool
-	redis  *redis.Client
-	queue  rmq.Connection
-	reddit *reddit.Client
-
-	consumers int
-
+	logger      *zap.Logger
+	statsd      *statsd.Client
+	db          *pgxpool.Pool
+	redis       *redis.Client
+	reddit      *reddit.Client
 	accountRepo domain.AccountRepository
 }
 
-func NewStuckNotificationsWorker(ctx context.Context, logger *zap.Logger, statsd *statsd.Client, db *pgxpool.Pool, redis *redis.Client, queue rmq.Connection, consumers int) Worker {
+func NewStuckNotificationsWorker(ctx context.Context, logger *zap.Logger, statsd *statsd.Client, db *pgxpool.Pool, redis *redis.Client, consumers int) Worker {
 	reddit := reddit.NewClient(
 		os.Getenv("REDDIT_CLIENT_ID"),
 		os.Getenv("REDDIT_CLIENT_SECRET"),
@@ -43,102 +34,42 @@ func NewStuckNotificationsWorker(ctx context.Context, logger *zap.Logger, statsd
 	)
 
 	return &stuckNotificationsWorker{
-		ctx,
 		logger,
 		statsd,
 		db,
 		redis,
-		queue,
 		reddit,
-		consumers,
-
 		repository.NewPostgresAccount(db),
 	}
 }
 
-func (snw *stuckNotificationsWorker) Start() error {
-	queue, err := snw.queue.OpenQueue("stuck-notifications")
-	if err != nil {
-		return err
-	}
-
-	snw.logger.Info("starting up stuck notifications worker", zap.Int("consumers", snw.consumers))
-
-	prefetchLimit := int64(snw.consumers * 2)
-
-	if err := queue.StartConsuming(prefetchLimit, pollDuration); err != nil {
-		return err
-	}
-
-	host, _ := os.Hostname()
-
-	for i := 0; i < snw.consumers; i++ {
-		name := fmt.Sprintf("consumer %s-%d", host, i)
-
-		consumer := NewStuckNotificationsConsumer(snw, i)
-		if _, err := queue.AddConsumer(name, consumer); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (snw *stuckNotificationsWorker) Stop() {
-	<-snw.queue.StopAllConsuming() // wait for all Consume() calls to finish
-}
-
-type stuckNotificationsConsumer struct {
-	*stuckNotificationsWorker
-	tag int
-}
-
-func NewStuckNotificationsConsumer(snw *stuckNotificationsWorker, tag int) *stuckNotificationsConsumer {
-	return &stuckNotificationsConsumer{
-		snw,
-		tag,
-	}
-}
-
-func (snc *stuckNotificationsConsumer) Consume(delivery rmq.Delivery) {
-	ctx, cancel := context.WithCancel(snc)
-	defer cancel()
-
+func (snw *stuckNotificationsWorker) Process(ctx context.Context, args ...interface{}) error {
 	now := time.Now()
 	defer func() {
 		elapsed := time.Now().Sub(now).Milliseconds()
-		_ = snc.statsd.Histogram("apollo.consumer.runtime", float64(elapsed), []string{"queue:stuck-notifications"}, 0.1)
+		_ = snw.statsd.Histogram("apollo.consumer.runtime", float64(elapsed), []string{"queue:stuck-notifications"}, 0.1)
 	}()
 
-	id, err := strconv.ParseInt(delivery.Payload(), 10, 64)
+	id := args[0].(int64)
+	snw.logger.Debug("starting job", zap.Int64("account#id", id))
+
+	account, err := snw.accountRepo.GetByID(ctx, id)
 	if err != nil {
-		snc.logger.Error("failed to parse account id from payload", zap.Error(err), zap.String("payload", delivery.Payload()))
-
-		_ = delivery.Reject()
-		return
-	}
-
-	snc.logger.Debug("starting job", zap.Int64("account#id", id))
-
-	defer func() { _ = delivery.Ack() }()
-
-	account, err := snc.accountRepo.GetByID(ctx, id)
-	if err != nil {
-		snc.logger.Error("failed to fetch account from database", zap.Error(err), zap.Int64("account#id", id))
-		return
+		snw.logger.Error("failed to fetch account from database", zap.Error(err), zap.Int64("account#id", id))
+		return nil
 	}
 
 	if account.LastMessageID == "" {
-		snc.logger.Debug("account has no messages, bailing early",
+		snw.logger.Debug("account has no messages, bailing early",
 			zap.Int64("account#id", id),
 			zap.String("account#username", account.NormalizedUsername()),
 		)
-		return
+		return nil
 	}
 
-	rac := snc.reddit.NewAuthenticatedClient(account.AccountID, account.RefreshToken, account.AccessToken)
+	rac := snw.reddit.NewAuthenticatedClient(account.AccountID, account.RefreshToken, account.AccessToken)
 
-	snc.logger.Debug("fetching last thing",
+	snw.logger.Debug("fetching last thing",
 		zap.Int64("account#id", id),
 		zap.String("account#username", account.NormalizedUsername()),
 	)
@@ -147,7 +78,7 @@ func (snc *stuckNotificationsConsumer) Consume(delivery rmq.Delivery) {
 
 	var things *reddit.ListingResponse
 	if kind == "t4" {
-		snc.logger.Debug("checking last thing via inbox",
+		snw.logger.Debug("checking last thing via inbox",
 			zap.Int64("account#id", id),
 			zap.String("account#username", account.NormalizedUsername()),
 		)
@@ -155,23 +86,23 @@ func (snc *stuckNotificationsConsumer) Consume(delivery rmq.Delivery) {
 		things, err = rac.MessageInbox(ctx)
 		if err != nil {
 			if err != reddit.ErrRateLimited {
-				snc.logger.Error("failed to fetch last thing via inbox",
+				snw.logger.Error("failed to fetch last thing via inbox",
 					zap.Error(err),
 					zap.Int64("account#id", id),
 					zap.String("account#username", account.NormalizedUsername()),
 				)
 			}
-			return
+			return nil
 		}
 	} else {
 		things, err = rac.AboutInfo(ctx, account.LastMessageID)
 		if err != nil {
-			snc.logger.Error("failed to fetch last thing",
+			snw.logger.Error("failed to fetch last thing",
 				zap.Error(err),
 				zap.Int64("account#id", id),
 				zap.String("account#username", account.NormalizedUsername()),
 			)
-			return
+			return nil
 		}
 	}
 
@@ -186,17 +117,17 @@ func (snc *stuckNotificationsConsumer) Consume(delivery rmq.Delivery) {
 			}
 
 			if kind == "t4" {
-				return
+				return nil
 			}
 
 			sthings, err := rac.MessageInbox(ctx)
 			if err != nil {
-				snc.logger.Error("failed to check inbox",
+				snw.logger.Error("failed to check inbox",
 					zap.Error(err),
 					zap.Int64("account#id", id),
 					zap.String("account#username", account.NormalizedUsername()),
 				)
-				return
+				return nil
 			}
 
 			found := false
@@ -207,7 +138,7 @@ func (snc *stuckNotificationsConsumer) Consume(delivery rmq.Delivery) {
 			}
 
 			if !found {
-				snc.logger.Debug("thing exists, but not on inbox, marking as deleted",
+				snw.logger.Debug("thing exists, but not on inbox, marking as deleted",
 					zap.Int64("account#id", id),
 					zap.String("account#username", account.NormalizedUsername()),
 					zap.String("thing#id", account.LastMessageID),
@@ -215,47 +146,47 @@ func (snc *stuckNotificationsConsumer) Consume(delivery rmq.Delivery) {
 				break
 			}
 
-			snc.logger.Debug("thing exists, bailing early",
+			snw.logger.Debug("thing exists, bailing early",
 				zap.Int64("account#id", id),
 				zap.String("account#username", account.NormalizedUsername()),
 				zap.String("thing#id", account.LastMessageID),
 			)
-			return
+			return nil
 		}
 	}
 
-	snc.logger.Info("thing got deleted, resetting",
+	snw.logger.Info("thing got deleted, resetting",
 		zap.Int64("account#id", id),
 		zap.String("account#username", account.NormalizedUsername()),
 		zap.String("thing#id", account.LastMessageID),
 	)
 
 	if kind != "t4" {
-		snc.logger.Debug("getting message inbox to find last good thing",
+		snw.logger.Debug("getting message inbox to find last good thing",
 			zap.Int64("account#id", id),
 			zap.String("account#username", account.NormalizedUsername()),
 		)
 
 		things, err = rac.MessageInbox(ctx)
 		if err != nil {
-			snc.logger.Error("failed to check inbox",
+			snw.logger.Error("failed to check inbox",
 				zap.Error(err),
 				zap.Int64("account#id", id),
 				zap.String("account#username", account.NormalizedUsername()),
 			)
-			return
+			return nil
 		}
 	}
 
 	account.LastMessageID = ""
 
-	snc.logger.Debug("calculating last good thing",
+	snw.logger.Debug("calculating last good thing",
 		zap.Int64("account#id", id),
 		zap.String("account#username", account.NormalizedUsername()),
 	)
 	for _, thing := range things.Children {
 		if thing.IsDeleted() {
-			snc.logger.Debug("thing got deleted, checking next",
+			snw.logger.Debug("thing got deleted, checking next",
 				zap.Int64("account#id", id),
 				zap.String("account#username", account.NormalizedUsername()),
 				zap.String("thing#id", thing.FullName()),
@@ -267,17 +198,20 @@ func (snc *stuckNotificationsConsumer) Consume(delivery rmq.Delivery) {
 		break
 	}
 
-	snc.logger.Debug("updating last good thing",
+	snw.logger.Debug("updating last good thing",
 		zap.Int64("account#id", id),
 		zap.String("account#username", account.NormalizedUsername()),
 		zap.String("thing#id", account.LastMessageID),
 	)
 
-	if err := snc.accountRepo.Update(ctx, &account); err != nil {
-		snc.logger.Error("failed to update account's last message id",
+	if err := snw.accountRepo.Update(ctx, &account); err != nil {
+		snw.logger.Error("failed to update account's last message id",
 			zap.Error(err),
 			zap.Int64("account#id", id),
 			zap.String("account#username", account.NormalizedUsername()),
 		)
+		return err
 	}
+
+	return nil
 }
