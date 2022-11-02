@@ -39,6 +39,7 @@ type notificationsWorker struct {
 	db     *pgxpool.Pool
 	redis  *redis.Client
 	queue  rmq.Connection
+	reddit *reddit.Client
 	apns   *token.Token
 
 	consumers int
@@ -48,6 +49,14 @@ type notificationsWorker struct {
 }
 
 func NewNotificationsWorker(ctx context.Context, logger *zap.Logger, statsd *statsd.Client, db *pgxpool.Pool, redis *redis.Client, queue rmq.Connection, consumers int) Worker {
+	reddit := reddit.NewClient(
+		os.Getenv("REDDIT_CLIENT_ID"),
+		os.Getenv("REDDIT_CLIENT_SECRET"),
+		statsd,
+		redis,
+		consumers,
+	)
+
 	var apns *token.Token
 	{
 		authKey, err := token.AuthKeyFromFile(os.Getenv("APPLE_KEY_PATH"))
@@ -69,6 +78,7 @@ func NewNotificationsWorker(ctx context.Context, logger *zap.Logger, statsd *sta
 		db,
 		redis,
 		queue,
+		reddit,
 		apns,
 		consumers,
 
@@ -109,23 +119,13 @@ func (nw *notificationsWorker) Stop() {
 
 type notificationsConsumer struct {
 	*notificationsWorker
-	reddit *reddit.Client
-	tag    int
-	apns   *apns2.Client
+	tag  int
+	apns *apns2.Client
 }
 
 func NewNotificationsConsumer(nw *notificationsWorker, tag int) *notificationsConsumer {
-	reddit := reddit.NewClient(
-		os.Getenv("REDDIT_CLIENT_ID"),
-		os.Getenv("REDDIT_CLIENT_SECRET"),
-		nw.statsd,
-		nw.redis,
-		1,
-	)
-
 	return &notificationsConsumer{
 		nw,
-		reddit,
 		tag,
 		apns2.NewTokenClient(nw.apns).Production(),
 	}
