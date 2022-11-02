@@ -58,7 +58,7 @@ func WorkerCmd(ctx context.Context) *cobra.Command {
 			}
 			defer redis.Close()
 
-			fp, err := cmdutil.NewFaktoryPool(poolSize + 2)
+			fp, err := cmdutil.NewFaktoryPool(8)
 			if err != nil {
 				return err
 			}
