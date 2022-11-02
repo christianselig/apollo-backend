@@ -62,6 +62,7 @@ func WorkerCmd(ctx context.Context) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			defer fp.Close()
 
 			mgr := faktoryworker.NewManager()
 			mgr.Concurrency = consumers
