@@ -50,10 +50,10 @@ func (snw *stuckNotificationsWorker) Process(ctx context.Context, args ...interf
 		_ = snw.statsd.Histogram("apollo.consumer.runtime", float64(elapsed), []string{"queue:stuck-notifications"}, 0.1)
 	}()
 
-	id := int64(args[0].(float64))
-	snw.logger.Debug("starting job", zap.Int64("account#id", id))
+	id := args[0].(string)
+	snw.logger.Debug("starting job", zap.String("account#reddit_account_id", id))
 
-	account, err := snw.accountRepo.GetByID(ctx, id)
+	account, err := snw.accountRepo.GetByRedditID(ctx, id)
 	if err != nil {
 		snw.logger.Error("failed to fetch account from database", zap.Error(err), zap.Int64("account#id", id))
 		return nil
@@ -61,7 +61,7 @@ func (snw *stuckNotificationsWorker) Process(ctx context.Context, args ...interf
 
 	if account.LastMessageID == "" {
 		snw.logger.Debug("account has no messages, bailing early",
-			zap.Int64("account#id", id),
+			zap.String("account#reddit_account_id", id),
 			zap.String("account#username", account.NormalizedUsername()),
 		)
 		return nil
@@ -70,7 +70,7 @@ func (snw *stuckNotificationsWorker) Process(ctx context.Context, args ...interf
 	rac := snw.reddit.NewAuthenticatedClient(account.AccountID, account.RefreshToken, account.AccessToken)
 
 	snw.logger.Debug("fetching last thing",
-		zap.Int64("account#id", id),
+		zap.String("account#reddit_account_id", id),
 		zap.String("account#username", account.NormalizedUsername()),
 	)
 
@@ -79,7 +79,7 @@ func (snw *stuckNotificationsWorker) Process(ctx context.Context, args ...interf
 	var things *reddit.ListingResponse
 	if kind == "t4" {
 		snw.logger.Debug("checking last thing via inbox",
-			zap.Int64("account#id", id),
+			zap.String("account#reddit_account_id", id),
 			zap.String("account#username", account.NormalizedUsername()),
 		)
 
@@ -88,7 +88,7 @@ func (snw *stuckNotificationsWorker) Process(ctx context.Context, args ...interf
 			if err != reddit.ErrRateLimited {
 				snw.logger.Error("failed to fetch last thing via inbox",
 					zap.Error(err),
-					zap.Int64("account#id", id),
+					zap.String("account#reddit_account_id", id),
 					zap.String("account#username", account.NormalizedUsername()),
 				)
 			}
@@ -99,7 +99,7 @@ func (snw *stuckNotificationsWorker) Process(ctx context.Context, args ...interf
 		if err != nil {
 			snw.logger.Error("failed to fetch last thing",
 				zap.Error(err),
-				zap.Int64("account#id", id),
+				zap.String("account#reddit_account_id", id),
 				zap.String("account#username", account.NormalizedUsername()),
 			)
 			return nil
@@ -124,7 +124,7 @@ func (snw *stuckNotificationsWorker) Process(ctx context.Context, args ...interf
 			if err != nil {
 				snw.logger.Error("failed to check inbox",
 					zap.Error(err),
-					zap.Int64("account#id", id),
+					zap.String("account#reddit_account_id", id),
 					zap.String("account#username", account.NormalizedUsername()),
 				)
 				return nil
@@ -139,7 +139,7 @@ func (snw *stuckNotificationsWorker) Process(ctx context.Context, args ...interf
 
 			if !found {
 				snw.logger.Debug("thing exists, but not on inbox, marking as deleted",
-					zap.Int64("account#id", id),
+					zap.String("account#reddit_account_id", id),
 					zap.String("account#username", account.NormalizedUsername()),
 					zap.String("thing#id", account.LastMessageID),
 				)
@@ -147,7 +147,7 @@ func (snw *stuckNotificationsWorker) Process(ctx context.Context, args ...interf
 			}
 
 			snw.logger.Debug("thing exists, bailing early",
-				zap.Int64("account#id", id),
+				zap.String("account#reddit_account_id", id),
 				zap.String("account#username", account.NormalizedUsername()),
 				zap.String("thing#id", account.LastMessageID),
 			)
@@ -156,14 +156,14 @@ func (snw *stuckNotificationsWorker) Process(ctx context.Context, args ...interf
 	}
 
 	snw.logger.Info("thing got deleted, resetting",
-		zap.Int64("account#id", id),
+		zap.String("account#reddit_account_id", id),
 		zap.String("account#username", account.NormalizedUsername()),
 		zap.String("thing#id", account.LastMessageID),
 	)
 
 	if kind != "t4" {
 		snw.logger.Debug("getting message inbox to find last good thing",
-			zap.Int64("account#id", id),
+			zap.String("account#reddit_account_id", id),
 			zap.String("account#username", account.NormalizedUsername()),
 		)
 
@@ -171,7 +171,7 @@ func (snw *stuckNotificationsWorker) Process(ctx context.Context, args ...interf
 		if err != nil {
 			snw.logger.Error("failed to check inbox",
 				zap.Error(err),
-				zap.Int64("account#id", id),
+				zap.String("account#reddit_account_id", id),
 				zap.String("account#username", account.NormalizedUsername()),
 			)
 			return nil
@@ -181,13 +181,13 @@ func (snw *stuckNotificationsWorker) Process(ctx context.Context, args ...interf
 	account.LastMessageID = ""
 
 	snw.logger.Debug("calculating last good thing",
-		zap.Int64("account#id", id),
+		zap.String("account#reddit_account_id", id),
 		zap.String("account#username", account.NormalizedUsername()),
 	)
 	for _, thing := range things.Children {
 		if thing.IsDeleted() {
 			snw.logger.Debug("thing got deleted, checking next",
-				zap.Int64("account#id", id),
+				zap.String("account#reddit_account_id", id),
 				zap.String("account#username", account.NormalizedUsername()),
 				zap.String("thing#id", thing.FullName()),
 			)
@@ -199,7 +199,7 @@ func (snw *stuckNotificationsWorker) Process(ctx context.Context, args ...interf
 	}
 
 	snw.logger.Debug("updating last good thing",
-		zap.Int64("account#id", id),
+		zap.String("account#reddit_account_id", id),
 		zap.String("account#username", account.NormalizedUsername()),
 		zap.String("thing#id", account.LastMessageID),
 	)
@@ -207,7 +207,7 @@ func (snw *stuckNotificationsWorker) Process(ctx context.Context, args ...interf
 	if err := snw.accountRepo.Update(ctx, &account); err != nil {
 		snw.logger.Error("failed to update account's last message id",
 			zap.Error(err),
-			zap.Int64("account#id", id),
+			zap.String("account#reddit_account_id", id),
 			zap.String("account#username", account.NormalizedUsername()),
 		)
 		return err
