@@ -233,3 +233,5 @@ envVarGroups:
     sync: false
   - key: REDIS_URL
     sync: false
+  - key: FAKTORY_URL
+    sync: false
