@@ -114,7 +114,7 @@ func (tw *trendingWorker) Process(ctx context.Context, args ...interface{}) erro
 			zap.Int64("subreddit#id", id),
 			zap.String("subreddit#name", subreddit.NormalizedName()),
 		)
-		return err
+		return nil
 	}
 
 	tw.logger.Debug("loaded weeks's top posts",
