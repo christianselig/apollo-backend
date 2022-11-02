@@ -85,13 +85,15 @@ func (snw *stuckNotificationsWorker) Process(ctx context.Context, args ...interf
 
 		things, err = rac.MessageInbox(ctx)
 		if err != nil {
-			if err != reddit.ErrRateLimited {
+			if err != reddit.ErrRateLimited && err != reddit.ErrOauthRevoked {
 				snw.logger.Error("failed to fetch last thing via inbox",
 					zap.Error(err),
 					zap.String("account#reddit_account_id", id),
 					zap.String("account#username", account.NormalizedUsername()),
 				)
+				return err
 			}
+
 			return nil
 		}
 	} else {
