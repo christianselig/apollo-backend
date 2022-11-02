@@ -290,10 +290,10 @@ func enqueueSubreddits(ctx context.Context, logger *zap.Logger, statsd *statsd.C
 		batchIds[i] = strconv.FormatInt(id, 10)
 	}
 
-	jobs := make([]*faktory.Job, len(batchIds)*2)
-	for i, id := range ids {
-		jobs[i*2] = faktory.NewJob("SubredditWatcherJob", id)
-		jobs[i*2+1] = faktory.NewJob("SubredditTrendingJob", id)
+	jobs := []*faktory.Job{}
+	for _, id := range ids {
+		jobs = append(jobs, faktory.NewJob("SubredditWatcherJob", id))
+		jobs = append(jobs, faktory.NewJob("SubredditTrendingJob", id))
 	}
 	if _, err := fc.PushBulk(jobs); err != nil {
 		logger.Error("failed to enqueue subreddit batch", zap.Error(err))
