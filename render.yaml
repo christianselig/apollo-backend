@@ -58,6 +58,20 @@ services:
   - key: DD_LOG_LEVEL
     value: ERROR
 
+# Faktory
+- type: pserv
+  name: srv.faktory
+  env: docker
+  plan: standard
+  repo: https://github.com/contribsys/faktory-render.git
+  envVars:
+  - key: FAKTORY_PASSWORD
+    sync: false
+  disk:
+    name: faktory-data
+    mountPath: /var/lib/faktory
+    sizeGB: 20
+
 # API
 - type: web
   name: web.api
