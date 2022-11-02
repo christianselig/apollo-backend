@@ -105,7 +105,7 @@ services:
     maxInstances: 30
     targetCPUPercent: 80
   buildCommand: go install github.com/bugsnag/panic-monitor@latest && go build ./cmd/apollo
-  startCommand: panic-monitor ./apollo worker --queue notifications --consumers 256
+  startCommand: panic-monitor ./apollo worker --queue NotificationCheckJob --consumers 256
 
 # Stuck Notifications Checker
 - type: worker
@@ -123,7 +123,7 @@ services:
     maxInstances: 10
     targetCPUPercent: 80
   buildCommand: go install github.com/bugsnag/panic-monitor@latest && go build ./cmd/apollo
-  startCommand: panic-monitor ./apollo worker --queue stuck-notifications --consumers 64
+  startCommand: panic-monitor ./apollo worker --queue StuckNotificationsJob --consumers 64
 
 # Scheduler
 - type: worker
@@ -136,20 +136,6 @@ services:
     value: scheduler
   buildCommand: go install github.com/bugsnag/panic-monitor@latest && go build ./cmd/apollo
   startCommand: panic-monitor ./apollo scheduler
-
-# User Watcher
-- type: worker
-  name: worker.watcher.users
-  env: go
-  plan: starter
-  envVars:
-  - fromGroup: env-settings
-  - key: BUGSNAG_APP_TYPE
-    value: worker
-  - key: BUGSNAG_METADATA_QUEUE
-    value: users
-  buildCommand: go install github.com/bugsnag/panic-monitor@latest && go build ./cmd/apollo
-  startCommand: panic-monitor ./apollo worker --queue users
 
 # Subreddit Watcher
 - type: worker
@@ -167,7 +153,7 @@ services:
     maxInstances: 10
     targetCPUPercent: 80
   buildCommand: go install github.com/bugsnag/panic-monitor@latest && go build ./cmd/apollo
-  startCommand: panic-monitor ./apollo worker --queue subreddits
+  startCommand: panic-monitor ./apollo worker --queue SubredditWatcherJob
 
 # Trending Posts Watcher
 - type: worker
@@ -185,7 +171,7 @@ services:
     maxInstances: 10
     targetCPUPercent: 80
   buildCommand: go install github.com/bugsnag/panic-monitor@latest && go build ./cmd/apollo
-  startCommand: panic-monitor ./apollo worker --queue trending
+  startCommand: panic-monitor ./apollo worker --queue SubredditTrendingJob
 
 # Live Activities
 - type: worker
@@ -203,7 +189,7 @@ services:
     maxInstances: 10
     targetCPUPercent: 80
   buildCommand: go install github.com/bugsnag/panic-monitor@latest && go build ./cmd/apollo
-  startCommand: panic-monitor ./apollo worker --queue live-activities
+  startCommand: panic-monitor ./apollo worker --queue LiveActivityJob
 
 envVarGroups:
 # Environment

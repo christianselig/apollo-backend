@@ -24,25 +24,20 @@ var (
 
 func WorkerCmd(ctx context.Context) *cobra.Command {
 	var consumers int
-	var queueID string
 
 	cmd := &cobra.Command{
 		Use:   "worker",
 		Args:  cobra.ExactArgs(0),
 		Short: "Work through job queues.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if queueID == "" {
-				return fmt.Errorf("need a queue to work on")
-			}
-
 			runtime.SetBlockProfileRate(1)
 			runtime.SetMutexProfileFraction(1)
 
-			svc := fmt.Sprintf("worker: %s", queueID)
+			svc := fmt.Sprintf("worker")
 			logger := cmdutil.NewLogger(svc)
 			defer func() { _ = logger.Sync() }()
 
-			tag := fmt.Sprintf("worker:%s", queueID)
+			tag := fmt.Sprintf("worker")
 			statsd, err := cmdutil.NewStatsdClient(tag)
 			if err != nil {
 				return err
@@ -63,21 +58,18 @@ func WorkerCmd(ctx context.Context) *cobra.Command {
 			}
 			defer redis.Close()
 
-			workerFn, ok := queues[queueID]
-			if !ok {
-				return fmt.Errorf("queue does not exist: %s", queueID)
-			}
-			worker := workerFn(ctx, logger, statsd, db, redis, consumers)
-
 			mgr := faktoryworker.NewManager()
 			mgr.Concurrency = consumers
-			mgr.Register(queueID, worker.Process)
+			for queue, workerFn := range queues {
+				worker := workerFn(ctx, logger, statsd, db, redis, consumers)
+				mgr.Register(queue, worker.Process)
+			}
+
 			return mgr.RunWithContext(ctx)
 		},
 	}
 
 	cmd.Flags().IntVar(&consumers, "consumers", runtime.NumCPU()*64, "The consumers to run")
-	cmd.Flags().StringVar(&queueID, "queue", "", "The queue to work on")
 
 	return cmd
 }
