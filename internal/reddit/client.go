@@ -2,7 +2,6 @@ package reddit
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
 	"io"
 	"net/http"
@@ -15,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-go/statsd"
 	"github.com/go-redis/redis/v8"
 	"github.com/valyala/fastjson"
+	"golang.org/x/net/http2"
 )
 
 const (
@@ -96,11 +96,10 @@ func NewClient(id, secret string, statsd statsd.ClientInterface, redis *redis.Cl
 		},
 	}
 
-	t := http.DefaultTransport.(*http.Transport).Clone()
-	t.MaxIdleConns = connLimit / 2
-	t.MaxConnsPerHost = connLimit
-	t.MaxIdleConnsPerHost = 100
-	t.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} // TODO(andremedeiros): remove
+	t := &http2.Transport{
+		//TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, // TODO(andremedeiros): remove
+	}
+
 	client := &http.Client{
 		Timeout:   5 * time.Second,
 		Transport: t,
