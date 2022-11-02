@@ -279,7 +279,7 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 		// Latency is the time difference between the appearence of the new message and the
 		// time we notified at.
 		latency := now.Sub(msg.CreatedAt)
-		_ = nc.statsd.Histogram("apollo.queue.delay", float64(latency.Milliseconds()), []string{}, 1.0)
+		_ = nc.statsd.Histogram("apollo.queue.delay", float64(latency.Milliseconds()), []string{}, 0.1)
 
 		notification := &apns2.Notification{}
 		notification.Topic = "com.christianselig.Apollo"
