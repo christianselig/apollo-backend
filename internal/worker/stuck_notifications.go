@@ -55,7 +55,7 @@ func (snw *stuckNotificationsWorker) Process(ctx context.Context, args ...interf
 
 	account, err := snw.accountRepo.GetByRedditID(ctx, id)
 	if err != nil {
-		snw.logger.Error("failed to fetch account from database", zap.Error(err), zap.Int64("account#id", id))
+		snw.logger.Error("failed to fetch account from database", zap.Error(err), zap.String("account#reddit_account_id", id))
 		return nil
 	}
 
