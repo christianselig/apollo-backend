@@ -58,8 +58,14 @@ func WorkerCmd(ctx context.Context) *cobra.Command {
 			}
 			defer redis.Close()
 
+			fp, err := cmdutil.NewFaktoryPool(poolSize + 2)
+			if err != nil {
+				return err
+			}
+
 			mgr := faktoryworker.NewManager()
 			mgr.Concurrency = consumers
+			mgr.Pool = fp
 			for queue, workerFn := range queues {
 				worker := workerFn(ctx, logger, statsd, db, redis, consumers)
 				mgr.Register(queue, worker.Process)
