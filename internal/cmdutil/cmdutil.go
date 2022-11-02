@@ -74,6 +74,6 @@ func NewDatabasePool(ctx context.Context, maxConns int) (*pgxpool.Pool, error) {
 	return pgxpool.ConnectConfig(ctx, config)
 }
 
-func NewFaktoryClient(logger *zap.Logger) (*faktory.Client, error) {
-	return faktory.Open()
+func NewFaktoryPool(maxConns int) (*faktory.Pool, error) {
+	return faktory.NewPool(maxConns)
 }
