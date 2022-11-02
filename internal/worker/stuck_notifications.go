@@ -50,7 +50,7 @@ func (snw *stuckNotificationsWorker) Process(ctx context.Context, args ...interf
 		_ = snw.statsd.Histogram("apollo.consumer.runtime", float64(elapsed), []string{"queue:stuck-notifications"}, 0.1)
 	}()
 
-	id := args[0].(int64)
+	id := int64(args[0].(float64))
 	snw.logger.Debug("starting job", zap.Int64("account#id", id))
 
 	account, err := snw.accountRepo.GetByID(ctx, id)

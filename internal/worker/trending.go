@@ -75,7 +75,7 @@ func NewTrendingWorker(ctx context.Context, logger *zap.Logger, statsd *statsd.C
 }
 
 func (tw *trendingWorker) Process(ctx context.Context, args ...interface{}) error {
-	id := args[0].(int64)
+	id := int64(args[0].(float64))
 	tw.logger.Debug("starting job", zap.Int64("subreddit#id", id))
 
 	subreddit, err := tw.subredditRepo.GetByID(ctx, id)

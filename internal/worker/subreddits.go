@@ -79,7 +79,7 @@ func NewSubredditsWorker(ctx context.Context, logger *zap.Logger, statsd *statsd
 }
 
 func (sw *subredditsWorker) Process(ctx context.Context, args ...interface{}) error {
-	id := args[0].(int64)
+	id := int64(args[0].(float64))
 	sw.logger.Debug("starting job", zap.Int64("subreddit#id", id))
 
 	subreddit, err := sw.subredditRepo.GetByID(ctx, id)
