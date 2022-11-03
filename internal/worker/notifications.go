@@ -14,6 +14,7 @@ import (
 	"github.com/sideshow/apns2/payload"
 	"github.com/sideshow/apns2/token"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
@@ -168,11 +169,16 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 
 	logger.Debug("starting job")
 
-	defer func() {
+	defer func(ctx context.Context) {
+		_, span := nc.tracer.Start(ctx, "queue:ack")
+		defer span.End()
+
 		if err := delivery.Ack(); err != nil {
+			span.SetStatus(codes.Error, "failed to acknowledge message")
+			span.RecordError(err)
 			logger.Error("failed to acknowledge message", zap.Error(err))
 		}
-	}()
+	}(ctx)
 
 	account, err := nc.accountRepo.GetByRedditID(ctx, id)
 	if err != nil {
