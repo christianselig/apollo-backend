@@ -40,6 +40,8 @@ require (
 	github.com/go-logr/logr v1.2.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
+	github.com/go-redis/redis/extra/rediscmd/v8 v8.11.5 // indirect
+	github.com/go-redis/redis/extra/redisotel/v8 v8.11.5 // indirect
 	github.com/golang-jwt/jwt/v4 v4.4.2 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/google/uuid v1.3.0 // indirect
