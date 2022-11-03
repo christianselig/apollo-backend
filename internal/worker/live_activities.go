@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/sideshow/apns2"
 	"github.com/sideshow/apns2/token"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	"github.com/christianselig/apollo-backend/internal/domain"
@@ -35,6 +36,7 @@ type liveActivitiesWorker struct {
 	context.Context
 
 	logger *zap.Logger
+	tracer trace.Tracer
 	statsd *statsd.Client
 	db     *pgxpool.Pool
 	redis  *redis.Client
@@ -47,10 +49,11 @@ type liveActivitiesWorker struct {
 	liveActivityRepo domain.LiveActivityRepository
 }
 
-func NewLiveActivitiesWorker(ctx context.Context, logger *zap.Logger, statsd *statsd.Client, db *pgxpool.Pool, redis *redis.Client, queue rmq.Connection, consumers int) Worker {
+func NewLiveActivitiesWorker(ctx context.Context, logger *zap.Logger, tracer trace.Tracer, statsd *statsd.Client, db *pgxpool.Pool, redis *redis.Client, queue rmq.Connection, consumers int) Worker {
 	reddit := reddit.NewClient(
 		os.Getenv("REDDIT_CLIENT_ID"),
 		os.Getenv("REDDIT_CLIENT_SECRET"),
+		tracer,
 		statsd,
 		redis,
 		consumers,
@@ -73,6 +76,7 @@ func NewLiveActivitiesWorker(ctx context.Context, logger *zap.Logger, statsd *st
 	return &liveActivitiesWorker{
 		ctx,
 		logger,
+		tracer,
 		statsd,
 		db,
 		redis,

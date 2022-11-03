@@ -13,6 +13,8 @@ import (
 	"github.com/sideshow/apns2"
 	"github.com/sideshow/apns2/payload"
 	"github.com/sideshow/apns2/token"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	"github.com/christianselig/apollo-backend/internal/domain"
@@ -35,6 +37,7 @@ type notificationsWorker struct {
 	context.Context
 
 	logger *zap.Logger
+	tracer trace.Tracer
 	statsd *statsd.Client
 	db     *pgxpool.Pool
 	redis  *redis.Client
@@ -48,10 +51,11 @@ type notificationsWorker struct {
 	deviceRepo  domain.DeviceRepository
 }
 
-func NewNotificationsWorker(ctx context.Context, logger *zap.Logger, statsd *statsd.Client, db *pgxpool.Pool, redis *redis.Client, queue rmq.Connection, consumers int) Worker {
+func NewNotificationsWorker(ctx context.Context, logger *zap.Logger, tracer trace.Tracer, statsd *statsd.Client, db *pgxpool.Pool, redis *redis.Client, queue rmq.Connection, consumers int) Worker {
 	reddit := reddit.NewClient(
 		os.Getenv("REDDIT_CLIENT_ID"),
 		os.Getenv("REDDIT_CLIENT_SECRET"),
+		tracer,
 		statsd,
 		redis,
 		consumers,
@@ -74,6 +78,7 @@ func NewNotificationsWorker(ctx context.Context, logger *zap.Logger, statsd *sta
 	return &notificationsWorker{
 		ctx,
 		logger,
+		tracer,
 		statsd,
 		db,
 		redis,
@@ -135,15 +140,19 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 	ctx, cancel := context.WithCancel(nc)
 	defer cancel()
 
+	id := delivery.Payload()
+	logger := nc.logger.With(zap.String("account#reddit_account_id", id))
+
+	ctx, span := nc.tracer.Start(ctx, "job:notifications")
+	span.SetAttributes(attribute.String("job.payload", id))
+	defer span.End()
+
 	now := time.Now()
 	defer func() {
 		elapsed := time.Now().Sub(now).Milliseconds()
 		_ = nc.statsd.Histogram("apollo.consumer.runtime", float64(elapsed), notificationTags, 0.1)
 		_ = nc.statsd.Incr("apollo.consumer.executions", notificationTags, 0.1)
 	}()
-
-	id := delivery.Payload()
-	logger := nc.logger.With(zap.String("account#reddit_account_id", id))
 
 	// Measure queue latency
 	key := fmt.Sprintf("locks:accounts:%s", id)

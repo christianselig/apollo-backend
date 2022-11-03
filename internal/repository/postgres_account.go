@@ -4,20 +4,32 @@ import (
 	"context"
 	"time"
 
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/christianselig/apollo-backend/internal/domain"
 )
 
 type postgresAccountRepository struct {
-	conn Connection
+	conn   Connection
+	tracer trace.Tracer
 }
 
 func NewPostgresAccount(conn Connection) domain.AccountRepository {
-	return &postgresAccountRepository{conn: conn}
+	tracer := otel.Tracer("db:postgres:accounts")
+	return &postgresAccountRepository{conn: conn, tracer: tracer}
 }
 
 func (p *postgresAccountRepository) fetch(ctx context.Context, query string, args ...interface{}) ([]domain.Account, error) {
+	ctx, span := spanWithQuery(ctx, p.tracer, query)
+	defer span.End()
+
 	rows, err := p.conn.Query(ctx, query, args...)
 	if err != nil {
+		span.SetStatus(codes.Error, "failed querying accounts")
+		span.RecordError(err)
 		return nil, err
 	}
 	defer rows.Close()
@@ -94,7 +106,10 @@ func (p *postgresAccountRepository) CreateOrUpdate(ctx context.Context, acc *dom
 				is_deleted = FALSE
 		RETURNING id`
 
-	return p.conn.QueryRow(
+	ctx, span := spanWithQuery(ctx, p.tracer, query)
+	defer span.End()
+
+	if err := p.conn.QueryRow(
 		ctx,
 		query,
 		acc.Username,
@@ -102,7 +117,13 @@ func (p *postgresAccountRepository) CreateOrUpdate(ctx context.Context, acc *dom
 		acc.AccessToken,
 		acc.RefreshToken,
 		acc.TokenExpiresAt,
-	).Scan(&acc.ID)
+	).Scan(&acc.ID); err != nil {
+		span.SetStatus(codes.Error, "failed upserting account")
+		span.RecordError(err)
+		return err
+	}
+
+	return nil
 }
 
 func (p *postgresAccountRepository) Create(ctx context.Context, acc *domain.Account) error {
@@ -113,7 +134,10 @@ func (p *postgresAccountRepository) Create(ctx context.Context, acc *domain.Acco
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, FALSE)
 		RETURNING id`
 
-	return p.conn.QueryRow(
+	ctx, span := spanWithQuery(ctx, p.tracer, query)
+	defer span.End()
+
+	if err := p.conn.QueryRow(
 		ctx,
 		query,
 		acc.Username,
@@ -124,7 +148,13 @@ func (p *postgresAccountRepository) Create(ctx context.Context, acc *domain.Acco
 		acc.LastMessageID,
 		acc.NextNotificationCheckAt,
 		acc.NextStuckNotificationCheckAt,
-	).Scan(&acc.ID)
+	).Scan(&acc.ID); err != nil {
+		span.SetStatus(codes.Error, "failed inserting account")
+		span.RecordError(err)
+		return err
+	}
+
+	return nil
 }
 
 func (p *postgresAccountRepository) Update(ctx context.Context, acc *domain.Account) error {
@@ -141,7 +171,10 @@ func (p *postgresAccountRepository) Update(ctx context.Context, acc *domain.Acco
 			check_count = $10
 		WHERE id = $1`
 
-	_, err := p.conn.Exec(
+	ctx, span := spanWithQuery(ctx, p.tracer, query)
+	defer span.End()
+
+	if _, err := p.conn.Exec(
 		ctx,
 		query,
 		acc.ID,
@@ -154,16 +187,27 @@ func (p *postgresAccountRepository) Update(ctx context.Context, acc *domain.Acco
 		acc.NextNotificationCheckAt,
 		acc.NextStuckNotificationCheckAt,
 		acc.CheckCount,
-	)
+	); err != nil {
+		span.SetStatus(codes.Error, "failed to update account")
+		span.RecordError(err)
+		return err
+	}
 
-	return err
+	return nil
 }
 
 func (p *postgresAccountRepository) Delete(ctx context.Context, id int64) error {
-	//query := `DELETE FROM accounts WHERE id = $1`
 	query := `UPDATE accounts SET is_deleted = TRUE WHERE id = $1`
-	_, err := p.conn.Exec(ctx, query, id)
-	return err
+
+	ctx, span := spanWithQuery(ctx, p.tracer, query)
+	defer span.End()
+
+	if _, err := p.conn.Exec(ctx, query, id); err != nil {
+		span.SetStatus(codes.Error, "failed to delete account")
+		span.RecordError(err)
+		return err
+	}
+	return nil
 }
 
 func (p *postgresAccountRepository) Associate(ctx context.Context, acc *domain.Account, dev *domain.Device) error {
@@ -172,14 +216,30 @@ func (p *postgresAccountRepository) Associate(ctx context.Context, acc *domain.A
 			(account_id, device_id)
 		VALUES ($1, $2)
 		ON CONFLICT(account_id, device_id) DO NOTHING`
-	_, err := p.conn.Exec(ctx, query, acc.ID, dev.ID)
-	return err
+
+	ctx, span := spanWithQuery(ctx, p.tracer, query)
+	defer span.End()
+
+	if _, err := p.conn.Exec(ctx, query, acc.ID, dev.ID); err != nil {
+		span.SetStatus(codes.Error, "failed to associate account to device")
+		span.RecordError(err)
+		return err
+	}
+	return nil
 }
 
 func (p *postgresAccountRepository) Disassociate(ctx context.Context, acc *domain.Account, dev *domain.Device) error {
 	query := `DELETE FROM devices_accounts WHERE account_id = $1 AND device_id = $2`
-	_, err := p.conn.Exec(ctx, query, acc.ID, dev.ID)
-	return err
+
+	ctx, span := spanWithQuery(ctx, p.tracer, query)
+	defer span.End()
+
+	if _, err := p.conn.Exec(ctx, query, acc.ID, dev.ID); err != nil {
+		span.SetStatus(codes.Error, "failed to disassociate account from device")
+		span.RecordError(err)
+		return err
+	}
+	return nil
 }
 
 func (p *postgresAccountRepository) GetByAPNSToken(ctx context.Context, token string) ([]domain.Account, error) {
@@ -202,7 +262,16 @@ func (p *postgresAccountRepository) PruneStale(ctx context.Context, expiry time.
 		SET is_deleted = TRUE
 		WHERE token_expires_at < $1`
 
+	ctx, span := spanWithQuery(ctx, p.tracer, query)
+	defer span.End()
+
 	res, err := p.conn.Exec(ctx, query, expiry)
+	if err != nil {
+		span.SetStatus(codes.Error, "failed to prune stale accounts")
+		span.RecordError(err)
+	}
+
+	span.SetAttributes(attribute.Int64("db.result.rows_affected", res.RowsAffected()))
 
 	return res.RowsAffected(), err
 }
@@ -223,7 +292,16 @@ func (p *postgresAccountRepository) PruneOrphaned(ctx context.Context) (int64, e
 			WHERE device_count = 0
 		)`
 
+	ctx, span := spanWithQuery(ctx, p.tracer, query)
+	defer span.End()
+
 	res, err := p.conn.Exec(ctx, query)
+	if err != nil {
+		span.SetStatus(codes.Error, "failed to prune orphaned accounts")
+		span.RecordError(err)
+	}
+
+	span.SetAttributes(attribute.Int64("db.result.rows_affected", res.RowsAffected()))
 
 	return res.RowsAffected(), err
 }
