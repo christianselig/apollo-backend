@@ -47,9 +47,10 @@ type RateLimitingInfo struct {
 
 var (
 	backoffSchedule = []time.Duration{
-		4 * time.Second,
-		8 * time.Second,
-		16 * time.Second,
+		200 * time.Millisecond,
+		500 * time.Millisecond,
+		1 * time.Second,
+		2 * time.Second,
 	}
 
 	defaultErrorMap = map[int]error{
