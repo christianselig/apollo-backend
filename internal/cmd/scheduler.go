@@ -46,13 +46,19 @@ func SchedulerCmd(ctx context.Context) *cobra.Command {
 			}
 			defer db.Close()
 
-			redis, err := cmdutil.NewRedisClient(ctx, 16)
+			redis, err := cmdutil.NewRedisLocksClient(ctx, 16)
 			if err != nil {
 				return err
 			}
 			defer redis.Close()
 
-			queue, err := cmdutil.NewQueueClient(logger, redis, "worker")
+			qredis, err := cmdutil.NewRedisQueueClient(ctx, 16)
+			if err != nil {
+				return err
+			}
+			defer qredis.Close()
+
+			queue, err := cmdutil.NewQueueClient(logger, qredis, "worker")
 			if err != nil {
 				return err
 			}

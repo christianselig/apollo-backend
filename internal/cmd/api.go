@@ -39,7 +39,7 @@ func APICmd(ctx context.Context) *cobra.Command {
 			}
 			defer db.Close()
 
-			redis, err := cmdutil.NewRedisClient(ctx, 16)
+			redis, err := cmdutil.NewRedisLocksClient(ctx, 16)
 			if err != nil {
 				return err
 			}
