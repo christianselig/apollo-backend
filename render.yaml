@@ -14,9 +14,18 @@ services:
   name: srv.redis
   plan: pro
   maxmemoryPolicy: noeviction
-  ipAllowList:
-  - source: 10.204.0.0/16
-    description: internal
+
+# Redis (queues)
+- type: redis
+  name: srv.redis.queues
+  plan: standard plus
+  maxmemoryPolicy: noeviction
+
+# Redis (locks)
+- type: redis
+  name: srv.redis.locks
+  plan: standard plus
+  maxmemoryPolicy: noeviction
 
 # PGBouncer
 - type: pserv
