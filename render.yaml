@@ -33,7 +33,7 @@ services:
   name: srv.pgbouncer
   env: docker
   plan: standard
-  repo: https://github.com/renderinc/docker-pgbouncer.git
+  repo: https://github.com/render-oss/docker-pgbouncer.git
   envVars:
   - key: ADMIN_USERS
     value: postgres,apollo
