@@ -263,15 +263,6 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 		}
 	}
 
-	// Let's populate this with the latest message so we don't flood users with stuff
-	if account.CheckCount == 0 {
-		logger.Debug("populating first message id to prevent spamming")
-
-		account.CheckCount = 1
-		_ = nc.accountRepo.Update(ctx, &account)
-		return
-	}
-
 	devices, err := nc.deviceRepo.GetInboxNotifiableByAccountID(ctx, account.ID)
 	if err != nil {
 		logger.Error("failed to fetch account devices", zap.Error(err))
