@@ -16,6 +16,7 @@ import (
 	"github.com/sideshow/apns2"
 	"github.com/sideshow/apns2/payload"
 	"github.com/sideshow/apns2/token"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	"github.com/christianselig/apollo-backend/internal/domain"
@@ -27,6 +28,7 @@ type trendingWorker struct {
 	context.Context
 
 	logger *zap.Logger
+	tracer trace.Tracer
 	statsd *statsd.Client
 	redis  *redis.Client
 	queue  rmq.Connection
@@ -43,10 +45,11 @@ type trendingWorker struct {
 
 const trendingNotificationTitleFormat = "🔥 r/%s Trending"
 
-func NewTrendingWorker(ctx context.Context, logger *zap.Logger, statsd *statsd.Client, db *pgxpool.Pool, redis *redis.Client, queue rmq.Connection, consumers int) Worker {
+func NewTrendingWorker(ctx context.Context, logger *zap.Logger, tracer trace.Tracer, statsd *statsd.Client, db *pgxpool.Pool, redis *redis.Client, queue rmq.Connection, consumers int) Worker {
 	reddit := reddit.NewClient(
 		os.Getenv("REDDIT_CLIENT_ID"),
 		os.Getenv("REDDIT_CLIENT_SECRET"),
+		tracer,
 		statsd,
 		redis,
 		consumers,
@@ -69,6 +72,7 @@ func NewTrendingWorker(ctx context.Context, logger *zap.Logger, statsd *statsd.C
 	return &trendingWorker{
 		ctx,
 		logger,
+		tracer,
 		statsd,
 		redis,
 		queue,

@@ -15,6 +15,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/sideshow/apns2/token"
+	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"
 
 	"github.com/christianselig/apollo-backend/internal/domain"
@@ -38,9 +39,12 @@ type api struct {
 }
 
 func NewAPI(ctx context.Context, logger *zap.Logger, statsd *statsd.Client, redis *redis.Client, pool *pgxpool.Pool) *api {
+	tracer := otel.Tracer("api")
+
 	reddit := reddit.NewClient(
 		os.Getenv("REDDIT_CLIENT_ID"),
 		os.Getenv("REDDIT_CLIENT_SECRET"),
+		tracer,
 		statsd,
 		redis,
 		16,

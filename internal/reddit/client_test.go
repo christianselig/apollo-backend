@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"go.opentelemetry.io/otel"
 
 	"github.com/christianselig/apollo-backend/internal/reddit"
 )
@@ -11,7 +12,8 @@ import (
 func TestAuthenticatedClientObfuscatedToken(t *testing.T) {
 	t.Parallel()
 
-	rc := reddit.NewClient("<SECRET>", "<SECRET>", nil, nil, 1)
+	tracer := otel.Tracer("test")
+	rc := reddit.NewClient("<SECRET>", "<SECRET>", tracer, nil, nil, 1)
 
 	type test struct {
 		have string

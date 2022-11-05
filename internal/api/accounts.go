@@ -177,6 +177,16 @@ func (a *api) upsertAccountsHandler(w http.ResponseWriter, r *http.Request) {
 		// Set account ID from Reddit
 		acc.AccountID = me.ID
 
+		mi, err := rac.MessageInbox(ctx)
+		if err != nil {
+			a.errorResponse(w, r, 500, err)
+			return
+		}
+
+		if mi.Count > 0 {
+			acc.LastMessageID = mi.Children[0].FullName()
+		}
+
 		if err := a.accountRepo.CreateOrUpdate(ctx, &acc); err != nil {
 			a.errorResponse(w, r, 422, err)
 			return
@@ -210,8 +220,8 @@ func (a *api) upsertAccountHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Here we check whether the account is supplied with a valid token.
-	ac := a.reddit.NewAuthenticatedClient(reddit.SkipRateLimiting, acct.RefreshToken, acct.AccessToken)
-	tokens, err := ac.RefreshTokens(ctx)
+	rac := a.reddit.NewAuthenticatedClient(reddit.SkipRateLimiting, acct.RefreshToken, acct.AccessToken)
+	tokens, err := rac.RefreshTokens(ctx)
 	if err != nil {
 		a.logger.Error("failed to refresh token", zap.Error(err))
 		a.errorResponse(w, r, 422, err)
@@ -223,8 +233,8 @@ func (a *api) upsertAccountHandler(w http.ResponseWriter, r *http.Request) {
 	acct.RefreshToken = tokens.RefreshToken
 	acct.AccessToken = tokens.AccessToken
 
-	ac = a.reddit.NewAuthenticatedClient(reddit.SkipRateLimiting, acct.RefreshToken, acct.AccessToken)
-	me, err := ac.Me(ctx)
+	rac = a.reddit.NewAuthenticatedClient(reddit.SkipRateLimiting, acct.RefreshToken, acct.AccessToken)
+	me, err := rac.Me(ctx)
 
 	if err != nil {
 		a.logger.Error("failed to grab user details from reddit", zap.Error(err))
@@ -241,6 +251,16 @@ func (a *api) upsertAccountHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Set account ID from Reddit
 	acct.AccountID = me.ID
+
+	mi, err := rac.MessageInbox(ctx)
+	if err != nil {
+		a.errorResponse(w, r, 500, err)
+		return
+	}
+
+	if mi.Count > 0 {
+		acct.LastMessageID = mi.Children[0].FullName()
+	}
 
 	// Associate
 	dev, err := a.deviceRepo.GetByAPNSToken(ctx, vars["apns"])

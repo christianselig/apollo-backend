@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/http/httptrace"
 	"regexp"
 	"strconv"
 	"strings"
@@ -14,7 +13,8 @@ import (
 	"github.com/DataDog/datadog-go/statsd"
 	"github.com/go-redis/redis/v8"
 	"github.com/valyala/fastjson"
-	"golang.org/x/net/http2"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel/trace"
 )
 
 const (
@@ -29,7 +29,7 @@ const (
 type Client struct {
 	id          string
 	secret      string
-	trace       *httptrace.ClientTrace
+	tracer      trace.Tracer
 	client      *http.Client
 	pool        *fastjson.ParserPool
 	statsd      statsd.ClientInterface
@@ -47,9 +47,10 @@ type RateLimitingInfo struct {
 
 var (
 	backoffSchedule = []time.Duration{
-		4 * time.Second,
-		8 * time.Second,
-		16 * time.Second,
+		200 * time.Millisecond,
+		500 * time.Millisecond,
+		1 * time.Second,
+		2 * time.Second,
 	}
 
 	defaultErrorMap = map[int]error{
@@ -81,30 +82,7 @@ func PostIDFromContext(context string) string {
 	return ""
 }
 
-func NewClient(id, secret string, statsd statsd.ClientInterface, redis *redis.Client, connLimit int, opts ...RequestOption) *Client {
-	trace := &httptrace.ClientTrace{
-		GotConn: func(info httptrace.GotConnInfo) {
-			if info.Reused {
-				_ = statsd.Incr("reddit.api.connections.reused", []string{}, 0.1)
-				if info.WasIdle {
-					idleTime := float64(int64(info.IdleTime) / int64(time.Millisecond))
-					_ = statsd.Histogram("reddit.api.connections.idle_time", idleTime, []string{}, 0.1)
-				}
-			} else {
-				_ = statsd.Incr("reddit.api.connections.created", []string{}, 0.1)
-			}
-		},
-	}
-
-	t := &http2.Transport{
-		//TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, // TODO(andremedeiros): remove
-	}
-
-	client := &http.Client{
-		Timeout:   5 * time.Second,
-		Transport: t,
-	}
-
+func NewClient(id, secret string, tracer trace.Tracer, statsd statsd.ClientInterface, redis *redis.Client, connLimit int, opts ...RequestOption) *Client {
 	pool := &fastjson.ParserPool{}
 
 	// Preallocate pool
@@ -117,11 +95,16 @@ func NewClient(id, secret string, statsd statsd.ClientInterface, redis *redis.Cl
 		pool.Put(parsers[i])
 	}
 
+	httpClient := &http.Client{
+		Transport: otelhttp.NewTransport(http.DefaultTransport),
+		Timeout:   4 * time.Second,
+	}
+
 	return &Client{
 		id,
 		secret,
-		trace,
-		client,
+		tracer,
+		httpClient,
 		pool,
 		statsd,
 		redis,
@@ -154,8 +137,6 @@ func (rc *Client) NewAuthenticatedClient(redditId, refreshToken, accessToken str
 }
 
 func (rc *Client) doRequest(ctx context.Context, r *Request, errmap map[int]error) ([]byte, *RateLimitingInfo, error) {
-	ctx = httptrace.WithClientTrace(ctx, rc.trace)
-
 	req, err := r.HTTPRequest(ctx)
 	if err != nil {
 		return nil, nil, err
