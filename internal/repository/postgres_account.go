@@ -98,7 +98,7 @@ func (p *postgresAccountRepository) CreateOrUpdate(ctx context.Context, acc *dom
 	query := `
 		INSERT INTO accounts (username, reddit_account_id, access_token, refresh_token, token_expires_at,
 			last_message_id, next_notification_check_at, next_stuck_notification_check_at, is_deleted)
-		VALUES ($1, $2, $3, $4, $5, '', NOW(), NOW(), FALSE)
+		VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW(), FALSE)
 		ON CONFLICT(username) DO
 			UPDATE SET access_token = $3,
 				refresh_token = $4,
@@ -117,6 +117,7 @@ func (p *postgresAccountRepository) CreateOrUpdate(ctx context.Context, acc *dom
 		acc.AccessToken,
 		acc.RefreshToken,
 		acc.TokenExpiresAt,
+		acc.LastMessageID,
 	).Scan(&acc.ID); err != nil {
 		span.SetStatus(codes.Error, "failed upserting account")
 		span.RecordError(err)
