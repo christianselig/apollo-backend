@@ -36,8 +36,16 @@ func NewStatsdClient(tags ...string) (*statsd.Client, error) {
 	return statsd.New(os.Getenv("STATSD_URL"), statsd.WithTags(tags))
 }
 
-func NewRedisClient(ctx context.Context, maxConns int) (*redis.Client, error) {
-	opt, err := redis.ParseURL(os.Getenv("REDIS_URL"))
+func NewRedisLocksClient(ctx context.Context, maxConns int) (*redis.Client, error) {
+	return newRedisClient(ctx, "REDIS_LOCKS_URL", maxConns)
+}
+
+func NewRedisQueueClient(ctx context.Context, maxConns int) (*redis.Client, error) {
+	return newRedisClient(ctx, "REDIS_QUEUE_URL", maxConns)
+}
+
+func newRedisClient(ctx context.Context, env string, maxConns int) (*redis.Client, error) {
+	opt, err := redis.ParseURL(os.Getenv(env))
 	if err != nil {
 		return nil, err
 	}
