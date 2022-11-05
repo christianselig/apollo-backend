@@ -219,3 +219,7 @@ envVarGroups:
     sync: false
   - key: REDIS_URL
     sync: false
+  - key: REDIS_QUEUE_URL
+    sync: false
+  - key: REDIS_LOCKS_URL
+    sync: false
