@@ -13,6 +13,9 @@ import (
 	"github.com/sideshow/apns2"
 	"github.com/sideshow/apns2/payload"
 	"github.com/sideshow/apns2/token"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	"github.com/christianselig/apollo-backend/internal/domain"
@@ -35,6 +38,7 @@ type notificationsWorker struct {
 	context.Context
 
 	logger *zap.Logger
+	tracer trace.Tracer
 	statsd *statsd.Client
 	db     *pgxpool.Pool
 	redis  *redis.Client
@@ -48,10 +52,11 @@ type notificationsWorker struct {
 	deviceRepo  domain.DeviceRepository
 }
 
-func NewNotificationsWorker(ctx context.Context, logger *zap.Logger, statsd *statsd.Client, db *pgxpool.Pool, redis *redis.Client, queue rmq.Connection, consumers int) Worker {
+func NewNotificationsWorker(ctx context.Context, logger *zap.Logger, tracer trace.Tracer, statsd *statsd.Client, db *pgxpool.Pool, redis *redis.Client, queue rmq.Connection, consumers int) Worker {
 	reddit := reddit.NewClient(
 		os.Getenv("REDDIT_CLIENT_ID"),
 		os.Getenv("REDDIT_CLIENT_SECRET"),
+		tracer,
 		statsd,
 		redis,
 		consumers,
@@ -74,6 +79,7 @@ func NewNotificationsWorker(ctx context.Context, logger *zap.Logger, statsd *sta
 	return &notificationsWorker{
 		ctx,
 		logger,
+		tracer,
 		statsd,
 		db,
 		redis,
@@ -135,15 +141,19 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 	ctx, cancel := context.WithCancel(nc)
 	defer cancel()
 
+	id := delivery.Payload()
+	logger := nc.logger.With(zap.String("account#reddit_account_id", id))
+
+	ctx, span := nc.tracer.Start(ctx, "job:notifications")
+	span.SetAttributes(attribute.String("job.payload", id))
+	defer span.End()
+
 	now := time.Now()
 	defer func() {
 		elapsed := time.Now().Sub(now).Milliseconds()
 		_ = nc.statsd.Histogram("apollo.consumer.runtime", float64(elapsed), notificationTags, 0.1)
 		_ = nc.statsd.Incr("apollo.consumer.executions", notificationTags, 0.1)
 	}()
-
-	id := delivery.Payload()
-	logger := nc.logger.With(zap.String("account#reddit_account_id", id))
 
 	// Measure queue latency
 	key := fmt.Sprintf("locks:accounts:%s", id)
@@ -159,11 +169,16 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 
 	logger.Debug("starting job")
 
-	defer func() {
+	defer func(ctx context.Context) {
+		_, span := nc.tracer.Start(ctx, "queue:ack")
+		defer span.End()
+
 		if err := delivery.Ack(); err != nil {
+			span.SetStatus(codes.Error, "failed to acknowledge message")
+			span.RecordError(err)
 			logger.Error("failed to acknowledge message", zap.Error(err))
 		}
-	}()
+	}(ctx)
 
 	account, err := nc.accountRepo.GetByRedditID(ctx, id)
 	if err != nil {
@@ -246,15 +261,6 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 			_ = nc.accountRepo.Update(ctx, &account)
 			break
 		}
-	}
-
-	// Let's populate this with the latest message so we don't flood users with stuff
-	if account.CheckCount == 0 {
-		logger.Debug("populating first message id to prevent spamming")
-
-		account.CheckCount = 1
-		_ = nc.accountRepo.Update(ctx, &account)
-		return
 	}
 
 	devices, err := nc.deviceRepo.GetInboxNotifiableByAccountID(ctx, account.ID)
