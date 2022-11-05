@@ -95,11 +95,16 @@ func NewClient(id, secret string, tracer trace.Tracer, statsd statsd.ClientInter
 		pool.Put(parsers[i])
 	}
 
+	httpClient := &http.Client{
+		Transport: otelhttp.NewTransport(http.DefaultTransport),
+		Timeout:   4 * time.Second,
+	}
+
 	return &Client{
 		id,
 		secret,
 		tracer,
-		otelhttp.DefaultClient,
+		httpClient,
 		pool,
 		statsd,
 		redis,
