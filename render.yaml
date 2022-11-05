@@ -4,9 +4,7 @@ databases:
   user: apollo
   databaseName: apollo
   postgresMajorVersion: 14
-  ipAllowList:
-  - source: 10.204.0.0/16
-    description: internal
+  ipAllowList: []
 
 services:
 # Redis
@@ -14,18 +12,21 @@ services:
   name: srv.redis
   plan: pro
   maxmemoryPolicy: noeviction
+  ipAllowList: []
 
 # Redis (queues)
 - type: redis
   name: srv.redis.queues
   plan: standard plus
   maxmemoryPolicy: noeviction
+  ipAllowList: []
 
 # Redis (locks)
 - type: redis
   name: srv.redis.locks
   plan: standard plus
   maxmemoryPolicy: noeviction
+  ipAllowList: []
 
 # PGBouncer
 - type: pserv
