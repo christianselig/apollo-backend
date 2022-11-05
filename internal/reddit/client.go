@@ -95,8 +95,13 @@ func NewClient(id, secret string, tracer trace.Tracer, statsd statsd.ClientInter
 		pool.Put(parsers[i])
 	}
 
+	t := http.DefaultTransport.(*http.Transport).Clone()
+	t.MaxIdleConns = 100
+	t.MaxConnsPerHost = 100
+	t.MaxIdleConnsPerHost = 100
+
 	httpClient := &http.Client{
-		Transport: otelhttp.NewTransport(http.DefaultTransport),
+		Transport: otelhttp.NewTransport(t),
 		Timeout:   4 * time.Second,
 	}
 
