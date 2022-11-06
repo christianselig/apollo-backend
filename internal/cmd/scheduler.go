@@ -23,7 +23,7 @@ import (
 	"github.com/christianselig/apollo-backend/internal/repository"
 )
 
-const batchSize = 2000
+const batchSize = 250
 
 func SchedulerCmd(ctx context.Context) *cobra.Command {
 	cmd := &cobra.Command{
