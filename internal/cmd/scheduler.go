@@ -46,7 +46,7 @@ func SchedulerCmd(ctx context.Context) *cobra.Command {
 			}
 			defer db.Close()
 
-			redis, err := cmdutil.NewRedisLocksClient(ctx, 16)
+			redis, err := cmdutil.NewRedisLocksClient(ctx, 64)
 			if err != nil {
 				return err
 			}

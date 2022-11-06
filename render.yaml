@@ -24,7 +24,7 @@ services:
 # Redis (locks)
 - type: redis
   name: srv.redis.locks
-  plan: standard plus
+  plan: pro
   maxmemoryPolicy: noeviction
   ipAllowList: []
 
