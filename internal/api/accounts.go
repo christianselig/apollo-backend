@@ -177,7 +177,7 @@ func (a *api) upsertAccountsHandler(w http.ResponseWriter, r *http.Request) {
 		// Set account ID from Reddit
 		acc.AccountID = me.ID
 
-		mi, err := rac.MessageInbox(ctx)
+		mi, err := rac.MessageInbox(ctx, reddit.WithQuery("limit", "1"))
 		if err != nil {
 			a.errorResponse(w, r, 500, err)
 			return
@@ -185,6 +185,7 @@ func (a *api) upsertAccountsHandler(w http.ResponseWriter, r *http.Request) {
 
 		if mi.Count > 0 {
 			acc.LastMessageID = mi.Children[0].FullName()
+			acc.CheckCount = 1
 		}
 
 		if err := a.accountRepo.CreateOrUpdate(ctx, &acc); err != nil {
@@ -252,7 +253,7 @@ func (a *api) upsertAccountHandler(w http.ResponseWriter, r *http.Request) {
 	// Set account ID from Reddit
 	acct.AccountID = me.ID
 
-	mi, err := rac.MessageInbox(ctx)
+	mi, err := rac.MessageInbox(ctx, reddit.WithQuery("limit", "1"))
 	if err != nil {
 		a.errorResponse(w, r, 500, err)
 		return
@@ -260,6 +261,7 @@ func (a *api) upsertAccountHandler(w http.ResponseWriter, r *http.Request) {
 
 	if mi.Count > 0 {
 		acct.LastMessageID = mi.Children[0].FullName()
+		acct.CheckCount = 1
 	}
 
 	// Associate

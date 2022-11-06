@@ -103,6 +103,7 @@ func (p *postgresAccountRepository) CreateOrUpdate(ctx context.Context, acc *dom
 			UPDATE SET access_token = $3,
 				refresh_token = $4,
 				token_expires_at = $5,
+				last_message_id = $6,
 				is_deleted = FALSE
 		RETURNING id`
 
