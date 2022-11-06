@@ -52,7 +52,7 @@ func WorkerCmd(ctx context.Context) *cobra.Command {
 
 			tracer := otel.Tracer(tag)
 
-			poolSize := consumers / 4
+			poolSize := consumers / 16
 
 			db, err := cmdutil.NewDatabasePool(ctx, poolSize)
 			if err != nil {
