@@ -44,7 +44,7 @@ services:
   - key: DEFAULT_POOL_SIZE
     value: 178
   - key: MAX_CLIENT_CONN
-    value: 2048
+    value: 4096
   - key: MIN_POOL_SIZE
     value: 8
   - key: POOL_MODE
