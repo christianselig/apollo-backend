@@ -10,7 +10,7 @@ services:
 # Redis
 - type: redis
   name: srv.redis
-  plan: pro
+  plan: pro plus
   maxmemoryPolicy: noeviction
   ipAllowList: []
 
@@ -24,7 +24,7 @@ services:
 # Redis (locks)
 - type: redis
   name: srv.redis.locks
-  plan: pro
+  plan: pro plus
   maxmemoryPolicy: noeviction
   ipAllowList: []
 
