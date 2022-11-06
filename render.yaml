@@ -7,13 +7,6 @@ databases:
   ipAllowList: []
 
 services:
-# Redis
-- type: redis
-  name: srv.redis
-  plan: pro plus
-  maxmemoryPolicy: noeviction
-  ipAllowList: []
-
 # Redis (queues)
 - type: redis
   name: srv.redis.queues
