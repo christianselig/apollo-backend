@@ -101,7 +101,7 @@ func (nw *notificationsWorker) Start() error {
 
 	nw.logger.Info("starting up notifications worker", zap.Int("consumers", nw.consumers))
 
-	if err := queue.StartConsuming(int64(nw.consumers/4), pollDuration); err != nil {
+	if err := queue.StartConsuming(int64(nw.consumers*2), pollDuration); err != nil {
 		return err
 	}
 
