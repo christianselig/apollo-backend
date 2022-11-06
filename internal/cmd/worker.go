@@ -60,7 +60,7 @@ func WorkerCmd(ctx context.Context) *cobra.Command {
 			}
 			defer db.Close()
 
-			redis, err := cmdutil.NewRedisLocksClient(ctx, consumers)
+			redis, err := cmdutil.NewRedisLocksClient(ctx, poolSize)
 			if err != nil {
 				return err
 			}
