@@ -52,21 +52,19 @@ func WorkerCmd(ctx context.Context) *cobra.Command {
 
 			tracer := otel.Tracer(tag)
 
-			poolSize := consumers / 8
-
-			db, err := cmdutil.NewDatabasePool(ctx, poolSize)
+			db, err := cmdutil.NewDatabasePool(ctx, consumers/16)
 			if err != nil {
 				return err
 			}
 			defer db.Close()
 
-			redis, err := cmdutil.NewRedisLocksClient(ctx, poolSize)
+			redis, err := cmdutil.NewRedisLocksClient(ctx, consumers/8)
 			if err != nil {
 				return err
 			}
 			defer redis.Close()
 
-			qredis, err := cmdutil.NewRedisQueueClient(ctx, poolSize)
+			qredis, err := cmdutil.NewRedisQueueClient(ctx, consumers/16)
 			if err != nil {
 				return err
 			}
