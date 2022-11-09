@@ -230,7 +230,7 @@ func (rc *Client) request(ctx context.Context, r *Request, errmap map[int]error,
 }
 
 func (rc *Client) subredditPosts(ctx context.Context, subreddit string, sort string, opts ...RequestOption) (*ListingResponse, error) {
-	url := fmt.Sprintf("https://www.reddit.com/r/%s/%s.json", subreddit, sort)
+	url := fmt.Sprintf("https://oauth.reddit.com/r/%s/%s.json", subreddit, sort)
 	opts = append(rc.defaultOpts, opts...)
 	opts = append(opts, []RequestOption{
 		WithMethod("GET"),
