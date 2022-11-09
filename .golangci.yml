@@ -5,7 +5,6 @@ linters:
     - errname         # checks that sentinel errors are prefixed with the `Err` and error types are suffixed with the `Error`
     - exportloopref   # checks for pointers to enclosing loop variables
     - gochecknoinits  # checks that no init functions are present in Go code
-    - ifshort         # checks that your code uses short syntax for if-statements whenever possible
     - importas        # enforces consistent import aliases
     - ineffassign     # detects when assignments to existing variables are not used
     - noctx           # finds sending http request without context.Context
