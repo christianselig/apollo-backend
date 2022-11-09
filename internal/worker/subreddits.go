@@ -218,7 +218,17 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 				zap.String("subreddit#name", subreddit.NormalizedName()),
 				zap.Int("page", page),
 			)
-			continue
+
+			if err == reddit.ErrOauthRevoked {
+				sc.logger.Info("deleting watcher",
+					zap.Int64("subreddit#id", id),
+					zap.String("subreddit#name", subreddit.NormalizedName()),
+					zap.Int64("watcher#id", watcher.ID),
+				)
+				_ = sc.watcherRepo.Delete(ctx, watcher.ID)
+			}
+
+			return
 		}
 
 		sc.logger.Debug("loaded new posts",
@@ -283,6 +293,15 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 				zap.Int64("subreddit#id", id),
 				zap.String("subreddit#name", subreddit.NormalizedName()),
 			)
+
+			if err == reddit.ErrOauthRevoked {
+				sc.logger.Info("deleting watcher",
+					zap.Int64("subreddit#id", id),
+					zap.String("subreddit#name", subreddit.NormalizedName()),
+					zap.Int64("watcher#id", watcher.ID),
+				)
+				_ = sc.watcherRepo.Delete(ctx, watcher.ID)
+			}
 		} else {
 			sc.logger.Debug("loaded hot posts",
 				zap.Int64("subreddit#id", id),
