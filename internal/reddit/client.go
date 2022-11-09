@@ -56,6 +56,7 @@ var (
 	defaultErrorMap = map[int]error{
 		401: ErrOauthRevoked,
 		403: ErrOauthRevoked,
+		404: ErrSubredditNotFound,
 	}
 )
 

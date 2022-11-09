@@ -219,13 +219,22 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 				zap.Int("page", page),
 			)
 
-			if err == reddit.ErrOauthRevoked {
+			switch err {
+			case reddit.ErrOauthRevoked:
 				sc.logger.Info("deleting watcher",
 					zap.Int64("subreddit#id", id),
 					zap.String("subreddit#name", subreddit.NormalizedName()),
 					zap.Int64("watcher#id", watcher.ID),
 				)
 				_ = sc.watcherRepo.Delete(ctx, watcher.ID)
+			case reddit.ErrSubredditNotFound:
+				sc.logger.Info("subreddit deleted, deleting watchers",
+					zap.Int64("subreddit#id", id),
+					zap.String("subreddit#name", subreddit.NormalizedName()),
+				)
+				for _, watcher := range watchers {
+					_ = sc.watcherRepo.Delete(ctx, watcher.ID)
+				}
 			}
 
 			return
@@ -447,7 +456,7 @@ func (sc *subredditsConsumer) Consume(delivery rmq.Delivery) {
 				)
 			} else if !res.Sent() {
 				_ = sc.statsd.Incr("apns.notification.errors", []string{}, 1)
-				sc.logger.Error("notificaion not sent",
+				sc.logger.Error("notification not sent",
 					zap.Int64("subreddit#id", id),
 					zap.String("subreddit#name", subreddit.NormalizedName()),
 					zap.String("post#id", post.ID),
