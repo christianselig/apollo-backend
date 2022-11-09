@@ -259,7 +259,7 @@ func (rc *Client) SubredditNew(ctx context.Context, subreddit string, opts ...Re
 }
 
 func (rc *Client) SubredditAbout(ctx context.Context, subreddit string, opts ...RequestOption) (*SubredditResponse, error) {
-	url := fmt.Sprintf("https://www.reddit.com/r/%s/about.json", subreddit)
+	url := fmt.Sprintf("https://oauth.reddit.com/r/%s/about.json", subreddit)
 	opts = append(rc.defaultOpts, opts...)
 	opts = append(opts, []RequestOption{
 		WithMethod("GET"),
