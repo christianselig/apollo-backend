@@ -83,12 +83,15 @@ func (a *api) testDeviceHandler(w http.ResponseWriter, r *http.Request) {
 		client = client.Production()
 	}
 
-	if _, err := client.Push(notification); err != nil {
+	res, err := client.Push(notification)
+	if err != nil {
 		a.logger.Info("failed to send test notification", zap.Error(err))
 		a.errorResponse(w, r, 500, err)
-		return
+	} else if !res.Sent() {
+		a.errorResponse(w, r, 422, fmt.Errorf("errror sending notification: %d: %s", res.StatusCode, res.Reason))
+	} else {
+		w.WriteHeader(http.StatusOK)
 	}
-	w.WriteHeader(http.StatusOK)
 }
 
 func (a *api) deleteDeviceHandler(w http.ResponseWriter, r *http.Request) {
