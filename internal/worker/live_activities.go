@@ -125,7 +125,8 @@ type liveActivitiesConsumer struct {
 	*liveActivitiesWorker
 	tag int
 
-	apns *apns2.Client
+	papns *apns2.Client
+	dapns *apns2.Client
 }
 
 func NewLiveActivitiesConsumer(law *liveActivitiesWorker, tag int) *liveActivitiesConsumer {
@@ -133,6 +134,7 @@ func NewLiveActivitiesConsumer(law *liveActivitiesWorker, tag int) *liveActiviti
 		law,
 		tag,
 		apns2.NewTokenClient(law.apns).Production(),
+		apns2.NewTokenClient(law.apns).Development(),
 	}
 }
 
@@ -295,13 +297,18 @@ func (lac *liveActivitiesConsumer) Consume(delivery rmq.Delivery) {
 		Payload:     bb,
 	}
 
-	res, err := lac.apns.PushWithContext(ctx, notification)
+	client := lac.papns
+	if la.Development {
+		client = lac.dapns
+	}
+
+	res, err := client.PushWithContext(ctx, notification)
 	if err != nil {
 		_ = lac.statsd.Incr("apns.live_activities.errors", []string{}, 1)
 		lac.logger.Error("failed to send notification",
 			zap.Error(err),
 			zap.String("live_activity#apns_token", at),
-			zap.Bool("live_activity#sandbox", la.Sandbox),
+			zap.Bool("live_activity#development", la.Development),
 			zap.String("notification#type", ev),
 		)
 
@@ -310,7 +317,7 @@ func (lac *liveActivitiesConsumer) Consume(delivery rmq.Delivery) {
 		_ = lac.statsd.Incr("apns.live_activities.errors", []string{}, 1)
 		lac.logger.Error("notification not sent",
 			zap.String("live_activity#apns_token", at),
-			zap.Bool("live_activity#sandbox", la.Sandbox),
+			zap.Bool("live_activity#development", la.Development),
 			zap.String("notification#type", ev),
 			zap.Int("response#status", res.StatusCode),
 			zap.String("response#reason", res.Reason),
@@ -321,7 +328,7 @@ func (lac *liveActivitiesConsumer) Consume(delivery rmq.Delivery) {
 		_ = lac.statsd.Incr("apns.notification.sent", []string{}, 1)
 		lac.logger.Debug("sent notification",
 			zap.String("live_activity#apns_token", at),
-			zap.Bool("live_activity#sandbox", la.Sandbox),
+			zap.Bool("live_activity#development", la.Development),
 			zap.String("notification#type", ev),
 		)
 	}

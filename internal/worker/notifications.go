@@ -125,8 +125,9 @@ func (nw *notificationsWorker) Stop() {
 
 type notificationsConsumer struct {
 	*notificationsWorker
-	tag  int
-	apns *apns2.Client
+	tag   int
+	papns *apns2.Client
+	dapns *apns2.Client
 }
 
 func NewNotificationsConsumer(nw *notificationsWorker, tag int) *notificationsConsumer {
@@ -134,6 +135,7 @@ func NewNotificationsConsumer(nw *notificationsWorker, tag int) *notificationsCo
 		nw,
 		tag,
 		apns2.NewTokenClient(nw.apns).Production(),
+		apns2.NewTokenClient(nw.apns).Development(),
 	}
 }
 
@@ -300,10 +302,15 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 		notification.Topic = "com.christianselig.Apollo"
 		notification.Payload = payloadFromMessage(account, msg, msgs.Count)
 
+		client := nc.papns
+		if account.Development {
+			client = nc.dapns
+		}
+
 		for _, device := range devices {
 			notification.DeviceToken = device.APNSToken
 
-			res, err := nc.apns.PushWithContext(ctx, notification)
+			res, err := client.PushWithContext(ctx, notification)
 			if err != nil {
 				_ = nc.statsd.Incr("apns.notification.errors", []string{}, 1)
 				logger.Error("failed to send notification",

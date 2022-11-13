@@ -11,9 +11,9 @@ const (
 )
 
 type LiveActivity struct {
-	ID        int64
-	APNSToken string `json:"apns_token"`
-	Sandbox   bool   `json:"sandbox"`
+	ID          int64
+	APNSToken   string `json:"apns_token"`
+	Development bool   `json:"development"`
 
 	RedditAccountID string `json:"reddit_account_id"`
 	AccessToken     string `json:"access_token"`
