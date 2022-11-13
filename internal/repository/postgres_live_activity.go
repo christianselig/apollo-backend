@@ -28,7 +28,6 @@ func (p *postgresLiveActivityRepository) fetch(ctx context.Context, query string
 		if err := rows.Scan(
 			&la.ID,
 			&la.APNSToken,
-			&la.Sandbox,
 			&la.RedditAccountID,
 			&la.AccessToken,
 			&la.RefreshToken,
@@ -37,6 +36,7 @@ func (p *postgresLiveActivityRepository) fetch(ctx context.Context, query string
 			&la.Subreddit,
 			&la.NextCheckAt,
 			&la.ExpiresAt,
+			&la.Development,
 		); err != nil {
 			return nil, err
 		}
@@ -47,7 +47,7 @@ func (p *postgresLiveActivityRepository) fetch(ctx context.Context, query string
 
 func (p *postgresLiveActivityRepository) Get(ctx context.Context, apnsToken string) (domain.LiveActivity, error) {
 	query := `
-		SELECT id, apns_token, sandbox, reddit_account_id, access_token, refresh_token, token_expires_at, thread_id, subreddit, next_check_at, expires_at
+		SELECT id, apns_token, reddit_account_id, access_token, refresh_token, token_expires_at, thread_id, subreddit, next_check_at, expires_at, development
 		FROM live_activities
 		WHERE apns_token = $1`
 
@@ -64,7 +64,7 @@ func (p *postgresLiveActivityRepository) Get(ctx context.Context, apnsToken stri
 
 func (p *postgresLiveActivityRepository) List(ctx context.Context) ([]domain.LiveActivity, error) {
 	query := `
-		SELECT id, apns_token, sandbox, reddit_account_id, access_token, refresh_token, token_expires_at, thread_id, subreddit, next_check_at, expires_at
+		SELECT id, apns_token, reddit_account_id, access_token, refresh_token, token_expires_at, thread_id, subreddit, next_check_at, expires_at, development
 		FROM live_activities
 		WHERE expires_at > NOW()`
 
@@ -73,14 +73,13 @@ func (p *postgresLiveActivityRepository) List(ctx context.Context) ([]domain.Liv
 
 func (p *postgresLiveActivityRepository) Create(ctx context.Context, la *domain.LiveActivity) error {
 	query := `
-		INSERT INTO live_activities (apns_token, sandbox, reddit_account_id, access_token, refresh_token, token_expires_at, thread_id, subreddit, next_check_at, expires_at)
+		INSERT INTO live_activities (apns_token, reddit_account_id, access_token, refresh_token, token_expires_at, thread_id, subreddit, next_check_at, expires_at, development)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 		ON CONFLICT (apns_token) DO UPDATE SET expires_at = $10
 		RETURNING id`
 
 	return p.conn.QueryRow(ctx, query,
 		la.APNSToken,
-		la.Sandbox,
 		la.RedditAccountID,
 		la.AccessToken,
 		la.RefreshToken,
@@ -89,6 +88,7 @@ func (p *postgresLiveActivityRepository) Create(ctx context.Context, la *domain.
 		la.Subreddit,
 		time.Now(),
 		time.Now().Add(domain.LiveActivityDuration),
+		la.Development,
 	).Scan(&la.ID)
 }
 

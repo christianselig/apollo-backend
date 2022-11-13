@@ -25,6 +25,7 @@ type Account struct {
 	AccessToken    string
 	RefreshToken   string
 	TokenExpiresAt time.Time
+	Development    bool
 
 	// Tracking how far behind we are
 	LastMessageID                string
