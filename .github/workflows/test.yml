@@ -26,17 +26,9 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-
-    - name: Setup Go
-      uses: actions/setup-go@v3
+    - uses: actions/setup-go@v3
       with:
         go-version: ${{ matrix.go-version }}
-
-    - name: Lint
-      uses: golangci/golangci-lint-action@v3
-
-    - name: Setup database schema
-      run: psql -f docs/schema.sql $DATABASE_URL
-
-    - name: Test
-      run: go test ./... -v -race -timeout 5s
+    - uses: golangci/golangci-lint-action@v3
+    - run: psql -f docs/schema.sql $DATABASE_URL
+    - run: go test ./... -v -race -timeout 5s
