@@ -33,7 +33,7 @@ jobs:
         go-version: ${{ matrix.go-version }}
 
     - name: Lint
-      uses: golangci/golangci-lint-action@v2
+      uses: golangci/golangci-lint-action@v3
 
     - name: Setup database schema
       run: psql -f docs/schema.sql $DATABASE_URL
