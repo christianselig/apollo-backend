@@ -75,7 +75,7 @@ func (p *postgresLiveActivityRepository) Create(ctx context.Context, la *domain.
 	query := `
 		INSERT INTO live_activities (apns_token, reddit_account_id, access_token, refresh_token, token_expires_at, thread_id, subreddit, next_check_at, expires_at, development)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-		ON CONFLICT (apns_token) DO UPDATE SET expires_at = $10
+		ON CONFLICT (apns_token) DO UPDATE SET expires_at = $9
 		RETURNING id`
 
 	return p.conn.QueryRow(ctx, query,
