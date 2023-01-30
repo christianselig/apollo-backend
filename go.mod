@@ -25,8 +25,8 @@ require (
 	github.com/stretchr/testify v1.8.1
 	github.com/valyala/fastjson v1.6.3
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.36.4
-	go.opentelemetry.io/otel v1.11.1
-	go.opentelemetry.io/otel/trace v1.11.1
+	go.opentelemetry.io/otel v1.12.0
+	go.opentelemetry.io/otel/trace v1.12.0
 	go.uber.org/zap v1.23.0
 )
 
