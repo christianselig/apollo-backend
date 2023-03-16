@@ -507,7 +507,7 @@ func enqueueAccounts(ctx context.Context, logger *zap.Logger, statsd *statsd.Cli
 			if len(enqueued) == 0 {
 				logger.Info("no viable candidates to enqueue",
 					zap.Int("offset", offset),
-					zap.Int("attempts", len(ids)),
+					zap.Int("candidates", len(ids)),
 					zap.Int("enqueued", len(enqueued)),
 				)
 				return
@@ -525,7 +525,7 @@ func enqueueAccounts(ctx context.Context, logger *zap.Logger, statsd *statsd.Cli
 
 			logger.Info("enqueued account batch",
 				zap.Int("offset", offset),
-				zap.Int("attempts", len(ids)),
+				zap.Int("candidates", len(ids)),
 				zap.Int("enqueued", len(enqueued)),
 			)
 		}(ctx, i)
