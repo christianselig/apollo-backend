@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	NotificationCheckInterval      = 10 * time.Second // time between notification checks
+	NotificationCheckInterval      = 60 * time.Second // time between notification checks
 	NotificationCheckTimeout       = 5 * time.Minute  // time before we give up an account check lock
 	StuckNotificationCheckInterval = 2 * time.Minute  // time between stuck notification checks
 	StaleTokenThreshold            = 2 * time.Hour    // time an oauth token has to be expired for to be stale

@@ -534,15 +534,17 @@ func enqueueAccounts(ctx context.Context, logger *zap.Logger, statsd *statsd.Cli
 	}
 	wg.Wait()
 
-	var (
-		enqueued int64 = 0
-		skipped  int64 = 0
-	)
+	/*
+		var (
+			enqueued int64 = 0
+			skipped  int64 = 0
+		)
 
-	defer func() {
-		tags := []string{"queue:notifications"}
-		_ = statsd.Histogram("apollo.queue.enqueued", float64(enqueued), tags, 1)
-		_ = statsd.Histogram("apollo.queue.skipped", float64(skipped), tags, 1)
-		_ = statsd.Histogram("apollo.queue.runtime", float64(time.Since(now).Milliseconds()), tags, 1)
-	}()
+		defer func() {
+			tags := []string{"queue:notifications"}
+			_ = statsd.Histogram("apollo.queue.enqueued", float64(enqueued), tags, 1)
+			_ = statsd.Histogram("apollo.queue.skipped", float64(skipped), tags, 1)
+			_ = statsd.Histogram("apollo.queue.runtime", float64(time.Since(now).Milliseconds()), tags, 1)
+		}()
+	*/
 }
