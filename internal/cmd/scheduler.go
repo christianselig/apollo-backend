@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"math"
 	"net/http"
 	_ "net/http/pprof"
 	"strconv"
@@ -484,10 +485,14 @@ func enqueueAccounts(ctx context.Context, logger *zap.Logger, statsd *statsd.Cli
 	}
 
 	chunks := [][]string{}
+	chunkSize := int(math.Ceil(float64(len(ids)) / float64(accountEnqueueSeconds)))
 	for i := 0; i < accountEnqueueSeconds; i++ {
-		min := (i * len(ids) / accountEnqueueSeconds)
-		max := ((i + 1) * len(ids)) / accountEnqueueSeconds
-		chunks = append(chunks, ids[min:max])
+		left := i * chunkSize
+		right := (i + 1) * chunkSize
+		if right > len(ids) {
+			right = len(ids)
+		}
+		chunks = append(chunks, ids[left:right])
 	}
 
 	_ = statsd.Histogram("apollo.queue.runtime", float64(time.Since(now).Milliseconds()), []string{"queue:notifications"}, 1)
