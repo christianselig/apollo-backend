@@ -57,6 +57,7 @@ var (
 		401: ErrOauthRevoked,
 		403: ErrOauthRevoked,
 		404: ErrSubredditNotFound,
+		429: ErrTooManyRequests,
 	}
 )
 
@@ -426,6 +427,7 @@ func (rac *AuthenticatedClient) markRateLimited(rli *RateLimitingInfo) error {
 func (rac *AuthenticatedClient) RefreshTokens(ctx context.Context, opts ...RequestOption) (*RefreshTokenResponse, error) {
 	errmap := map[int]error{
 		400: ErrOauthRevoked,
+		429: ErrTooManyRequests,
 	}
 
 	opts = append(rac.client.defaultOpts, opts...)
