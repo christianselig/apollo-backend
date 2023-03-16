@@ -157,20 +157,6 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 		_ = nc.statsd.Incr("apollo.consumer.executions", notificationTags, 0.1)
 	}()
 
-	// Measure queue latency
-	key := fmt.Sprintf("locks:accounts:%s", id)
-	ttl := nc.redis.PTTL(ctx, key).Val()
-	age := (domain.NotificationCheckTimeout - ttl)
-	_ = nc.statsd.Histogram("apollo.dequeue.latency", float64(age.Milliseconds()), notificationTags, 0.1)
-
-	defer func() {
-		if err := nc.redis.Del(ctx, key).Err(); err != nil {
-			logger.Error("failed to remove account lock", zap.Error(err), zap.String("key", key))
-		}
-	}()
-
-	logger.Debug("starting job")
-
 	defer func(ctx context.Context) {
 		_, span := nc.tracer.Start(ctx, "queue:ack")
 		defer span.End()
@@ -181,6 +167,24 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 			logger.Error("failed to acknowledge message", zap.Error(err))
 		}
 	}(ctx)
+
+	// Measure queue latency
+	key := fmt.Sprintf("locks:accounts:%s", id)
+	ttl := nc.redis.PTTL(ctx, key).Val()
+	if ttl == 0 {
+		logger.Debug("job is too old, skipping")
+		return
+	}
+	age := (domain.NotificationCheckTimeout - ttl)
+	_ = nc.statsd.Histogram("apollo.dequeue.latency", float64(age.Milliseconds()), notificationTags, 0.1)
+
+	defer func() {
+		if err := nc.redis.Del(ctx, key).Err(); err != nil {
+			logger.Error("failed to remove account lock", zap.Error(err), zap.String("key", key))
+		}
+	}()
+
+	logger.Debug("starting job")
 
 	account, err := nc.accountRepo.GetByRedditID(ctx, id)
 	if err != nil {
