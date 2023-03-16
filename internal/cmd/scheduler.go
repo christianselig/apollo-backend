@@ -504,6 +504,15 @@ func enqueueAccounts(ctx context.Context, logger *zap.Logger, statsd *statsd.Cli
 				logger.Error("failed to check for locked accounts", zap.Error(err))
 			}
 
+			if len(enqueued) == 0 {
+				logger.Info("no viable candidates to enqueue",
+					zap.Int("offset", offset),
+					zap.Int("attempts", len(ids)),
+					zap.Int("enqueued", len(enqueued)),
+				)
+				return
+			}
+
 			if err = queue.Publish(enqueued...); err != nil {
 				logger.Error("failed to enqueue account batch",
 					zap.Error(err),
@@ -519,7 +528,6 @@ func enqueueAccounts(ctx context.Context, logger *zap.Logger, statsd *statsd.Cli
 				zap.Int("attempts", len(ids)),
 				zap.Int("enqueued", len(enqueued)),
 			)
-
 		}(ctx, i)
 	}
 	wg.Wait()
