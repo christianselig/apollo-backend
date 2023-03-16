@@ -31,4 +31,6 @@ var (
 	ErrSubredditIsQuarantined = errors.New("subreddit is quarantined")
 	// ErrSubredditNotFound .
 	ErrSubredditNotFound = errors.New("subreddit not found")
+	// ErrTooManyRequests .
+	ErrTooManyRequests = errors.New("too many requests")
 )
