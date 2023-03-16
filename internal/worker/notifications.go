@@ -184,7 +184,9 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 
 	account, err := nc.accountRepo.GetByRedditID(ctx, id)
 	if err != nil {
-		logger.Info("account not found, exiting", zap.Error(err))
+		if err != domain.ErrNotFound {
+			logger.Debug("could not fetch account", zap.Error(err))
+		}
 		return
 	}
 
