@@ -7,7 +7,7 @@ require (
 	github.com/adjust/rmq/v5 v5.0.1
 	github.com/bugsnag/bugsnag-go/v2 v2.2.0
 	github.com/dustin/go-humanize v1.0.0
-	github.com/go-co-op/gocron v1.17.1
+	github.com/go-co-op/gocron v1.18.1
 	github.com/go-ozzo/ozzo-validation/v4 v4.3.0
 	github.com/go-redis/redis/extra/redisotel/v8 v8.11.5
 	github.com/go-redis/redis/v8 v8.11.5
@@ -22,7 +22,7 @@ require (
 	github.com/sideshow/apns2 v0.23.0
 	github.com/smtp2go-oss/smtp2go-go v1.0.1
 	github.com/spf13/cobra v1.6.1
-	github.com/stretchr/testify v1.8.1
+	github.com/stretchr/testify v1.8.2
 	github.com/valyala/fastjson v1.6.3
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.36.4
 	go.opentelemetry.io/otel v1.11.1
@@ -86,7 +86,7 @@ require (
 	go.uber.org/multierr v1.8.0 // indirect
 	golang.org/x/crypto v0.0.0-20220722155217-630584e8d5aa // indirect
 	golang.org/x/net v0.1.0 // indirect
-	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c // indirect
+	golang.org/x/sync v0.1.0 // indirect
 	golang.org/x/sys v0.1.0 // indirect
 	golang.org/x/text v0.4.0 // indirect
 	google.golang.org/genproto v0.0.0-20221027153422-115e99e71e1c // indirect
