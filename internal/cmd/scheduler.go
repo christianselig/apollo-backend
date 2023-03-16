@@ -140,7 +140,7 @@ func evalScript(ctx context.Context, redis *redis.Client) (string, error) {
 		for i=1, #ARGV do
 			local key = KEYS[1] .. ":" .. ARGV[i]
 			if redis.call("exists", key) == 0 then
-				redis.call("setex", key, %.0f, 1)
+				redis.call("set", key, 1, "ex", %.0f)
 				retv[#retv + 1] = ARGV[i]
 			end
 		end
@@ -503,10 +503,10 @@ func enqueueAccounts(ctx context.Context, logger *zap.Logger, statsd *statsd.Cli
 		go func(ctx context.Context, offset int) {
 			defer wg.Done()
 
-			ids := chunks[offset]
+			candidates := chunks[offset]
 			time.Sleep(time.Duration(offset) * time.Second)
 
-			enqueued, err := redisConn.EvalSha(ctx, luaSha, []string{"locks:accounts"}, ids).StringSlice()
+			enqueued, err := redisConn.EvalSha(ctx, luaSha, []string{"locks:accounts"}, candidates).StringSlice()
 			if err != nil {
 				logger.Error("failed to check for locked accounts", zap.Error(err))
 			}
@@ -514,7 +514,7 @@ func enqueueAccounts(ctx context.Context, logger *zap.Logger, statsd *statsd.Cli
 			if len(enqueued) == 0 {
 				logger.Info("no viable candidates to enqueue",
 					zap.Int("offset", offset),
-					zap.Int("candidates", len(ids)),
+					zap.Int("candidates", len(candidates)),
 					zap.Int("enqueued", len(enqueued)),
 				)
 				return
@@ -538,18 +538,4 @@ func enqueueAccounts(ctx context.Context, logger *zap.Logger, statsd *statsd.Cli
 		}(ctx, i)
 	}
 	wg.Wait()
-
-	/*
-		var (
-			enqueued int64 = 0
-			skipped  int64 = 0
-		)
-
-		defer func() {
-			tags := []string{"queue:notifications"}
-			_ = statsd.Histogram("apollo.queue.enqueued", float64(enqueued), tags, 1)
-			_ = statsd.Histogram("apollo.queue.skipped", float64(skipped), tags, 1)
-			_ = statsd.Histogram("apollo.queue.runtime", float64(time.Since(now).Milliseconds()), tags, 1)
-		}()
-	*/
 }
