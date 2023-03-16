@@ -496,6 +496,8 @@ func enqueueAccounts(ctx context.Context, logger *zap.Logger, statsd *statsd.Cli
 	for i := 0; i < accountEnqueueSeconds; i++ {
 		wg.Add(1)
 		go func(ctx context.Context, offset int) {
+			defer wg.Done()
+
 			ids := chunks[offset]
 			time.Sleep(time.Duration(offset) * time.Second)
 
