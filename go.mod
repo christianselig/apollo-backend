@@ -11,7 +11,7 @@ require (
 	github.com/go-ozzo/ozzo-validation/v4 v4.3.0
 	github.com/go-redis/redis/extra/redisotel/v8 v8.11.5
 	github.com/go-redis/redis/v8 v8.11.5
-	github.com/gofrs/uuid v4.3.0+incompatible
+	github.com/gofrs/uuid v4.4.0+incompatible
 	github.com/gorilla/mux v1.8.0
 	github.com/heroku/x v0.0.55
 	github.com/honeycombio/honeycomb-opentelemetry-go v0.3.0
