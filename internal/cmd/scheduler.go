@@ -474,7 +474,6 @@ func enqueueAccounts(ctx context.Context, logger *zap.Logger, statsd *statsd.Cli
 		logger.Error("failed to fetch accounts", zap.Error(err))
 		return
 	}
-	defer rows.Close()
 
 	var ids []string
 	for rows.Next() {
@@ -482,6 +481,8 @@ func enqueueAccounts(ctx context.Context, logger *zap.Logger, statsd *statsd.Cli
 		_ = rows.Scan(&id)
 		ids = append(ids, id)
 	}
+	// Use this instead of deferring as we're going to take a while to get out of this method.
+	rows.Close()
 
 	chunks := [][]string{}
 	chunkSize := int(math.Ceil(float64(len(ids)) / float64(accountEnqueueSeconds)))
