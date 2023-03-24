@@ -285,6 +285,6 @@ func (p *postgresWatcherRepository) Delete(ctx context.Context, id int64) error 
 
 func (p *postgresWatcherRepository) DeleteByTypeAndWatcheeID(ctx context.Context, typ domain.WatcherType, id int64) error {
 	query := `DELETE FROM watchers WHERE type = $1 AND watchee_id = $2`
-	_, err := p.conn.Exec(ctx, query, typ, id)
+	_, err := p.conn.Exec(ctx, query, int64(typ), id)
 	return err
 }
