@@ -151,7 +151,7 @@ func (p *postgresWatcherRepository) GetByTypeAndWatcheeID(ctx context.Context, t
 		devices_accounts.watcher_notifiable = TRUE AND
 		devices_accounts.global_mute = FALSE`
 
-	return p.fetch(ctx, query, typ, id)
+	return p.fetch(ctx, query, int64(typ), id)
 }
 
 func (p *postgresWatcherRepository) GetByTrendingSubredditID(ctx context.Context, id int64) ([]domain.Watcher, error) {
