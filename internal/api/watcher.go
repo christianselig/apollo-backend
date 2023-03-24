@@ -115,6 +115,10 @@ func (a *api) createWatcherHandler(w http.ResponseWriter, r *http.Request) {
 	if cwr.Type == "subreddit" || cwr.Type == "trending" {
 		ac := a.reddit.NewAuthenticatedClient(account.AccountID, account.RefreshToken, account.AccessToken)
 		srr, err := ac.SubredditAbout(ctx, cwr.Subreddit)
+		if err != nil {
+			a.errorResponse(w, r, 500, err)
+			return
+		}
 		if !srr.Public {
 			a.errorResponse(w, r, 403, reddit.ErrSubredditIsPrivate)
 			return
