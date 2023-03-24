@@ -13,7 +13,7 @@ import (
 	"github.com/go-redis/redis/v8"
 	"github.com/gofrs/uuid"
 	"github.com/gorilla/mux"
-	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sideshow/apns2/token"
 	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"

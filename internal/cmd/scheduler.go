@@ -14,7 +14,7 @@ import (
 	"github.com/adjust/rmq/v5"
 	"github.com/go-co-op/gocron"
 	"github.com/go-redis/redis/v8"
-	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 
