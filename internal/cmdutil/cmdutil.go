@@ -10,7 +10,9 @@ import (
 	"github.com/adjust/rmq/v5"
 	"github.com/go-redis/redis/extra/redisotel/v8"
 	"github.com/go-redis/redis/v8"
-	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"go.uber.org/zap"
 )
 
@@ -78,11 +80,10 @@ func NewDatabasePool(ctx context.Context, maxConns int) (*pgxpool.Pool, error) {
 	}
 
 	// Setting the build statement cache to nil helps this work with pgbouncer
-	config.ConnConfig.BuildStatementCache = nil
-	config.ConnConfig.PreferSimpleProtocol = true
+	config.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeSimpleProtocol
 	config.MaxConnLifetime = 1 * time.Hour
 	config.MaxConnIdleTime = 30 * time.Second
-	return pgxpool.ConnectConfig(ctx, config)
+	return pgxpool.NewWithConfig(ctx, config)
 }
 
 func NewQueueClient(logger *zap.Logger, conn *redis.Client, identifier string) (rmq.Connection, error) {
