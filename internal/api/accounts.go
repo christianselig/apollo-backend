@@ -163,7 +163,7 @@ func (a *api) upsertAccountsHandler(w http.ResponseWriter, r *http.Request) {
 		me, err := rac.Me(ctx)
 
 		if err != nil {
-			err := fmt.Errorf("failed to fetch user info: %w", err)
+			err = fmt.Errorf("failed to fetch user info: %w", err)
 			a.errorResponse(w, r, 422, err)
 			return
 		}

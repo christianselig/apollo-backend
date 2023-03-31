@@ -226,7 +226,7 @@ func (p *postgresWatcherRepository) Create(ctx context.Context, watcher *domain.
 		watcher.Label,
 		watcher.DeviceID,
 		watcher.AccountID,
-		watcher.Type,
+		int64(watcher.Type),
 		watcher.WatcheeID,
 		watcher.Author,
 		watcher.Subreddit,
