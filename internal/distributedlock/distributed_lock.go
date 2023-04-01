@@ -71,6 +71,7 @@ func (d *DistributedLock) WaitAcquireLock(ctx context.Context, key string, timeo
 
 	ch := fmt.Sprintf(lockTopicFormat, key)
 	pubsub := d.client.Subscribe(ctx, ch)
+	defer func() { _ = pubsub.Close() }()
 
 	select {
 	case <-time.After(timeout):
