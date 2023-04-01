@@ -3,12 +3,15 @@ package distributedlock_test
 import (
 	"context"
 	"fmt"
-	"github.com/christianselig/apollo-backend/internal/distributedlock"
-	"github.com/go-redis/redis/v8"
-	"github.com/stretchr/testify/assert"
+	"math/rand"
 	"os"
 	"testing"
 	"time"
+
+	"github.com/christianselig/apollo-backend/internal/distributedlock"
+
+	"github.com/go-redis/redis/v8"
+	"github.com/stretchr/testify/assert"
 )
 
 func NewRedisClient(t *testing.T, ctx context.Context) (*redis.Client, func()) {
@@ -29,13 +32,17 @@ func NewRedisClient(t *testing.T, ctx context.Context) (*redis.Client, func()) {
 }
 
 func TestDistributedLock_AcquireLock(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
-	key := fmt.Sprintf("%d", time.Now().UnixNano())
+	key := fmt.Sprintf("key:%d-%d", time.Now().UnixNano(), rand.Int63())
 
 	client, closer := NewRedisClient(t, ctx)
 	defer closer()
 
-	d := distributedlock.New(client, 10*time.Second)
+	d, err := distributedlock.New(client, 10*time.Second)
+	assert.NoError(t, err)
+
 	lock, err := d.AcquireLock(ctx, key)
 	assert.NoError(t, err)
 
@@ -50,13 +57,17 @@ func TestDistributedLock_AcquireLock(t *testing.T) {
 }
 
 func TestDistributedLock_WaitAcquireLock(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
-	key := fmt.Sprintf("%d", time.Now().UnixNano())
+	key := fmt.Sprintf("key:%d-%d", time.Now().UnixNano(), rand.Int63())
 
 	client, closer := NewRedisClient(t, ctx)
 	defer closer()
 
-	d := distributedlock.New(client, 10*time.Second)
+	d, err := distributedlock.New(client, 10*time.Second)
+	assert.NoError(t, err)
+	
 	lock, err := d.AcquireLock(ctx, key)
 	assert.NoError(t, err)
 

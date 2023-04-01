@@ -3,23 +3,42 @@ package distributedlock
 import (
 	"context"
 	"fmt"
-	"github.com/go-redis/redis/v8"
 	"math/rand"
 	"time"
+
+	"github.com/go-redis/redis/v8"
 )
 
-const lockTopicFormat = "pubsub:locks:%s"
+const (
+	lockTopicFormat   = "pubsub:locks:%s"
+	lockReleaseScript = `
+		if redis.call("GET", KEYS[1]) == ARGV[1] then
+			redis.call("DEL", KEYS[1])
+			redis.call("PUBLISH", KEYS[2], KEYS[1])
+			return 1
+		else
+			return 0
+		end
+	`
+)
 
 type DistributedLock struct {
 	client  *redis.Client
+	sha     string
 	timeout time.Duration
 }
 
-func New(client *redis.Client, timeout time.Duration) *DistributedLock {
+func New(client *redis.Client, timeout time.Duration) (*DistributedLock, error) {
+	sha, err := client.ScriptLoad(context.Background(), lockReleaseScript).Result()
+	if err != nil {
+		return nil, err
+	}
+
 	return &DistributedLock{
 		client:  client,
+		sha:     sha,
 		timeout: timeout,
-	}
+	}, nil
 }
 
 func (d *DistributedLock) setLock(ctx context.Context, key string, uid string) error {
