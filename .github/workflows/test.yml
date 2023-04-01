@@ -5,7 +5,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       DATABASE_URL: postgres://postgres:postgres@localhost/apollo_test
-      REDIS_URL: redis://redis:6379
+      REDIS_URL: redis://localhost:6379
     services:
       postgres:
         image: postgres
