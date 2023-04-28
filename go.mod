@@ -4,7 +4,7 @@ go 1.18
 
 require (
 	github.com/DataDog/datadog-go v4.8.3+incompatible
-	github.com/adjust/rmq/v5 v5.1.1
+	github.com/adjust/rmq/v5 v5.1.2
 	github.com/bugsnag/bugsnag-go/v2 v2.2.0
 	github.com/dustin/go-humanize v1.0.1
 	github.com/go-co-op/gocron v1.19.0
@@ -55,6 +55,7 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/power-devops/perfstat v0.0.0-20221212215047-62379fc7944b // indirect
+	github.com/redis/go-redis/v9 v9.0.3 // indirect
 	github.com/robfig/cron/v3 v3.0.1 // indirect
 	github.com/rogpeppe/go-internal v1.9.0 // indirect
 	github.com/sethvargo/go-envconfig v0.9.0 // indirect
