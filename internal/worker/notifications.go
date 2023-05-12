@@ -341,8 +341,10 @@ func (nc *notificationsConsumer) Consume(delivery rmq.Delivery) {
 		}
 	}
 
-	ev := fmt.Sprintf("Sent notification to /u/%s (x%d)", account.Username, msgs.Count)
-	_ = nc.statsd.SimpleEvent(ev, "")
+	/*
+		ev := fmt.Sprintf("Sent notification to /u/%s (x%d)", account.Username, msgs.Count)
+		_ = nc.statsd.SimpleEvent(ev, "")
+	*/
 
 	logger.Debug("finishing job")
 }
