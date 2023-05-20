@@ -1,7 +1,7 @@
 {
-  "access_token": "***REMOVED***",
+  "access_token": "xxx",
   "token_type": "bearer",
   "expires_in": 3600,
-  "refresh_token": "***REMOVED***",
+  "refresh_token": "yyy",
   "scope": "account creddits edit flair history identity livemanage modconfig modcontributors modflair modlog modmail modothers modposts modself modtraffic modwiki mysubreddits privatemessages read report save structuredstyles submit subscribe vote wikiedit wikiread"
 }
