@@ -57,8 +57,8 @@ func TestRefreshTokenResponseParsing(t *testing.T) {
 	rtr := ret.(*reddit.RefreshTokenResponse)
 	assert.NotNil(t, rtr)
 
-	assert.Equal(t, "***REMOVED***", rtr.AccessToken)
-	assert.Equal(t, "***REMOVED***", rtr.RefreshToken)
+	assert.Equal(t, "xxx", rtr.AccessToken)
+	assert.Equal(t, "yyy", rtr.RefreshToken)
 	assert.Equal(t, 1*time.Hour, rtr.Expiry)
 }
 
