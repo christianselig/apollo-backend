@@ -7,7 +7,7 @@ require (
 	github.com/adjust/rmq/v5 v5.1.1
 	github.com/bugsnag/bugsnag-go/v2 v2.2.0
 	github.com/dustin/go-humanize v1.0.1
-	github.com/go-co-op/gocron v1.19.0
+	github.com/go-co-op/gocron v1.28.2
 	github.com/go-ozzo/ozzo-validation/v4 v4.3.0
 	github.com/go-redis/redis/extra/redisotel/v8 v8.11.5
 	github.com/go-redis/redis/v8 v8.11.5
