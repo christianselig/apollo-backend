@@ -17,11 +17,5 @@ linters:
     - thelper         # detects golang test helpers without t.Helper() call and checks consistency of test helpers
     - unconvert       # removes unnecessary type conversions
     - unparam         # removes unused function parameters
+    - paralleltest
   fast: true
-
-issues:
-  exclude-rules:
-    # False positive: https://github.com/kunwardeep/paralleltest/issues/8.
-    - linters:
-      - paralleltest
-      text: "does not use range value in test Run"
