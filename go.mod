@@ -13,7 +13,7 @@ require (
 	github.com/go-redis/redis/v8 v8.11.5
 	github.com/gofrs/uuid v4.4.0+incompatible
 	github.com/gorilla/mux v1.8.0
-	github.com/heroku/x v0.0.55
+	github.com/heroku/x v0.0.59
 	github.com/honeycombio/honeycomb-opentelemetry-go v0.5.0
 	github.com/honeycombio/opentelemetry-go-contrib/launcher v0.0.0-20221031150637-a3c60ed98d54
 	github.com/jackc/pgx/v5 v5.3.1
